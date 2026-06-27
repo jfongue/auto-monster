@@ -39,6 +39,20 @@ export async function initDb() {
     );
   `);
   await seedAdmin();
+  await seedDemo();
+}
+
+// Compte test/démo : email "admin" / mot de passe "admin".
+async function seedDemo() {
+  const { rows } = await q("SELECT id FROM users WHERE email = $1", ["admin"]);
+  if (rows.length) return;
+  const hash = bcrypt.hashSync("admin", 10);
+  await q(
+    `INSERT INTO users (email, username, password_hash, role, display_name, bio)
+     VALUES ('admin', 'demo', $1, 'player', 'Compte test', 'Compte de démonstration.')`,
+    [hash]
+  );
+  console.log("Compte test créé: admin / admin");
 }
 
 export async function seedAdmin() {

@@ -24,6 +24,18 @@ export default function LoginPage() {
     }
   }
 
+  async function onDemo() {
+    setError("");
+    setBusy(true);
+    try {
+      await login("admin", "admin");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="center-screen">
       <form className="card auth-card" onSubmit={onSubmit}>
@@ -33,7 +45,8 @@ export default function LoginPage() {
         <label>
           Email
           <input
-            type="email"
+            type="text"
+            inputMode="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
@@ -68,6 +81,17 @@ export default function LoginPage() {
         <button type="submit" disabled={busy} className="btn-primary">
           {busy ? "..." : mode === "login" ? "Se connecter" : "S'inscrire"}
         </button>
+
+        {mode === "login" && (
+          <button
+            type="button"
+            disabled={busy}
+            className="btn-secondary"
+            onClick={onDemo}
+          >
+            🎮 Essayer le compte test
+          </button>
+        )}
 
         <button
           type="button"

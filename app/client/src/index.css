@@ -226,6 +226,40 @@ button {
   gap: 10px;
 }
 
+/* Landing */
+.landing {
+  max-width: 420px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+}
+.logo.big {
+  font-size: 32px;
+}
+.wip-badge {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.12);
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+.tagline {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+.landing .btn-primary {
+  width: 100%;
+  max-width: 240px;
+}
+
 .empty-state {
   text-align: center;
 }

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 
@@ -17,11 +18,15 @@ export default function App() {
   return (
     <Routes>
       <Route
-        path="/login"
-        element={user ? <Navigate to="/" replace /> : <LoginPage />}
+        path="/"
+        element={user ? <Navigate to="/app" replace /> : <LandingPage />}
       />
       <Route
-        path="/"
+        path="/login"
+        element={user ? <Navigate to="/app" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/app"
         element={user ? <DashboardPage /> : <Navigate to="/login" replace />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
