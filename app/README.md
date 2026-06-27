@@ -1,4 +1,4 @@
-# Auto Battler — App
+# AutoMonster — App
 
 Monorepo : `client` (React + Vite + TS) et `server` (Express + SQLite).
 Auth JWT + bcrypt. Accessible sur le réseau local (testable sur n'importe quel appareil).
@@ -19,17 +19,50 @@ Ouvre http://localhost:5173 — ou, depuis un autre appareil du réseau,
 
 ## Compte admin par défaut
 
-- email : `admin@autobattler.local`
+- email : `admin@automonster.local`
 - mot de passe : `admin1234`
 
 (modifiable dans `server/.env`)
 
-## Fonctionnalités du squelette
+## Fonctionnalités
 
-- Écran de connexion + inscription
-- Auth persistante (JWT, mots de passe hashés bcrypt, base SQLite)
-- Dashboard vierge avec fiche perso (nom affiché, bio, rôle) éditable
-- Déconnexion
+- Écran de connexion + inscription, auth persistante (JWT, bcrypt, Postgres/pg-mem)
+- **Boucle de jeu (v1)** : adoption d'un 1er Auto Monster, carte 5 étapes / 5 combats,
+  combat live 1v1 (moteur déterministe + rejeu de l'ActionLog), butin (or/potions),
+  soins entre combats, montée de niveau (packs de stats, paliers de talent),
+  boss coriace en plusieurs parties (interrompu par une égalité, PV conservés),
+  puis capture d'un 2e AM rare.
+- Progression sauvegardée côté serveur (`/api/game/state`).
+
+### Architecture du jeu (`client/src/game/`)
+
+```
+engine/   moteur TS pur, déterministe, headless (zéro DOM)
+  rng.ts          mulberry32 (RNG seedé)
+  types.ts        SpeciesDef / Character / Fighter / Action (ActionLog F9)
+  data.ts         espèces (AM + bestioles), map, loot
+  talents.ts      talents = hooks (F6)
+  fighter.ts      buildFighter (Character → Fighter)
+  combat.ts       resolveAttack (F5) + runCombat (F1/F4) → ActionLog
+  progression.ts  XP/niveaux, packs de stats, paliers de talent, ennemis
+  engine.test.ts  tests headless (déterminisme, égalité, cohérence)
+  sim.ts          simulation de masse (équilibrage)
+renderer/
+  CombatView.tsx  rejoue l'ActionLog (F10), visuels simplistes
+state.ts          état de jeu persisté
+GamePage.tsx      orchestration des écrans
+```
+
+Le moteur ne touche jamais au DOM : il produit un journal d'actions (`ActionLog`)
+que le renderer rejoue. Tout combat est rejouable depuis son seed.
+
+### Tests du moteur
+
+```bash
+cd client/src/game/engine
+npx tsx engine.test.ts   # tests déterministes
+npx tsx sim.ts           # distribution des issues (équilibrage)
+```
 
 ## Capture headless (pour itérer)
 

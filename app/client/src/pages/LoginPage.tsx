@@ -39,7 +39,7 @@ export default function LoginPage() {
   return (
     <div className="center-screen">
       <form className="card auth-card" onSubmit={onSubmit}>
-        <div className="logo">⚔️ Auto Battler</div>
+        <div className="logo">⚔️ AutoMonster</div>
         <h1>{mode === "login" ? "Connexion" : "Créer un compte"}</h1>
 
         <label>

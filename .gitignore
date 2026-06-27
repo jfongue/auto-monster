@@ -6,3 +6,5 @@ dist/
 .env
 .screenshots/
 .DS_Store
+*.tsbuildinfo
+app/walkthrough.mjs

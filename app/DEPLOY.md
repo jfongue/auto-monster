@@ -1,4 +1,4 @@
-# Déploiement — Auto Battler (gratuit, scalable plus tard)
+# Déploiement — AutoMonster (gratuit, scalable plus tard)
 
 Architecture en ligne : **un seul service Node** (Express sert l'API + le front
 React buildé) + **Postgres managé (Neon)** pour la persistance.
@@ -18,16 +18,16 @@ React buildé) + **Postgres managé (Neon)** pour la persistance.
 Depuis le dossier du projet :
 
 ```bash
-cd "/Users/jeremyfongue/Documents/Claude/Projects/Auto battler"
+cd "/Users/jeremyfongue/Documents/Claude/Projects/AutoMonster"
 git init
 git add .
-git commit -m "Auto Battler — squelette auth + déploiement"
+git commit -m "AutoMonster — squelette auth + déploiement"
 ```
 
-Crée un repo vide sur https://github.com/new (ex. `auto-battler`), puis :
+Crée un repo vide sur https://github.com/new (ex. `automonster`), puis :
 
 ```bash
-git remote add origin https://github.com/<ton-user>/auto-battler.git
+git remote add origin https://github.com/<ton-user>/automonster.git
 git branch -M main
 git push -u origin main
 ```

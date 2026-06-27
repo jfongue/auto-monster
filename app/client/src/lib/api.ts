@@ -53,4 +53,13 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
+
+  // ── Progression de jeu ──
+  getGameState: <T = unknown>() => request<{ state: T | null }>("/game/state"),
+  saveGameState: (state: unknown) =>
+    request<{ ok: true }>("/game/state", {
+      method: "PUT",
+      body: JSON.stringify({ state }),
+    }),
+  resetGameState: () => request<{ ok: true }>("/game/state", { method: "DELETE" }),
 };

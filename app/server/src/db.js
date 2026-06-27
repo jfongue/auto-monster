@@ -38,6 +38,14 @@ export async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Sauvegarde de la progression de jeu (1 ligne par joueur, état JSON).
+  await q(`
+    CREATE TABLE IF NOT EXISTS game_states (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      state TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
   await seedAdmin();
   await seedDemo();
 }
@@ -56,7 +64,7 @@ async function seedDemo() {
 }
 
 export async function seedAdmin() {
-  const email = process.env.ADMIN_EMAIL || "admin@autobattler.local";
+  const email = process.env.ADMIN_EMAIL || "admin@automonster.local";
   const password = process.env.ADMIN_PASSWORD || "admin1234";
   const username = process.env.ADMIN_USERNAME || "admin";
 

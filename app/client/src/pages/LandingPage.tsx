@@ -5,7 +5,7 @@ export default function LandingPage() {
   return (
     <div className="center-screen">
       <div className="landing">
-        <div className="logo big">⚔️ Auto Battler</div>
+        <div className="logo big">⚔️ AutoMonster</div>
         <div className="wip-badge">🚧 Work in progress</div>
         <p className="tagline">
           Un deck-builder avec exploration et combats automatiques.

@@ -90,6 +90,46 @@ app.put("/api/auth/me", authMiddleware, async (req, res, next) => {
 // Logout = client drops token.
 app.post("/api/auth/logout", authMiddleware, (_req, res) => res.json({ ok: true }));
 
+// ── État de jeu (progression : équipe, or, avancée map, boss) ───────────────
+app.get("/api/game/state", authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await q("SELECT state FROM game_states WHERE user_id = $1", [req.user.id]);
+    if (!rows.length) return res.json({ state: null });
+    res.json({ state: JSON.parse(rows[0].state) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.put("/api/game/state", authMiddleware, async (req, res, next) => {
+  try {
+    const state = req.body?.state;
+    if (state == null) return res.status(400).json({ error: "state requis" });
+    const json = JSON.stringify(state);
+    // upsert portable (pg & pg-mem)
+    const upd = await q(
+      "UPDATE game_states SET state = $1, updated_at = now() WHERE user_id = $2",
+      [json, req.user.id]
+    );
+    if (!upd.rowCount) {
+      await q("INSERT INTO game_states (user_id, state) VALUES ($1, $2)", [req.user.id, json]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Reset de la progression (recommencer).
+app.delete("/api/game/state", authMiddleware, async (req, res, next) => {
+  try {
+    await q("DELETE FROM game_states WHERE user_id = $1", [req.user.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // --- Production: servir le front buildé (service unique, une seule URL) ---
 const clientDist = join(__dirname, "..", "..", "client", "dist");
 if (existsSync(clientDist)) {

@@ -28,7 +28,7 @@ export default function DashboardPage() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="logo">⚔️ Auto Battler</div>
+        <div className="logo">⚔️ AutoMonster</div>
         <button className="btn-ghost" onClick={() => logout()}>
           Déconnexion
         </button>

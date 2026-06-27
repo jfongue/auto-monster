@@ -1,7 +1,37 @@
-# Game Design Document — Auto Battler
+# Game Design Document — AutoMonster
 
-> Version 0.3 — Document de référence du projet
+> Version 0.5 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
+>
+> **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
+
+---
+
+## 0. Journal de bord
+
+> Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-06-27 — v0.5
+- [Projet] Renommage du projet en **AutoMonster** (anciennement « Auto Battler ») dans tout le code et la doc.
+- [Nettoyage] Suppression des vieux prototypes `prototype.html`, `prototype2.html`, `prototype3.html`.
+
+### 2026-06-27 — v0.4
+- [Process] Ajout de `CLAUDE.md` : le GDD doit être mis à jour à chaque discussion/incrément/dev. Création des sections « Journal de bord » et « État d'implémentation ».
+
+---
+
+## 0.bis État d'implémentation
+
+> Ce qui est **réellement présent dans le projet** aujourd'hui, par opposition à ce qui est seulement designé.
+
+| Aspect | Designé | Implémenté (état réel) |
+|--------|---------|------------------------|
+| Moteur de combat / ActionLog | Oui (§3.1) | À compléter |
+| Renderer (PixiJS) | Oui (§9) | À compléter |
+| Monstres / espèces / variations | Oui (§4) | À compléter |
+| Carte / exploration | Oui (§5) | À compléter |
+| PvP | Oui (§6) | À compléter |
+| UI / écrans | Oui (§7) | Dossier `app/` (prototypes HTML supprimés) |
 
 ---
 
@@ -72,13 +102,13 @@ Plus de deck ni de file de cartes. Un monstre agit via :
 | Feature | Statut | Décision |
 |---------|--------|----------|
 | **F1 — Moteur déterministe** | ✅ Retenu | Socle. RNG seedé (`mulberry32`), `runCombat` headless, zéro DOM. Garantit replays PvP et tests reproductibles. |
-| **F2 — Modèle de données** | ✅ Retenu (simplifié) | Principe 3 niveaux conservé : `SpeciesDef` (bestiaire statique) → `Character` (monstre possédé, persisté, plat) → `Fighter` (runtime, dérivé à l'init, jeté en fin de combat). **Sans système d'éléments** : stats génériques (attaque / défense / vitesse) au lieu des 5 vecteurs élémentaires. |
+| **F2 — Modèle de données** | ✅ Retenu (simplifié) | Principe 3 niveaux conservé : `SpeciesDef` (bestiaire statique) → `Character` (monstre possédé, persisté, plat) → `Fighter` (runtime, dérivé à l'init, jeté en fin de combat). **Sans système d'éléments** : 5 stats génériques (HP / attaque / défense / vitesse / stamina) au lieu des vecteurs élémentaires. Détail du modèle auto monster : voir §4. |
 | **F3 — Système d'éléments** | ❌ Abandonné | Pas de forces/faiblesses élémentaires. Dégâts basés uniquement sur les stats génériques. |
 | **F4 — Tour chronométrique** | ✅ Retenu | File temporelle : agit le `Fighter` au `time` minimum, puis `time += base × timeMultiplier` (dérivé de la vitesse). Pas de multiplicateurs par élément (F3 abandonné). Garde-fous anti-combat-infini (limite de tours). |
 | **F5 — Résolution des dégâts** | ✅ Retenu (complet) | Fonction pure `resolveAttack(attacker, target, attack, rng)` : score attaque vs défense, aléa borné (~±30%), planchers, esquive, immunités. Inclut le point d'accroche `hooks.defenses` (callbacks défensifs : bouclier, renvoi, réduction…) pour l'extensibilité via F6. Sans calcul élémentaire. |
 | **F6 — Skills par hooks** | ✅ Retenu | Une skill = une fonction qui mute le `Fighter` ou enregistre un hook (`events` probabilistes au tour, `attacks` spéciales, `defenses`, `afterAttack`, `onKill`, `onLost`). Triés par `priority`, tirés par `proba` (RNG seedé). Ajouter une skill = 1 fichier, sans toucher à la boucle. Champ `elt` du SkillDef retiré (pas d'éléments). |
 | **F7 — Statuts & altérations** | ✅ Retenu | `StatusInfo` avec `duration`, `onApply/onTick/onRemove`. Poison, bouclier, buff/debuff, intangible… Effets périodiques au fil du temps, retrait auto à expiration. Émet `status`/`noStatus` dans le log. |
-| **F8 — Système d'énergie** | ⏳ Plus tard | Réserve d'énergie activable pour limiter les skills coûteuses. Décision repoussée ; à ré-évaluer après l'équilibrage. |
+| **F8 — Système d'énergie** | ✅ Retenu (stat) | Devient la **stamina**, l'une des 5 stats de base (§4.1). Ressource consommée par les talents/skills coûteux. |
 | **F9 — Journal d'actions (ActionLog)** | ✅ Retenu | Unique sortie du moteur : liste ordonnée et sérialisable (JSON) d'actions (union discriminée exhaustive). Pont moteur→renderer, transport réseau, sauvegarde et replays PvP. |
 | **F10 — Playback animé** | ✅ Retenu | Le renderer dépile l'ActionLog action par action (`playNext`), séquence stricte. Permet pause / lecture pas-à-pas / contrôle de vitesse. |
 | **F11 — Sprites & animations** | ⏳ Plus tard | États d'anim nommés, idle vivant, assets par clé `gfx`. Reporté : démarrer en placeholders, formaliser plus tard. |
@@ -104,20 +134,62 @@ Plus de deck ni de file de cartes. Un monstre agit via :
 
 ---
 
-## 4. Monstres
+## 4. Auto Monsters
 
-### 4.1 Acquisition
-- Débloqués en explorant la carte du monde (boss, événements, marchands, capture)
-- Chaque monstre appartient à une **espèce/famille** définissant ses stats de base et ses skills innés
+Un **auto monster** est la créature jouable du jeu : elle se bat **automatiquement** en combat, le joueur n'agissant qu'à la préparation (composition, niveau, talents). Sa définition suit le modèle **3 niveaux** de F2 :
 
-### 4.2 Évolution & Spécialisation
-- Les monstres gagnent de l'XP en combat et montent de niveau
-- La montée de niveau fait croître les stats selon la courbe de l'espèce (`levelup`)
-- Seuils de spécialisation : nouvelles capacités, modification des stats
+```
+SpeciesDef (bestiaire statique)  →  Character (monstre possédé, persisté, plat)  →  Fighter (runtime, dérivé à l'init)
+```
 
-### 4.3 Composition d'équipe
-- Le joueur choisit quels monstres aligner dans son équipe
-- *(taille d'équipe à valider au prototype)*
+### 4.1 Espèce — `SpeciesDef`
+
+Définition statique partagée par tous les monstres d'une même famille.
+
+| Champ | Description |
+|-------|-------------|
+| **nom** | Identité de l'espèce. |
+| **élément inné** | Talent **signature** inné, partagé par toute l'espèce, qui définit son *playstyle* général. ⚠️ Ce n'est **pas** un type de dégât : aucune force/faiblesse élémentaire (cohérent avec F3 abandonné). C'est un talent de base toujours présent. |
+| **stats de base** | 5 stats : **HP**, **attaque**, **défense**, **vitesse**, **stamina**. |
+| **palette de talents** | Pool de talents que les membres de l'espèce peuvent **apprendre en évoluant** (pioché aux paliers de niveau, voir 4.3). |
+
+**Stamina** = ressource consommée par les talents/skills (matérialise F8 — l'énergie devient une **stat de base** plutôt qu'un système séparé). La vitesse pilote toujours la file de tour chronométrique (F4).
+
+### 4.2 Variations — `VariationDef`
+
+Une espèce peut exister sous plusieurs variations. Une variation peut modifier les **stats de base**, l'**arbre de niveau** (4.3), la **palette de talents**, voire l'**élément inné**.
+
+| Type | Déclencheur |
+|------|-------------|
+| **Régionale** | Liée au **lieu** (zone/biome de capture). |
+| **Spéciale** | Liée à un **événement** (event temporaire). |
+| **Par évolution** | Transformation du `Character` sous **certaines conditions** (niveau, objet, contexte…). |
+
+### 4.3 Character — instance possédée
+
+Monstre concret détenu par le joueur, persisté et **plat**. Référence une espèce + une variation.
+
+- **Expérience / niveau** : monte jusqu'au **niveau 100**.
+- **Arbre de stats** : à **chaque niveau**, choix parmi **3 « packs »** de stats. Cet arbre est **fixe**, défini par l'espèce + la variation (même arbre pour tous les exemplaires d'une même variation). Certains packs offrent un **gros bonus accompagné d'un malus**.
+- **Paliers de talent** : **tous les 10 niveaux** (10 paliers à 100), le joueur choisit **l'une** des options suivantes :
+  1. apprendre un **nouveau talent** (pioché dans la palette de l'espèce) — **maximum 3 talents**,
+  2. **améliorer** un talent déjà acquis,
+  3. recevoir un **gros boost de stats**.
+
+### 4.4 Talents
+
+Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs niveaux d'amélioration. Trois catégories selon la phase de combat concernée :
+
+| Catégorie | Portée |
+|-----------|--------|
+| **Offensif** | Lié à la **phase d'offense** (attaques, procs au moment de frapper). |
+| **Défensif** | Lié à la **phase de défense** (boucliers, renvoi, réduction…). |
+| **Utilitaire** | **Tout le reste** (buffs, invocations, soutien, économie de stamina…). |
+
+### 4.5 Acquisition & composition
+
+- Auto monsters débloqués en explorant la carte (boss, événements, marchands, capture).
+- Le joueur choisit quels monstres aligner dans son équipe *(taille d'équipe à valider au prototype)*.
 
 ---
 
