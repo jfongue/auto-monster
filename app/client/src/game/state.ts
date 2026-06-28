@@ -1,10 +1,13 @@
-// État de jeu persisté (équipe, or, lieux nettoyés, boss). Sérialisable en JSON.
-// Carte à lieux libres : pas d'ordre imposé.
+// État de jeu persisté. Sérialisable en JSON.
+// Grande carte à lieux libres : le joueur a une position (playerLoc) et se déplace.
 
 import type { Character } from "./engine/types";
-import { MAP_LOCATIONS } from "./engine/data";
+import { COMBAT_LOCATIONS, START_LOC } from "./engine/data";
 
-export const GAME_VERSION = 2;
+export const GAME_VERSION = 3;
+
+/** Monstre loué au ranch : un Character + nb de combats restants. */
+export type Rental = { char: Character; fightsLeft: number };
 
 export type GameState = {
   version: number;
@@ -12,9 +15,11 @@ export type GameState = {
   team: Character[]; // auto monsters possédés
   gold: number;
   potions: number;
-  cleared: string[]; // ids des lieux déjà vaincus (récompense unique)
+  cleared: string[]; // ids des lieux de combat déjà vaincus (récompense unique)
   bossLife: Record<string, number>; // PV persistants des boss entamés, par lieu
   capturedRare: boolean;
+  playerLoc: string; // lieu où se trouve le joueur
+  rental: Rental | null; // monstre loué au ranch
 };
 
 export function freshState(): GameState {
@@ -27,8 +32,25 @@ export function freshState(): GameState {
     cleared: [],
     bossLife: {},
     capturedRare: false,
+    playerLoc: START_LOC,
+    rental: null,
+  };
+}
+
+/** Normalise un état chargé (compat anciennes versions). */
+export function migrate(s: Partial<GameState> | null | undefined): GameState {
+  const base = freshState();
+  if (!s) return base;
+  return {
+    ...base,
+    ...s,
+    playerLoc: s.playerLoc ?? START_LOC,
+    bossLife: s.bossLife ?? {},
+    cleared: s.cleared ?? [],
+    rental: s.rental ?? null,
+    version: GAME_VERSION,
   };
 }
 
 export const isLocationCleared = (s: GameState, id: string) => s.cleared.includes(id);
-export const allCleared = (s: GameState) => MAP_LOCATIONS.every((l) => s.cleared.includes(l.id));
+export const allCleared = (s: GameState) => COMBAT_LOCATIONS.every((l) => s.cleared.includes(l.id));

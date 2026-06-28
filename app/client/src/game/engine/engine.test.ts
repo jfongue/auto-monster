@@ -1,7 +1,7 @@
 // Tests headless du moteur (F19). Exécuter : npx tsx engine.test.ts
 import { runCombat } from "./combat";
 import { makeCharacter, makeEnemy, addXp, xpForNext, currentLife, startHeal } from "./progression";
-import { MAP_LOCATIONS } from "./data";
+import { COMBAT_LOCATIONS } from "./data";
 import type { Character } from "./types";
 
 let pass = 0;
@@ -19,7 +19,7 @@ function check(name: string, cond: boolean, extra = "") {
 console.log("F1 — Déterminisme");
 {
   const a: Character = makeCharacter("flameling");
-  const b: Character = makeEnemy(MAP_LOCATIONS[0]);
+  const b: Character = makeEnemy(COMBAT_LOCATIONS[0]);
   const r1 = runCombat({ seed: 123, teamA: [a], teamB: [b] });
   const r2 = runCombat({ seed: 123, teamA: [a], teamB: [b] });
   check("même seed → log identique", JSON.stringify(r1.log) === JSON.stringify(r2.log));
@@ -30,7 +30,7 @@ console.log("F1 — Déterminisme");
 
 console.log("F9 — Structure du log");
 {
-  const r = runCombat({ seed: 7, teamA: [makeCharacter("leafkit")], teamB: [makeEnemy(MAP_LOCATIONS[1])] });
+  const r = runCombat({ seed: 7, teamA: [makeCharacter("leafkit")], teamB: [makeEnemy(COMBAT_LOCATIONS[1])] });
   check("commence par des 'add'", r.log[0].t === "add");
   check("contient un 'display'", r.log.some((a) => a.t === "display"));
   check("finit par 'finish'", r.log[r.log.length - 1].t === "finish");
@@ -42,7 +42,7 @@ console.log("F4/F16 — Terminaison & cohérence dégâts");
 {
   let drew = false;
   for (let seed = 0; seed < 40; seed++) {
-    const r = runCombat({ seed, teamA: [makeCharacter("flameling")], teamB: [makeEnemy(MAP_LOCATIONS[0])] });
+    const r = runCombat({ seed, teamA: [makeCharacter("flameling")], teamB: [makeEnemy(COMBAT_LOCATIONS[0])] });
     const fin = r.log[r.log.length - 1];
     if (fin.t !== "finish") {
       check("combat termine toujours par finish", false, `seed ${seed}`);

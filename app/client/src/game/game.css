@@ -613,28 +613,42 @@ h3 {
 .map-title {
   margin-bottom: 12px;
 }
-.map-canvas {
+/* fenêtre scrollable sur une grande toile */
+.map-viewport {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 56vh;
+  max-height: 560px;
+  min-height: 340px;
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 25% 30%, rgba(95, 217, 154, 0.1), transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(91, 124, 255, 0.12), transparent 45%),
-    linear-gradient(160deg, #11203a, #0c1226);
   border: 1px solid var(--g-line);
-  overflow: hidden;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 20% 25%, rgba(95, 217, 154, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 70%, rgba(91, 124, 255, 0.1), transparent 40%),
+    linear-gradient(160deg, #11203a, #0c1226);
+}
+.map-canvas-lg {
+  position: relative;
 }
 .map-paths {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  pointer-events: none;
 }
 .map-paths line {
   stroke: var(--g-line);
-  stroke-width: 0.6;
-  stroke-dasharray: 2 2;
+  stroke-width: 3;
+  stroke-dasharray: 7 7;
+}
+.player-token {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  font-size: 26px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6));
+  transition: left 0.7s ease, top 0.7s ease;
+  pointer-events: none;
+  z-index: 6;
 }
 .map-loc {
   position: absolute;
@@ -673,17 +687,114 @@ h3 {
 }
 .map-loc:hover .loc-dot {
   filter: brightness(1.25);
-  transform: scale(1.08);
+  transform: scale(1.1);
+}
+.loc-dot {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+}
+/* couleurs par type de lieu */
+.map-loc.type-shop .loc-dot { border-color: var(--g-gold); box-shadow: 0 0 0 4px rgba(255, 210, 74, 0.16); }
+.map-loc.type-heal .loc-dot { border-color: var(--g-green); box-shadow: 0 0 0 4px rgba(95, 217, 154, 0.16); }
+.map-loc.type-ranch .loc-dot { border-color: #d9a06f; box-shadow: 0 0 0 4px rgba(217, 160, 111, 0.16); }
+.map-loc.type-dialogue .loc-dot { border-color: var(--g-dim); box-shadow: 0 0 0 4px rgba(139, 148, 189, 0.14); }
+.map-loc.current .loc-dot {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
 }
 .loc-name {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
-  text-shadow: 0 1px 3px #000;
+  text-shadow: 0 1px 3px #000, 0 0 6px #000;
+  margin-top: 2px;
 }
 .loc-lvl {
   font-size: 10px;
   color: var(--g-gold);
+  text-shadow: 0 1px 2px #000;
+}
+
+/* ── Panneau d'interactions du lieu courant ── */
+.loc-panel {
+  background: var(--g-panel);
+  border: 1px solid var(--g-line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.loc-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.loc-panel-icon {
+  font-size: 30px;
+}
+.loc-panel-name {
+  font-weight: 800;
+  font-size: 17px;
+}
+.kiosk {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kiosk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--g-panel2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.team-heal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.thg-row {
+  background: var(--g-panel2);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.thg-row .team-name {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.ranch-offer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--g-panel2);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.ranch-meta {
+  flex: 1;
+  min-width: 0;
+}
+.rent-tag {
+  font-size: 10px;
+  background: #d9a06f;
+  color: #2a1808;
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-weight: 800;
+}
+.dialogue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dialogue-line {
+  background: var(--g-panel2);
+  border-left: 3px solid var(--g-acc);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-style: italic;
 }
 
 /* bandeau d'équipe en bas du hub */

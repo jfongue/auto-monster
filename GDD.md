@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.6 — Document de référence du projet
+> Version 0.7 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,15 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-06-28 — v0.7
+- [Carte] **Grande carte explorable** : passage d'une petite carte à une grande toile (`MAP_W`×`MAP_H` = 1280×820) **scrollable**, recentrée automatiquement sur le joueur. Correction du canvas surdimensionné de v0.6 (la fenêtre `.map-viewport` a une hauteur maîtrisée ~56vh).
+- [Carte] **Lieux de types variés** (`LocType`) : `combat`, `shop` (boutique), `heal` (centre de soin), `ranch`, `dialogue`. Village (place, boutique, centre de soin, ranch, PNJ) + vallée sauvage (5 combats dont le boss) + PNJ voyageuse. Décor : chemins reliant les lieux (`MAP_PATHS`).
+- [Déplacement] **Avatar joueur** positionné sur le lieu courant (`playerLoc`). Clic sur un lieu → **fiche du lieu** (modal) → **validation du déplacement** → l'avatar se déplace (animé) → un **panneau d'interactions s'ouvre au-dessus de la carte** selon le type de lieu.
+- [Boutique] Vente de **potions** (`POTION_PRICE` = 15💰).
+- [Centre de soin] **Soin complet instantané payant** de toute l'équipe (`HEAL_CENTER_COST` = 25💰).
+- [Ranch] **Location d'Auto Monsters** pour X combats (`RANCH_OFFERS`). Le monstre loué est jouable en combat et apparaît dans l'équipe/inventaire (tag « loué · Xc »). À l'épuisement du contrat → **proposition de prolongation** (`RANCH_EXTEND`) ou restitution.
+- [State] v3 : ajout `playerLoc` et `rental {char, fightsLeft}` ; `cleared`/`bossLife` basés sur les lieux de combat (`COMBAT_LOCATIONS`). Fonction `migrate()` pour compat anciens états.
 
 ### 2026-06-28 — v0.6
 - [Flow] **Refonte du flow en page unique (hub)** : plus d'écrans séquentiels (`adoption → map → combat → reward…`). Tout se passe sur la page principale via des modals superposés.
@@ -38,7 +47,8 @@
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + bestioles + boss ; variations non implémentées |
-| Carte / exploration | Oui (§5) | ✅ **Carte à lieux libres** (5 lieux dont 1 boss), hub page unique |
+| Carte / exploration | Oui (§5) | ✅ **Grande carte scrollable** avec avatar mobile ; lieux combat + boutique + soin + ranch + dialogues |
+| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Panneaux d'interaction par lieu (potions / soin équipe payant / location de monstres) |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire / boost | Oui (§4.5) | ✅ Modal inventaire : soin + boost de stat payant |
@@ -208,9 +218,9 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 
 ### 5.1 Structure de la carte
 - Grande carte du monde avec **zones thématiques** distinctes
-- **v0.6 (implémenté)** : 1re zone = **petite carte à lieux libres** (5 lieux dont 1 boss), accessibles dans l'ordre voulu, affichés sur un fond cartographique avec chemins reliant les lieux.
+- **v0.7 (implémenté)** : **grande carte scrollable** (toile 1280×820) avec **avatar joueur** qui se déplace de lieu en lieu (clic → fiche → validation → déplacement → panneau d'interactions au-dessus de la carte). Lieux de types : **combat, boutique, centre de soin, ranch, dialogue**. Village + vallée sauvage (5 combats dont 1 boss). Chemins de décor reliant les lieux.
 - Difficulté croissante ou variable selon la zone
-- Points d'intérêt : donjons, marchands, événements narratifs, boss de zone
+- Points d'intérêt : donjons, **marchands (boutique)**, **soin**, **ranch (location)**, événements narratifs (dialogues PNJ), boss de zone
 
 ### 5.2 Progression
 - Pas de mort permanente : la défaite entraîne une pénalité (perte de ressources), pas un reset total

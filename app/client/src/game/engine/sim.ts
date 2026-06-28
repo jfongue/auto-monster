@@ -1,7 +1,7 @@
 // Simulation de masse (F19) : distribution des issues, équilibrage.
 import { runCombat } from "./combat";
 import { makeCharacter, makeEnemy, addXp } from "./progression";
-import { MAP_LOCATIONS as MAP_STEPS } from "./data";
+import { COMBAT_LOCATIONS as MAP_STEPS } from "./data";
 import type { Character } from "./types";
 
 function dist(label: string, build: () => { a: Character; step: number }, n = 400, maxTurns = 120) {

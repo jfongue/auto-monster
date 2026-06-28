@@ -71,21 +71,31 @@ function scaleStats(base: Stats, level: number): Stats {
   };
 }
 
-/** Crée le Character ennemi d'un lieu de la carte. */
+/** Crée le Character ennemi d'un lieu de combat. */
 export function makeEnemy(loc: MapLocation): Character {
-  const sp = SPECIES[loc.enemySpecies];
-  const stats = scaleStats(sp.baseStats, loc.enemyLevel);
+  const speciesId = loc.enemySpecies!;
+  const level = loc.enemyLevel ?? 1;
+  const sp = SPECIES[speciesId];
+  const stats = scaleStats(sp.baseStats, level);
   return {
     id: newId("e"),
-    speciesId: loc.enemySpecies,
+    speciesId,
     name: sp.name,
-    level: loc.enemyLevel,
+    level,
     xp: 0,
     life: stats.hp,
     stats,
     talents: [],
     healStart: null,
   };
+}
+
+/** Crée un Character jouable directement à un niveau donné (ranch, etc.). */
+export function makeLeveledCharacter(speciesId: string, level: number, name?: string): Character {
+  const c = makeCharacter(speciesId, name);
+  if (level <= 1) return c;
+  const stats = statsForLevel(speciesId, level);
+  return { ...c, level, stats, life: stats.hp };
 }
 
 // ── Stats : application d'un delta ───────────────────────────────────────────

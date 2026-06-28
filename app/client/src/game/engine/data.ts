@@ -131,25 +131,35 @@ export const SPECIES: Record<string, SpeciesDef> = {
 export const STARTERS = ["flameling", "aquafi", "leafkit"] as const;
 export const RARE_REWARD = "willowisp";
 
-/** Un lieu de la carte = un combat. Accessible librement (pas d'ordre imposé). */
+// ── Carte : grande toile, lieux de types variés, déplacement par nœuds ──────
+/** Type d'un lieu sur la carte. */
+export type LocType = "combat" | "shop" | "heal" | "ranch" | "dialogue";
+
+/** Dimensions de la grande toile (coordonnées des lieux en px). */
+export const MAP_W = 1280;
+export const MAP_H = 820;
+
+/** Un lieu de la carte. Accès libre : on s'y déplace, puis on interagit. */
 export type MapLocation = {
   id: string;
   name: string;
-  enemySpecies: string;
-  enemyLevel: number;
-  isBoss: boolean;
-  /** position sur la petite carte, en % (0..100) */
+  type: LocType;
+  /** position sur la grande toile, en px (0..MAP_W / 0..MAP_H) */
   x: number;
   y: number;
-  recommendedLevel: number;
-  /** loot accordé à la 1re victoire */
-  gold: number;
-  potions: number;
-  /** xp accordée au vainqueur */
-  xp: number;
-  blurb: string;
-  /** limite de tours (boss : court → égalité, on grignote en plusieurs parties) */
+  icon: string; // emoji affiché sur le nœud
+  desc: string; // courte description (fiche du lieu)
+  // ── champs spécifiques aux lieux de combat ──
+  enemySpecies?: string;
+  enemyLevel?: number;
+  isBoss?: boolean;
+  recommendedLevel?: number;
+  gold?: number;
+  potions?: number;
+  xp?: number;
   maxTurns?: number;
+  // ── champs spécifiques aux dialogues ──
+  lines?: string[];
 };
 
 /** Rétro-compat : un lieu est aussi une "étape". */
@@ -158,84 +168,185 @@ export type MapStep = MapLocation;
 export const BOSS_MAX_TURNS = 40;
 
 export const MAP_LOCATIONS: MapLocation[] = [
+  // ── Village ──────────────────────────────────────────────────────────────
+  {
+    id: "plaza",
+    name: "Place du village",
+    type: "dialogue",
+    x: 200,
+    y: 430,
+    icon: "🏘️",
+    desc: "Le cœur du village. Tout commence ici.",
+    lines: [
+      "« Bienvenue, dresseur ! »",
+      "Au nord, la boutique et le centre de soin. Au sud, le ranch de Boris.",
+      "À l'est s'étend la vallée sauvage : c'est là que tu trouveras des combats.",
+    ],
+  },
+  {
+    id: "shop",
+    name: "Boutique de Perle",
+    type: "shop",
+    x: 360,
+    y: 290,
+    icon: "🏪",
+    desc: "Perle vend des potions de soin.",
+  },
+  {
+    id: "heal",
+    name: "Centre de soin",
+    type: "heal",
+    x: 330,
+    y: 580,
+    icon: "➕",
+    desc: "Soigne instantanément toute ton équipe, contre une petite somme.",
+  },
+  {
+    id: "ranch",
+    name: "Ranch de Boris",
+    type: "ranch",
+    x: 150,
+    y: 650,
+    icon: "🐴",
+    desc: "Boris loue ses Auto Monsters pour quelques combats.",
+  },
+  {
+    id: "traveler",
+    name: "Voyageuse",
+    type: "dialogue",
+    x: 600,
+    y: 230,
+    icon: "💬",
+    desc: "Une voyageuse fait une pause sur la crête.",
+    lines: [
+      "« Gravelmaw ? Ce monstre est increvable… »",
+      "« Use-le sur plusieurs combats : ses blessures restent d'une fois sur l'autre. »",
+    ],
+  },
+  // ── Vallée sauvage (combats) ───────────────────────────────────────────────
   {
     id: "moss",
     name: "Sentier moussu",
+    type: "combat",
+    x: 520,
+    y: 620,
+    icon: "⚔️",
+    desc: "Une petite pousse remue dans les fougères.",
     enemySpecies: "mossprout",
     enemyLevel: 1,
     isBoss: false,
-    x: 18,
-    y: 70,
     recommendedLevel: 1,
     gold: 20,
     potions: 1,
     xp: 35,
-    blurb: "Une petite pousse remue dans les fougères.",
   },
   {
     id: "windy",
     name: "Clairière venteuse",
+    type: "combat",
+    x: 700,
+    y: 440,
+    icon: "⚔️",
+    desc: "Un piaillement strident fond sur toi.",
     enemySpecies: "chirple",
     enemyLevel: 2,
     isBoss: false,
-    x: 38,
-    y: 42,
     recommendedLevel: 2,
     gold: 25,
     potions: 0,
     xp: 50,
-    blurb: "Un piaillement strident fond sur toi.",
   },
   {
     id: "scree",
     name: "Éboulis gris",
+    type: "combat",
+    x: 850,
+    y: 640,
+    icon: "⚔️",
+    desc: "Un caillou… qui a des dents.",
     enemySpecies: "peblix",
     enemyLevel: 3,
     isBoss: false,
-    x: 58,
-    y: 66,
     recommendedLevel: 3,
     gold: 30,
     potions: 1,
     xp: 65,
-    blurb: "Un caillou… qui a des dents.",
   },
   {
     id: "cloud",
     name: "Crête nuageuse",
+    type: "combat",
+    x: 1000,
+    y: 400,
+    icon: "⚔️",
+    desc: "Une brume électrique tourbillonne.",
     enemySpecies: "nimbus",
     enemyLevel: 4,
     isBoss: false,
-    x: 74,
-    y: 34,
     recommendedLevel: 4,
     gold: 40,
     potions: 1,
     xp: 80,
-    blurb: "Une brume électrique tourbillonne.",
   },
   {
     id: "lair",
     name: "Antre de Gravelmaw",
+    type: "combat",
+    x: 1150,
+    y: 600,
+    icon: "☠",
+    desc: "Le sol tremble. Quelque chose d'énorme se réveille.",
     enemySpecies: "gravelmaw",
     enemyLevel: 5,
     isBoss: true,
-    x: 88,
-    y: 64,
     recommendedLevel: 6,
     gold: 120,
     potions: 2,
     xp: 160,
-    blurb: "Le sol tremble. Quelque chose d'énorme se réveille.",
     maxTurns: 40,
   },
 ];
 
-/** Rétro-compat : ancien nom. */
-export const MAP_STEPS = MAP_LOCATIONS;
+/** Lieux de combat uniquement (pour tests / simulation / progression). */
+export const COMBAT_LOCATIONS = MAP_LOCATIONS.filter((l) => l.type === "combat");
+
+/** Rétro-compat : ancien nom = liste des combats. */
+export const MAP_STEPS = COMBAT_LOCATIONS;
+
+/** Chemins reliant les lieux (décor). */
+export const MAP_PATHS: [string, string][] = [
+  ["plaza", "shop"],
+  ["plaza", "heal"],
+  ["plaza", "ranch"],
+  ["shop", "heal"],
+  ["plaza", "moss"],
+  ["moss", "windy"],
+  ["windy", "traveler"],
+  ["windy", "scree"],
+  ["scree", "cloud"],
+  ["cloud", "lair"],
+];
+
+/** Lieu de départ du joueur. */
+export const START_LOC = "plaza";
 
 export const POTION_HEAL = 0.5; // soigne 50% des PV max (instantané)
-export const FULL_HEAL_COST = 30; // or pour soin complet immédiat
+export const FULL_HEAL_COST = 30; // or pour soin complet immédiat (inventaire/fiche)
+
+// ── Boutique ────────────────────────────────────────────────────────────────
+export const POTION_PRICE = 15; // or par potion achetée
+
+// ── Centre de soin ───────────────────────────────────────────────────────────
+export const HEAL_CENTER_COST = 25; // or pour soigner toute l'équipe à fond
+
+// ── Ranch : location d'Auto Monsters ─────────────────────────────────────────
+export type RanchOffer = { speciesId: string; level: number; price: number; fights: number };
+export const RANCH_OFFERS: RanchOffer[] = [
+  { speciesId: "leafkit", level: 4, price: 20, fights: 3 },
+  { speciesId: "willowisp", level: 6, price: 45, fights: 3 },
+];
+/** Prolongation de contrat (proposée au dernier combat). */
+export const RANCH_EXTEND = { price: 30, fights: 3 };
 
 // ── Soin progressif (régén continue temps réel) ────────────────────────────
 /** Durée pour régénérer de 0 à PV max. Test : 5 s. À terme : plusieurs heures. */
