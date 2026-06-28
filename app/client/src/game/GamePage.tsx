@@ -80,6 +80,14 @@ export default function GamePage() {
   const [speed, setSpeed] = useState(1);
   const [modal, setModal] = useState<Modal>({ k: "none" });
   const [, setTick] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollToPanel = () => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // sur petit écran (layout empilé), amène le panneau d'interactions à l'écran après un déplacement
+  useEffect(() => {
+    if (gs.started && typeof window !== "undefined" && window.innerWidth < 900) scrollToPanel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs.playerLoc]);
 
   useEffect(() => {
     (async () => {
@@ -332,21 +340,23 @@ export default function GamePage() {
         <Adoption onPick={adopt} />
       ) : (
         <div className="hub">
-          <LocationPanel
-            gs={gs}
-            here={here}
-            onFight={startCombat}
-            onToggleHeal={toggleHeal}
-            onPotion={healPotion}
-            onFull={healFullPaid}
-            onBuyPotion={buyPotion}
-            onHealAll={healAllTeam}
-            onRent={rent}
-            onReturnRental={returnRental}
-            onSheet={(id) => setModal({ k: "sheet", charId: id })}
-          />
+          <div className="loc-panel-wrap" ref={panelRef}>
+            <LocationPanel
+              gs={gs}
+              here={here}
+              onFight={startCombat}
+              onToggleHeal={toggleHeal}
+              onPotion={healPotion}
+              onFull={healFullPaid}
+              onBuyPotion={buyPotion}
+              onHealAll={healAllTeam}
+              onRent={rent}
+              onReturnRental={returnRental}
+              onSheet={(id) => setModal({ k: "sheet", charId: id })}
+            />
+          </div>
 
-          <MapBoard gs={gs} onClickNode={(id) => (id === gs.playerLoc ? null : setModal({ k: "travel", locId: id }))} />
+          <MapBoard gs={gs} onClickNode={(id) => (id === gs.playerLoc ? scrollToPanel() : setModal({ k: "travel", locId: id }))} />
 
           <div className="team-strip">
             {gs.team.map((c) => (

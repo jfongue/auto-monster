@@ -596,13 +596,42 @@ h3 {
 
 /* ═══ HUB (page unique) ═══════════════════════════════════════════════════ */
 .hub {
-  max-width: 1000px;
+  max-width: 1320px;
   width: 100%;
   margin: 0 auto;
   padding: 18px 18px 40px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 18px;
+  grid-template-columns: minmax(340px, 0.92fr) 1.4fr;
+  grid-template-areas:
+    "panel map"
+    "team team";
+  align-items: start;
+}
+.loc-panel-wrap {
+  grid-area: panel;
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+.map-board {
+  grid-area: map;
+}
+.team-strip {
+  grid-area: team;
+}
+@media (max-width: 900px) {
+  .hub {
+    grid-template-columns: 1fr;
+    grid-template-areas: "panel" "map" "team";
+  }
+  .loc-panel-wrap {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    scroll-margin-top: 70px;
+  }
 }
 .map-board {
   background: var(--g-panel);
