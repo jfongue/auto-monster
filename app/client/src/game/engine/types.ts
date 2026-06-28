@@ -49,6 +49,8 @@ export type Character = {
   stats: Stats;
   /** talents acquis (ids), max 3 hors inné (GDD 4.3) */
   talents: string[];
+  /** timestamp (ms) du début d'un soin progressif en cours ; null = pas de soin */
+  healStart?: number | null;
 };
 
 /** F6 — un talent = hooks enregistrés sur le Fighter. */

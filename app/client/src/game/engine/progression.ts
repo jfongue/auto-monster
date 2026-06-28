@@ -1,9 +1,9 @@
-// Progression (GDD 4.3) : XP, niveaux (jusqu'à 100), packs de stats par niveau,
-// paliers de talent tous les 10 niveaux. Génération des ennemis par niveau.
+// Progression (GDD 4.3) : XP, niveaux (jusqu'à 100). Les stats montent
+// AUTOMATIQUEMENT à chaque niveau, en suivant les stats de base (pas de choix).
+// Soin = régénération continue temps réel. Boost = stat payée en or (inventaire).
 
-import type { Character, Stats } from "./types";
-import { SPECIES, MapStep } from "./data";
-import { TALENTS } from "./talents";
+import type { Character, Stats, StatKey } from "./types";
+import { SPECIES, MapLocation, HEAL_FULL_MS, BOOST_AMOUNT } from "./data";
 
 let uid = 0;
 export function newId(prefix = "c"): string {
@@ -15,6 +15,31 @@ const cloneStats = (s: Stats): Stats => ({ ...s });
 /** XP nécessaire pour passer de `level` à `level+1`. */
 export function xpForNext(level: number): number {
   return 30 + (level - 1) * 25;
+}
+
+/** Gain de stats appliqué à chaque montée de niveau (suit les stats de base). */
+export function levelDelta(base: Stats): Stats {
+  return {
+    hp: Math.max(2, Math.round(base.hp * 0.18)),
+    atk: Math.max(1, Math.round(base.atk * 0.12)),
+    def: Math.max(1, Math.round(base.def * 0.1)),
+    spd: Math.max(1, Math.round(base.spd * 0.05)),
+    sta: Math.max(0, Math.round(base.sta * 0.08)),
+  };
+}
+
+/** Stats théoriques d'une espèce à un niveau donné (base + deltas cumulés). */
+export function statsForLevel(speciesId: string, level: number): Stats {
+  const base = SPECIES[speciesId].baseStats;
+  const d = levelDelta(base);
+  const k = level - 1;
+  return {
+    hp: base.hp + d.hp * k,
+    atk: base.atk + d.atk * k,
+    def: base.def + d.def * k,
+    spd: base.spd + d.spd * k,
+    sta: base.sta + d.sta * k,
+  };
 }
 
 /** Crée un Character jouable niveau 1. */
@@ -30,10 +55,11 @@ export function makeCharacter(speciesId: string, name?: string): Character {
     life: stats.hp,
     stats,
     talents: [],
+    healStart: null,
   };
 }
 
-/** Stats d'un ennemi mises à l'échelle de son niveau (pas de packs). */
+/** Stats d'un ennemi mises à l'échelle de son niveau. */
 function scaleStats(base: Stats, level: number): Stats {
   const k = level - 1;
   return {
@@ -45,131 +71,106 @@ function scaleStats(base: Stats, level: number): Stats {
   };
 }
 
-/** Crée le Character ennemi d'une étape de map. */
-export function makeEnemy(step: MapStep): Character {
-  const sp = SPECIES[step.enemySpecies];
-  const stats = scaleStats(sp.baseStats, step.enemyLevel);
+/** Crée le Character ennemi d'un lieu de la carte. */
+export function makeEnemy(loc: MapLocation): Character {
+  const sp = SPECIES[loc.enemySpecies];
+  const stats = scaleStats(sp.baseStats, loc.enemyLevel);
   return {
     id: newId("e"),
-    speciesId: step.enemySpecies,
+    speciesId: loc.enemySpecies,
     name: sp.name,
-    level: step.enemyLevel,
+    level: loc.enemyLevel,
     xp: 0,
     life: stats.hp,
     stats,
     talents: [],
+    healStart: null,
   };
 }
 
-// ── Packs de stats (arbre fixe, identique à chaque niveau) ──────────────────
-export type PackOption = {
-  id: string;
-  name: string;
-  desc: string;
-  delta: Partial<Stats>;
-};
-
-export const STAT_PACKS: PackOption[] = [
-  {
-    id: "balanced",
-    name: "Équilibré",
-    desc: "+6 PV · +2 ATK · +1 DEF · +1 VIT",
-    delta: { hp: 6, atk: 2, def: 1, spd: 1, sta: 1 },
-  },
-  {
-    id: "assault",
-    name: "Assaut",
-    desc: "+4 ATK · +3 VIT · +3 PV · −1 DEF",
-    delta: { atk: 4, spd: 3, hp: 3, def: -1 },
-  },
-  {
-    id: "guard",
-    name: "Garde",
-    desc: "+12 PV · +4 DEF · −1 VIT",
-    delta: { hp: 12, def: 4, spd: -1 },
-  },
-];
-
-// ── Paliers de talent (tous les 10 niveaux) ─────────────────────────────────
-export type TalentTierOption =
-  | { id: string; kind: "talent"; name: string; desc: string; talentId: string }
-  | { id: "bigstats"; kind: "bigstats"; name: string; desc: string; delta: Partial<Stats> };
-
-const BIG_STATS: Partial<Stats> = { hp: 25, atk: 6, def: 4, spd: 3, sta: 6 };
-
-export function talentTierOptions(c: Character): TalentTierOption[] {
-  const sp = SPECIES[c.speciesId];
-  const owned = new Set([sp.innate, ...c.talents].filter(Boolean) as string[]);
-  const opts: TalentTierOption[] = [];
-  if (c.talents.length < 3) {
-    for (const tid of sp.talentPool) {
-      if (owned.has(tid)) continue;
-      const td = TALENTS[tid];
-      if (!td) continue;
-      opts.push({ id: `learn_${tid}`, kind: "talent", name: `Apprendre : ${td.name}`, desc: td.desc, talentId: tid });
-      if (opts.length >= 2) break;
-    }
-  }
-  opts.push({
-    id: "bigstats",
-    kind: "bigstats",
-    name: "Gros boost de stats",
-    desc: "+25 PV · +6 ATK · +4 DEF · +3 VIT · +6 STA",
-    delta: BIG_STATS,
-  });
-  return opts;
-}
-
-// ── Application des choix ────────────────────────────────────────────────────
+// ── Stats : application d'un delta ───────────────────────────────────────────
 export function applyStats(stats: Stats, delta: Partial<Stats>): Stats {
   const out = cloneStats(stats);
-  (Object.keys(delta) as (keyof Stats)[]).forEach((k) => {
-    out[k] = Math.max(1, out[k] + (delta[k] ?? 0));
+  (Object.keys(delta) as StatKey[]).forEach((k) => {
+    out[k] = Math.max(0, out[k] + (delta[k] ?? 0));
   });
   return out;
 }
 
-/** Applique un pack choisi à un Character (et soigne du gain de PV max). */
-export function applyPack(c: Character, packId: string): Character {
-  const pack = STAT_PACKS.find((p) => p.id === packId);
-  if (!pack) return c;
-  const before = c.stats.hp;
-  const stats = applyStats(c.stats, pack.delta);
-  const lifeGain = Math.max(0, stats.hp - before);
-  return { ...c, stats, life: Math.min(stats.hp, c.life + lifeGain) };
+// ── Boost payant d'une stat (inventaire) ─────────────────────────────────────
+export function boostStat(c: Character, stat: StatKey): Character {
+  const amount = BOOST_AMOUNT[stat] ?? 1;
+  const stats = applyStats(c.stats, { [stat]: amount });
+  // un boost de PV soigne d'autant
+  const life = stat === "hp" ? c.life + amount : c.life;
+  return { ...c, stats, life };
 }
 
-export function applyTalentTier(c: Character, opt: TalentTierOption): Character {
-  if (opt.kind === "talent") {
-    if (c.talents.includes(opt.talentId) || c.talents.length >= 3) return c;
-    return { ...c, talents: [...c.talents, opt.talentId] };
-  }
-  const before = c.stats.hp;
-  const stats = applyStats(c.stats, opt.delta);
-  const lifeGain = Math.max(0, stats.hp - before);
-  return { ...c, stats, life: Math.min(stats.hp, c.life + lifeGain) };
+// ── Soin continu (régénération temps réel) ──────────────────────────────────
+/** PV/ms d'un AM (0 → max en HEAL_FULL_MS). */
+function healRate(c: Character): number {
+  return c.stats.hp / HEAL_FULL_MS;
 }
 
-// ── Gain d'XP → niveaux + choix en attente ──────────────────────────────────
-export type PendingLevel =
-  | { level: number; kind: "pack" }
-  | { level: number; kind: "talent" };
+/** PV effectifs maintenant (tient compte d'un soin en cours). */
+export function currentLife(c: Character, now = Date.now()): number {
+  if (c.healStart == null) return Math.min(c.stats.hp, Math.max(0, c.life));
+  const gained = healRate(c) * (now - c.healStart);
+  return Math.min(c.stats.hp, Math.max(0, c.life + gained));
+}
 
+export const isFull = (c: Character) => currentLife(c) >= c.stats.hp;
+export const isHealing = (c: Character) => c.healStart != null && !isFull(c);
+
+/** Lance un soin progressif (si pas déjà plein). */
+export function startHeal(c: Character, now = Date.now()): Character {
+  if (currentLife(c, now) >= c.stats.hp) return { ...c, life: c.stats.hp, healStart: null };
+  return { ...c, life: Math.round(currentLife(c, now)), healStart: now };
+}
+
+/** Fige les PV courants et stoppe le soin (à appeler avant un combat). */
+export function commitHeal(c: Character, now = Date.now()): Character {
+  return { ...c, life: Math.round(currentLife(c, now)), healStart: null };
+}
+
+/** ms restantes avant PV pleins (0 si déjà plein ou pas en soin). */
+export function healEtaMs(c: Character, now = Date.now()): number {
+  if (c.healStart == null) return 0;
+  const missing = c.stats.hp - currentLife(c, now);
+  return Math.max(0, missing / healRate(c));
+}
+
+// ── Gain d'XP → montée de niveau AUTOMATIQUE (stats suivent la base) ──────────
 export type XpResult = {
-  character: Character; // xp/level mis à jour (stats PAS encore modifiées : choix en attente)
+  character: Character; // xp/level ET stats déjà mis à jour
   gained: number;
-  pending: PendingLevel[];
+  levelsGained: number;
+  hpGained: number;
 };
 
-/** Ajoute de l'XP, gère les passages de niveau, renvoie les choix à résoudre. */
 export function addXp(c: Character, amount: number): XpResult {
   let { level, xp } = c;
-  const pending: PendingLevel[] = [];
+  let stats = cloneStats(c.stats);
+  let life = Math.round(currentLife(c));
+  const base = SPECIES[c.speciesId].baseStats;
+  const d = levelDelta(base);
+  let levelsGained = 0;
+  let hpGained = 0;
+
   xp += amount;
   while (level < 100 && xp >= xpForNext(level)) {
     xp -= xpForNext(level);
     level += 1;
-    pending.push(level % 10 === 0 ? { level, kind: "talent" } : { level, kind: "pack" });
+    levelsGained += 1;
+    stats = applyStats(stats, d);
+    life += d.hp; // la montée de niveau soigne du gain de PV
+    hpGained += d.hp;
   }
-  return { character: { ...c, level, xp }, gained: amount, pending };
+  life = Math.min(stats.hp, life);
+  return {
+    character: { ...c, level, xp, stats, life, healStart: null },
+    gained: amount,
+    levelsGained,
+    hpGained,
+  };
 }

@@ -131,14 +131,18 @@ export const SPECIES: Record<string, SpeciesDef> = {
 export const STARTERS = ["flameling", "aquafi", "leafkit"] as const;
 export const RARE_REWARD = "willowisp";
 
-/** Une étape de la map = un combat. */
-export type MapStep = {
-  index: number;
+/** Un lieu de la carte = un combat. Accessible librement (pas d'ordre imposé). */
+export type MapLocation = {
+  id: string;
   name: string;
   enemySpecies: string;
   enemyLevel: number;
   isBoss: boolean;
-  /** loot en cas de victoire */
+  /** position sur la petite carte, en % (0..100) */
+  x: number;
+  y: number;
+  recommendedLevel: number;
+  /** loot accordé à la 1re victoire */
   gold: number;
   potions: number;
   /** xp accordée au vainqueur */
@@ -148,59 +152,77 @@ export type MapStep = {
   maxTurns?: number;
 };
 
+/** Rétro-compat : un lieu est aussi une "étape". */
+export type MapStep = MapLocation;
+
 export const BOSS_MAX_TURNS = 40;
 
-export const MAP_STEPS: MapStep[] = [
+export const MAP_LOCATIONS: MapLocation[] = [
   {
-    index: 0,
+    id: "moss",
     name: "Sentier moussu",
     enemySpecies: "mossprout",
     enemyLevel: 1,
     isBoss: false,
+    x: 18,
+    y: 70,
+    recommendedLevel: 1,
     gold: 20,
     potions: 1,
     xp: 35,
     blurb: "Une petite pousse remue dans les fougères.",
   },
   {
-    index: 1,
+    id: "windy",
     name: "Clairière venteuse",
     enemySpecies: "chirple",
     enemyLevel: 2,
     isBoss: false,
+    x: 38,
+    y: 42,
+    recommendedLevel: 2,
     gold: 25,
     potions: 0,
     xp: 50,
     blurb: "Un piaillement strident fond sur toi.",
   },
   {
-    index: 2,
+    id: "scree",
     name: "Éboulis gris",
     enemySpecies: "peblix",
     enemyLevel: 3,
     isBoss: false,
+    x: 58,
+    y: 66,
+    recommendedLevel: 3,
     gold: 30,
     potions: 1,
     xp: 65,
     blurb: "Un caillou… qui a des dents.",
   },
   {
-    index: 3,
+    id: "cloud",
     name: "Crête nuageuse",
     enemySpecies: "nimbus",
     enemyLevel: 4,
     isBoss: false,
+    x: 74,
+    y: 34,
+    recommendedLevel: 4,
     gold: 40,
     potions: 1,
     xp: 80,
     blurb: "Une brume électrique tourbillonne.",
   },
   {
-    index: 4,
+    id: "lair",
     name: "Antre de Gravelmaw",
     enemySpecies: "gravelmaw",
     enemyLevel: 5,
     isBoss: true,
+    x: 88,
+    y: 64,
+    recommendedLevel: 6,
     gold: 120,
     potions: 2,
     xp: 160,
@@ -209,5 +231,17 @@ export const MAP_STEPS: MapStep[] = [
   },
 ];
 
-export const POTION_HEAL = 0.5; // soigne 50% des PV max
-export const FULL_HEAL_COST = 30; // or pour soin complet au camp
+/** Rétro-compat : ancien nom. */
+export const MAP_STEPS = MAP_LOCATIONS;
+
+export const POTION_HEAL = 0.5; // soigne 50% des PV max (instantané)
+export const FULL_HEAL_COST = 30; // or pour soin complet immédiat
+
+// ── Soin progressif (régén continue temps réel) ────────────────────────────
+/** Durée pour régénérer de 0 à PV max. Test : 5 s. À terme : plusieurs heures. */
+export const HEAL_FULL_MS = 5000;
+
+// ── Boost de stat (inventaire, payant en or) ───────────────────────────────
+export const BOOST_COST = 20; // or par boost
+/** Montant ajouté par boost, par stat. */
+export const BOOST_AMOUNT: Record<string, number> = { hp: 8, atk: 3, def: 3, spd: 3, sta: 4 };

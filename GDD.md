@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.5 — Document de référence du projet
+> Version 0.6 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,15 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-06-28 — v0.6
+- [Flow] **Refonte du flow en page unique (hub)** : plus d'écrans séquentiels (`adoption → map → combat → reward…`). Tout se passe sur la page principale via des modals superposés.
+- [Carte] Passage à une **carte à lieux libres** : petite carte avec lieux cliquables dans l'ordre voulu (plus de progression linéaire imposée). State : `cleared[]` + `bossLife{}` (par lieu) à la place de `stepIndex`/`bossLife` unique. Récompense pleine à la 1re victoire, réduite (½ or, ½ XP, 0 potion) en farm.
+- [Combat] Le choix de l'AM se fait **au clic du lieu** (modal d'aperçu : ennemi, butin, sélection de l'AM, soin éventuel) puis « Combattre ».
+- [Level-up] **Suppression des choix de level-up** (packs de stats + paliers de talents). Les stats montent **automatiquement** à chaque niveau en suivant les stats de base (`levelDelta` ≈ +18% PV / +12% ATK / +10% DEF / +5% VIT / +8% STA de la base, cumulé). Talent **inné** conservé ; plus d'apprentissage de talents pour l'instant.
+- [Soin] **Soin progressif = régénération continue temps réel** (0 → PV max en `HEAL_FULL_MS`, **5 s pour le test**, plusieurs heures à terme). Persisté via `healStart` (timestamp) sur le `Character` → continue entre sessions. Toujours dispo : potion (instantané +50%) et soin complet payant (or).
+- [Inventaire] Nouvel **inventaire** (modal) : soigner et **booster** une stat de chaque AM contre de l'or (`BOOST_COST` = 20💰, montants par stat dans `BOOST_AMOUNT`).
+- [Fiches] **Fiche détaillée** par AM (modal) : stats, talents, XP, et soin en attendant.
 
 ### 2026-06-27 — v0.5
 - [Projet] Renommage du projet en **AutoMonster** (anciennement « Auto Battler ») dans tout le code et la doc.
@@ -26,12 +35,16 @@
 
 | Aspect | Designé | Implémenté (état réel) |
 |--------|---------|------------------------|
-| Moteur de combat / ActionLog | Oui (§3.1) | À compléter |
-| Renderer (PixiJS) | Oui (§9) | À compléter |
-| Monstres / espèces / variations | Oui (§4) | À compléter |
-| Carte / exploration | Oui (§5) | À compléter |
+| Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
+| Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
+| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + bestioles + boss ; variations non implémentées |
+| Carte / exploration | Oui (§5) | ✅ **Carte à lieux libres** (5 lieux dont 1 boss), hub page unique |
+| Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
+| Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
+| Inventaire / boost | Oui (§4.5) | ✅ Modal inventaire : soin + boost de stat payant |
+| Fiches AM | Oui (§7) | ✅ Modal fiche détaillée |
 | PvP | Oui (§6) | À compléter |
-| UI / écrans | Oui (§7) | Dossier `app/` (prototypes HTML supprimés) |
+| UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals)**, `GamePage.tsx` |
 
 ---
 
@@ -170,11 +183,9 @@ Une espèce peut exister sous plusieurs variations. Une variation peut modifier 
 Monstre concret détenu par le joueur, persisté et **plat**. Référence une espèce + une variation.
 
 - **Expérience / niveau** : monte jusqu'au **niveau 100**.
-- **Arbre de stats** : à **chaque niveau**, choix parmi **3 « packs »** de stats. Cet arbre est **fixe**, défini par l'espèce + la variation (même arbre pour tous les exemplaires d'une même variation). Certains packs offrent un **gros bonus accompagné d'un malus**.
-- **Paliers de talent** : **tous les 10 niveaux** (10 paliers à 100), le joueur choisit **l'une** des options suivantes :
-  1. apprendre un **nouveau talent** (pioché dans la palette de l'espèce) — **maximum 3 talents**,
-  2. **améliorer** un talent déjà acquis,
-  3. recevoir un **gros boost de stats**.
+- **Montée de stats (v0.6, implémenté)** : **automatique, sans choix**. À chaque niveau les stats augmentent en suivant les stats de base (`levelDelta`). Le joueur n'arbitre plus rien au level-up.
+- **Boost manuel** : la personnalisation des stats passe désormais par l'**inventaire** (boost d'une stat payé en or), pas par le level-up.
+- **Talents** : seul le **talent inné** de l'espèce est actif. (Ancien design — packs de stats au choix + paliers de talent tous les 10 niveaux + amélioration — **abandonné en v0.6** ; à réintroduire éventuellement plus tard.)
 
 ### 4.4 Talents
 
@@ -197,18 +208,21 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 
 ### 5.1 Structure de la carte
 - Grande carte du monde avec **zones thématiques** distinctes
+- **v0.6 (implémenté)** : 1re zone = **petite carte à lieux libres** (5 lieux dont 1 boss), accessibles dans l'ordre voulu, affichés sur un fond cartographique avec chemins reliant les lieux.
 - Difficulté croissante ou variable selon la zone
 - Points d'intérêt : donjons, marchands, événements narratifs, boss de zone
 
 ### 5.2 Progression
-- Pas de mort permanente : la défaite entraîne une pénalité (perte de ressources, retour au checkpoint), pas un reset total
-- Objectifs de zone : vaincre le boss pour débloquer la zone suivante
-- **Boss de zone** : récompenses uniques (monstres rares, objets)
+- Pas de mort permanente : la défaite entraîne une pénalité (perte de ressources), pas un reset total
+- **v0.6 (implémenté)** : récompense **pleine à la 1re victoire** d'un lieu, **réduite en farm** (½ or, ½ XP, 0 potion). PV d'un boss **conservés entre tentatives** (`bossLife` par lieu).
+- **Boss de zone** : récompenses uniques (monstres rares — capture après 1re victoire)
 
-### 5.3 Économie de ressources
+### 5.3 Économie de ressources & soin
 *(à affiner)*
-- **Or** : achat chez les marchands
-- **XP** : progression et spécialisation des monstres
+- **Or** : soin complet immédiat, **boost de stat** (inventaire), futurs marchands
+- **XP** : progression des monstres (montée de stats auto)
+- **Potions** : soin instantané (+50% PV)
+- **Soin progressif (v0.6, implémenté)** : régénération **continue en temps réel**, gratuite. 0 → PV max en `HEAL_FULL_MS` (**5 s en test**, plusieurs heures à terme). Persisté (`healStart`), continue hors-session.
 - **Fragments rares** : ressource premium pour les spécialisations avancées
 
 ---

@@ -1,19 +1,19 @@
-// État de jeu persisté (équipe, or, avancée map, boss). Sérialisable en JSON.
+// État de jeu persisté (équipe, or, lieux nettoyés, boss). Sérialisable en JSON.
+// Carte à lieux libres : pas d'ordre imposé.
 
 import type { Character } from "./engine/types";
-import { MAP_STEPS } from "./engine/data";
+import { MAP_LOCATIONS } from "./engine/data";
 
-export const GAME_VERSION = 1;
+export const GAME_VERSION = 2;
 
 export type GameState = {
   version: number;
   started: boolean; // a adopté un premier AM
   team: Character[]; // auto monsters possédés
-  active: number; // index de l'AM actif (combat 1v1 ; prêt pour +)
   gold: number;
   potions: number;
-  stepIndex: number; // prochaine étape à jouer (0..5 ; 5 = map terminée)
-  bossLife: number | null; // PV persistants du boss entre parties
+  cleared: string[]; // ids des lieux déjà vaincus (récompense unique)
+  bossLife: Record<string, number>; // PV persistants des boss entamés, par lieu
   capturedRare: boolean;
 };
 
@@ -22,14 +22,13 @@ export function freshState(): GameState {
     version: GAME_VERSION,
     started: false,
     team: [],
-    active: 0,
     gold: 0,
     potions: 0,
-    stepIndex: 0,
-    bossLife: null,
+    cleared: [],
+    bossLife: {},
     capturedRare: false,
   };
 }
 
-export const isMapComplete = (s: GameState) => s.stepIndex >= MAP_STEPS.length;
-export const activeChar = (s: GameState): Character | undefined => s.team[s.active];
+export const isLocationCleared = (s: GameState, id: string) => s.cleared.includes(id);
+export const allCleared = (s: GameState) => MAP_LOCATIONS.every((l) => s.cleared.includes(l.id));

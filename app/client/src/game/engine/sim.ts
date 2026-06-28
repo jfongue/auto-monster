@@ -1,7 +1,7 @@
 // Simulation de masse (F19) : distribution des issues, équilibrage.
 import { runCombat } from "./combat";
-import { makeCharacter, makeEnemy, applyPack } from "./progression";
-import { MAP_STEPS } from "./data";
+import { makeCharacter, makeEnemy, addXp } from "./progression";
+import { MAP_LOCATIONS as MAP_STEPS } from "./data";
 import type { Character } from "./types";
 
 function dist(label: string, build: () => { a: Character; step: number }, n = 400, maxTurns = 120) {
@@ -54,5 +54,5 @@ function bossRun(buildAM: () => Character, n = 200) {
 console.log("\nBOSS (PV persistants, plusieurs parties) :");
 console.log("flameling L1 brut :");
 bossRun(() => makeCharacter("flameling"));
-console.log("aquafi +3 assaut (joueur ~niveau 4) :");
-bossRun(() => { let c = makeCharacter("aquafi"); for (let i = 0; i < 3; i++) c = applyPack(c, "assault"); return c; });
+console.log("aquafi niveau ~4 (XP, stats auto) :");
+bossRun(() => addXp(makeCharacter("aquafi"), 400).character);
