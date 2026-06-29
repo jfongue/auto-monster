@@ -1,6 +1,6 @@
 // Tests headless du moteur (F19). Exécuter : npx tsx engine.test.ts
 import { runCombat } from "./combat";
-import { makeCharacter, makeEnemy, addXp, xpForNext, currentLife, startHeal } from "./progression";
+import { makeCharacter, makeEnemy, addXp, xpForNext, currentLife, startHeal, interact, interactReadyIn, withMoodBattle } from "./progression";
 import { COMBAT_LOCATIONS } from "./data";
 import type { Character } from "./types";
 
@@ -88,6 +88,33 @@ console.log("Soin — régénération continue");
   check("≈50% des PV après 2.5s", half > c.stats.hp * 0.4 && half < c.stats.hp * 0.6, `half=${half}`);
   const full = currentLife(healing, t0 + 6000); // au-delà → plafonné au max
   check("plein après la durée", full === c.stats.hp, `full=${full}`);
+}
+
+console.log("Caractère & interactions (par individu)");
+{
+  const c = makeCharacter("flameling");
+  check("personnalité générée", !!c.personality && !!c.personality.archetype);
+  check("date de capture renseignée", typeof c.capturedAt === "number");
+  check("humeur de départ", c.mood === 60);
+  check("historique avec capture", (c.history ?? [])[0]?.kind === "capture");
+
+  // deux individus de même espèce → caractères distincts (affinités jitterées)
+  const a = makeCharacter("flameling");
+  const b = makeCharacter("flameling");
+  const same = JSON.stringify(a.personality!.affinity) === JSON.stringify(b.personality!.affinity);
+  check("affinités propres à l'individu (distinctes)", !same);
+
+  // interaction : modifie l'humeur, pose un cooldown, journalise
+  const t0 = 2_000_000;
+  const res = interact(c, "caresser", t0, () => 0.99); // roll haut → positif
+  check("caresser positif → humeur monte", res.character.mood! > c.mood!);
+  check("interaction journalisée", res.character.history!.some((h) => h.kind === "interact"));
+  check("cooldown posé", interactReadyIn(res.character, "caresser", t0) > 0);
+  check("cooldown écoulé après le délai", interactReadyIn(res.character, "caresser", t0 + 10_000) === 0);
+
+  // mood bas → malus de combat (atk réduite)
+  const grumpy = { ...makeCharacter("flameling"), mood: 0 };
+  check("humeur basse → atk de combat réduite", withMoodBattle(grumpy).stats.atk < grumpy.stats.atk);
 }
 
 console.log(`\nRésultat : ${pass} ok, ${fail} échec(s)`);

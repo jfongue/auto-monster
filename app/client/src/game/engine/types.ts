@@ -32,6 +32,29 @@ export type SpeciesDef = {
   /** Palette de talents apprenables aux paliers (GDD 4.3). */
   talentPool: string[];
   tint: string; // couleur placeholder/aura
+  /** Descriptif de l'espèce (lore affiché sur la fiche). */
+  desc: string;
+};
+
+/** Action d'interaction sociale possible avec un AM. */
+export type InteractKind = "caresser" | "coacher" | "observer";
+
+/**
+ * Caractère UNIQUE d'un individu (pas de l'espèce). Généré à la capture.
+ * Les affinités biaisent l'issue de chaque interaction (-1 hostile → +1 adore).
+ */
+export type Personality = {
+  archetype: string; // ex: "Affectueux", "Sauvage"
+  emoji: string;
+  blurb: string; // courte description de l'individu
+  affinity: Record<InteractKind, number>; // -1..+1
+};
+
+/** Entrée d'historique (combats menés, interactions, jalons). */
+export type HistoryEntry = {
+  t: number; // timestamp
+  kind: "capture" | "combat" | "interact" | "levelup";
+  text: string;
 };
 
 /**
@@ -51,6 +74,17 @@ export type Character = {
   talents: string[];
   /** timestamp (ms) du début d'un soin progressif en cours ; null = pas de soin */
   healStart?: number | null;
+  // ── Identité individuelle (AM possédés ; absent pour les ennemis) ──
+  /** timestamp de capture/adoption */
+  capturedAt?: number;
+  /** caractère unique de cet individu */
+  personality?: Personality;
+  /** humeur courante 0..100 (impacte légèrement le combat) */
+  mood?: number;
+  /** journal de l'individu (combats, interactions…) */
+  history?: HistoryEntry[];
+  /** dernier usage de chaque interaction (cooldown), par type */
+  lastInteract?: Partial<Record<InteractKind, number>>;
 };
 
 /** F6 — un talent = hooks enregistrés sur le Fighter. */

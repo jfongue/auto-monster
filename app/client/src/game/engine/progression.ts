@@ -2,8 +2,17 @@
 // AUTOMATIQUEMENT à chaque niveau, en suivant les stats de base (pas de choix).
 // Soin = régénération continue temps réel. Boost = stat payée en or (inventaire).
 
-import type { Character, Stats, StatKey } from "./types";
-import { SPECIES, MapLocation, HEAL_FULL_MS, BOOST_AMOUNT } from "./data";
+import type { Character, Stats, StatKey, InteractKind, HistoryEntry } from "./types";
+import {
+  SPECIES,
+  MapLocation,
+  HEAL_FULL_MS,
+  makePersonality,
+  MOOD_START,
+  MOOD_MIN,
+  MOOD_MAX,
+  INTERACT_COOLDOWN_MS,
+} from "./data";
 
 let uid = 0;
 export function newId(prefix = "c"): string {
@@ -42,10 +51,12 @@ export function statsForLevel(speciesId: string, level: number): Stats {
   };
 }
 
-/** Crée un Character jouable niveau 1. */
+/** Crée un Character jouable niveau 1, avec un caractère unique. */
 export function makeCharacter(speciesId: string, name?: string): Character {
   const sp = SPECIES[speciesId];
   const stats = cloneStats(sp.baseStats);
+  const now = Date.now();
+  const personality = makePersonality();
   return {
     id: newId(),
     speciesId,
@@ -56,6 +67,11 @@ export function makeCharacter(speciesId: string, name?: string): Character {
     stats,
     talents: [],
     healStart: null,
+    capturedAt: now,
+    personality,
+    mood: MOOD_START,
+    history: [{ t: now, kind: "capture", text: `Capturé·e — caractère ${personality.archetype} ${personality.emoji}` }],
+    lastInteract: {},
   };
 }
 
@@ -107,14 +123,104 @@ export function applyStats(stats: Stats, delta: Partial<Stats>): Stats {
   return out;
 }
 
-// ── Boost payant d'une stat (inventaire) ─────────────────────────────────────
-export function boostStat(c: Character, stat: StatKey): Character {
-  const amount = BOOST_AMOUNT[stat] ?? 1;
-  const stats = applyStats(c.stats, { [stat]: amount });
-  // un boost de PV soigne d'autant
-  const life = stat === "hp" ? c.life + amount : c.life;
-  return { ...c, stats, life };
+// ── Humeur (mood) ────────────────────────────────────────────────────────────
+const clampMood = (m: number) => Math.max(MOOD_MIN, Math.min(MOOD_MAX, m));
+export const moodOf = (c: Character) => clampMood(c.mood ?? MOOD_START);
+
+/** Libellé d'humeur. */
+export function moodLabel(c: Character): string {
+  const m = moodOf(c);
+  if (m >= 80) return "Radieux 😄";
+  if (m >= 60) return "Content 🙂";
+  if (m >= 40) return "Neutre 😐";
+  if (m >= 20) return "Maussade 😕";
+  return "Abattu 😣";
 }
+
+/**
+ * Bonus/malus de combat lié à l'humeur (±10% atk/spd aux extrêmes).
+ * Renvoie une copie du Character avec stats ajustées (pour le combat seulement).
+ */
+export function withMoodBattle(c: Character): Character {
+  const k = (moodOf(c) - 50) / 50; // -1..+1
+  const f = 1 + k * 0.1;
+  return {
+    ...c,
+    stats: { ...c.stats, atk: Math.max(1, Math.round(c.stats.atk * f)), spd: Math.max(1, Math.round(c.stats.spd * f)) },
+  };
+}
+
+/** Ajoute une entrée d'historique (cap à 40 entrées). */
+export function pushHistory(c: Character, kind: HistoryEntry["kind"], text: string, now = Date.now()): Character {
+  const hist = [{ t: now, kind, text }, ...(c.history ?? [])].slice(0, 40);
+  return { ...c, history: hist };
+}
+
+// ── Interactions sociales (gratuit, aléatoire selon le caractère) ─────────────
+export const interactReadyIn = (c: Character, kind: InteractKind, now = Date.now()): number =>
+  Math.max(0, (c.lastInteract?.[kind] ?? 0) + INTERACT_COOLDOWN_MS - now);
+
+export type InteractResult = { character: Character; text: string; good: boolean; moodDelta: number };
+
+/**
+ * Résout une interaction. L'issue dépend de l'affinité de l'INDIVIDU pour
+ * cette action + de l'aléatoire. Effets : humeur (toujours), et parfois un
+ * petit gain/perte de stat permanent (coacher) ou un soin léger.
+ */
+export function interact(c: Character, kind: InteractKind, now = Date.now(), rand: () => number = Math.random): InteractResult {
+  const aff = c.personality?.affinity[kind] ?? 0;
+  const score = (rand() - 0.5) + aff * 0.6; // >0 ⇒ positif
+  const good = score > 0;
+  const mag = Math.min(1, Math.abs(score));
+  let mood = moodOf(c);
+  let stats = c.stats;
+  let life = c.life;
+  let text = "";
+  const name = c.name;
+
+  if (kind === "caresser") {
+    if (good) { const d = 8 + Math.round(mag * 10); mood += d; text = `${name} se blottit et ronronne. (+${d} humeur)`; return finalize(d); }
+    const d = -(6 + Math.round(mag * 8)); mood += d; text = `${name} se dérobe, agacé·e. (${d} humeur)`; return finalize(d);
+  }
+  if (kind === "coacher") {
+    if (good) {
+      const keys: StatKey[] = ["atk", "def", "spd", "sta"];
+      const stat = keys[Math.floor(rand() * keys.length)];
+      const gain = 1 + Math.round(mag * 2);
+      stats = applyStats(c.stats, { [stat]: gain });
+      const d = 4 + Math.round(mag * 5); mood += d;
+      text = `Bon entraînement ! ${STAT_NAME[stat]} +${gain}. (+${d} humeur)`;
+      return finalize(d);
+    }
+    const d = -(7 + Math.round(mag * 8)); mood += d; text = `${name} se braque et boude la séance. (${d} humeur)`; return finalize(d);
+  }
+  // observer
+  if (good) {
+    const d = 4 + Math.round(mag * 6); mood += d;
+    const heal = Math.round(c.stats.hp * 0.05);
+    life = Math.min(c.stats.hp, Math.round(currentLife(c, now)) + heal);
+    text = `Tu cernes mieux ${name}. (+${d} humeur, repos +${heal} PV)`;
+    return finalize(d);
+  }
+  const d = -(3 + Math.round(mag * 5)); mood += d; text = `${name} se sent épié·e et se ferme. (${d} humeur)`;
+  return finalize(d);
+
+  function finalize(moodDelta: number): InteractResult {
+    const md = clampMood(mood) - moodOf(c);
+    let next: Character = {
+      ...c,
+      stats,
+      life: Math.min(stats.hp, life),
+      mood: clampMood(mood),
+      lastInteract: { ...(c.lastInteract ?? {}), [kind]: now },
+      healStart: null,
+    };
+    next = pushHistory(next, "interact", text, now);
+    return { character: next, text, good, moodDelta: md };
+  }
+}
+
+const STAT_NAME: Record<StatKey, string> = { hp: "PV", atk: "ATK", def: "DEF", spd: "VIT", sta: "STA" };
 
 // ── Soin continu (régénération temps réel) ──────────────────────────────────
 /** PV/ms d'un AM (0 → max en HEAL_FULL_MS). */

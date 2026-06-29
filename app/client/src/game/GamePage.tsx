@@ -23,10 +23,9 @@ import {
   FULL_HEAL_COST,
   POTION_PRICE,
   HEAL_CENTER_COST,
-  BOOST_COST,
-  BOOST_AMOUNT,
   RANCH_OFFERS,
   RANCH_EXTEND,
+  INTERACT_LABELS,
   type MapLocation,
 } from "./engine/data";
 import { runCombat } from "./engine/combat";
@@ -42,10 +41,15 @@ import {
   startHeal,
   commitHeal,
   healEtaMs,
-  boostStat,
+  withMoodBattle,
+  moodOf,
+  moodLabel,
+  pushHistory,
+  interact,
+  interactReadyIn,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import type { Character, CombatResult, Stats, StatKey } from "./engine/types";
+import type { Character, CombatResult, Stats, StatKey, InteractKind } from "./engine/types";
 import { freshState, migrate, GameState, isLocationCleared, allCleared } from "./state";
 import "./game.css";
 
@@ -59,7 +63,7 @@ type Modal =
   | { k: "reward"; reward: RewardData }
   | { k: "capture" }
   | { k: "inventory" }
-  | { k: "sheet"; charId: string }
+  | { k: "amPage"; charId: string }
   | { k: "ranchExtend" };
 
 const STAT_LABELS: Record<StatKey, string> = {
@@ -178,9 +182,11 @@ export default function GamePage() {
     updateChar(charId, (x) => ({ ...x, life: x.stats.hp, healStart: null }), { gold: gs.gold - FULL_HEAL_COST });
   }
 
-  function boost(charId: string, stat: StatKey) {
-    if (gs.gold < BOOST_COST) return;
-    updateChar(charId, (x) => boostStat(x, stat), { gold: gs.gold - BOOST_COST });
+  function doInteract(charId: string, kind: InteractKind) {
+    const c = findChar(charId);
+    if (!c || interactReadyIn(c, kind) > 0) return;
+    const res = interact(c, kind);
+    updateChar(charId, () => res.character);
   }
 
   // ── Boutique / Centre de soin / Ranch ───────────────────────────────────
@@ -231,9 +237,10 @@ export default function GamePage() {
     const enemy = makeEnemy(loc);
     if (loc.isBoss && gs.bossLife[loc.id] != null) enemy.life = gs.bossLife[loc.id];
     const seed = Math.floor(Math.random() * 1_000_000_000);
+    // l'humeur module légèrement les stats de combat (sans changer les PV persistés)
     const result = runCombat({
       seed,
-      teamA: [{ ...player }],
+      teamA: [withMoodBattle(player)],
       teamB: [enemy],
       rules: loc.maxTurns ? { maxTurns: loc.maxTurns } : undefined,
     });
@@ -283,6 +290,15 @@ export default function GamePage() {
       gold = Math.floor(gs.gold * 0.9);
       if (getF().life <= 0) setF({ ...getF(), life: Math.max(1, Math.round(getF().stats.hp * 0.3)) });
     }
+
+    // journal de combat de l'individu
+    const enemyName = SPECIES[loc.enemySpecies!]?.name ?? loc.name;
+    const histText =
+      outcome === "win" ? `Victoire vs ${enemyName} (N.${loc.enemyLevel})`
+      : outcome === "draw" ? `Égalité vs ${enemyName}`
+      : `Défaite vs ${enemyName}`;
+    setF(pushHistory(getF(), "combat", histText));
+    if (levelsGained > 0) setF(pushHistory(getF(), "levelup", `Niveau ${getF().level} atteint`));
 
     if (usedRental && rental) rental.fightsLeft -= 1;
 
@@ -340,6 +356,18 @@ export default function GamePage() {
         <Adoption onPick={adopt} />
       ) : (
         <div className="hub">
+          <div className="team-strip">
+            <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
+            <div className="team-strip-grid">
+              {gs.team.map((c) => (
+                <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
+              ))}
+              {gs.rental && (
+                <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
+              )}
+            </div>
+          </div>
+
           <div className="loc-panel-wrap" ref={panelRef}>
             <LocationPanel
               gs={gs}
@@ -352,20 +380,11 @@ export default function GamePage() {
               onHealAll={healAllTeam}
               onRent={rent}
               onReturnRental={returnRental}
-              onSheet={(id) => setModal({ k: "sheet", charId: id })}
+              onSheet={(id) => setModal({ k: "amPage", charId: id })}
             />
           </div>
 
           <MapBoard gs={gs} onClickNode={(id) => (id === gs.playerLoc ? scrollToPanel() : setModal({ k: "travel", locId: id }))} />
-
-          <div className="team-strip">
-            {gs.team.map((c) => (
-              <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "sheet", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
-            ))}
-            {gs.rental && (
-              <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "sheet", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
-            )}
-          </div>
         </div>
       )}
 
@@ -374,13 +393,26 @@ export default function GamePage() {
       )}
 
       {modal.k === "inventory" && (
-        <InventoryModal gs={gs} onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid} onBoost={boost} onSheet={(id) => setModal({ k: "sheet", charId: id })} onClose={() => setModal({ k: "none" })} />
+        <InventoryModal gs={gs} onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid} onSheet={(id) => setModal({ k: "amPage", charId: id })} onClose={() => setModal({ k: "none" })} />
       )}
 
-      {modal.k === "sheet" && (() => {
+      {modal.k === "amPage" && (() => {
         const c = findChar(modal.charId);
         if (!c) return null;
-        return <SheetModal c={c} gold={gs.gold} potions={gs.potions} onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid} onBoost={boost} onClose={() => setModal({ k: "none" })} />;
+        const isRent = gs.rental?.char.id === c.id;
+        return (
+          <AmPage
+            c={c}
+            gold={gs.gold}
+            potions={gs.potions}
+            rentedFights={isRent ? gs.rental!.fightsLeft : undefined}
+            onToggleHeal={toggleHeal}
+            onPotion={healPotion}
+            onFull={healFullPaid}
+            onInteract={doInteract}
+            onClose={() => setModal({ k: "none" })}
+          />
+        );
       })()}
 
       {modal.k === "combat" && (
@@ -506,7 +538,19 @@ function MapBoard({ gs, onClickNode }: { gs: GameState; onClickNode: (id: string
           <svg className="map-paths" viewBox={`0 0 ${MAP_W} ${MAP_H}`} width={MAP_W} height={MAP_H}>
             {MAP_PATHS.map(([a, b]) => {
               const pa = locById(a), pb = locById(b);
-              return <line key={`${a}-${b}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />;
+              // courbe douce : point de contrôle décalé perpendiculairement au milieu
+              const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+              const dx = pb.x - pa.x, dy = pb.y - pa.y;
+              const len = Math.hypot(dx, dy) || 1;
+              const bend = Math.min(60, len * 0.18);
+              const cx = mx - (dy / len) * bend, cy = my + (dx / len) * bend;
+              const d = `M ${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
+              return (
+                <g key={`${a}-${b}`}>
+                  <path className="road-under" d={d} />
+                  <path className="road-over" d={d} />
+                </g>
+              );
             })}
           </svg>
 
@@ -778,15 +822,15 @@ function Adoption({ onPick }: { onPick: (id: string) => void }) {
   );
 }
 
-function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onBoost, onSheet, onClose }: {
+function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }: {
   gs: GameState;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onBoost: (id: string, stat: StatKey) => void; onSheet: (id: string) => void; onClose: () => void;
+  onSheet: (id: string) => void; onClose: () => void;
 }) {
   const list = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
   return (
     <ModalShell title="🎒 Inventaire" onClose={onClose} wide>
-      <p className="muted">Soigne et booste tes Auto Monsters. (💰 {gs.gold})</p>
+      <p className="muted">Soigne tes Auto Monsters. Pour les entraîner, ouvre leur fiche. (💰 {gs.gold})</p>
       {list.map((c) => {
         const sp = SPECIES[c.speciesId];
         const isRent = gs.rental?.char.id === c.id;
@@ -801,12 +845,6 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onBoost, onSheet, 
               </div>
             </div>
             <HealControls c={c} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
-            <div className="boost-row">
-              <span className="boost-label">Booster ({BOOST_COST}💰) :</span>
-              {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-                <button key={k} className="boost-btn" disabled={gs.gold < BOOST_COST} onClick={() => onBoost(c.id, k)}>{STAT_LABELS[k]} +{BOOST_AMOUNT[k]}</button>
-              ))}
-            </div>
           </div>
         );
       })}
@@ -814,41 +852,111 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onBoost, onSheet, 
   );
 }
 
-function SheetModal({ c, gold, potions, onToggleHeal, onPotion, onFull, onBoost, onClose }: {
-  c: Character; gold: number; potions: number;
+// ── Page AM en plein écran ───────────────────────────────────────────────────
+function fmtDate(ts?: number): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
+const HIST_ICON: Record<string, string> = { capture: "⭐", combat: "⚔️", interact: "💞", levelup: "🆙" };
+
+function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: string, k: InteractKind) => void }) {
+  const [, force] = useState(0);
+  // re-render léger pour rafraîchir les cooldowns
+  useEffect(() => {
+    const id = window.setInterval(() => force((x) => x + 1), 500);
+    return () => window.clearInterval(id);
+  }, []);
+  const kinds = Object.keys(INTERACT_LABELS) as InteractKind[];
+  const lastText = c.history?.find((h) => h.kind === "interact")?.text;
+  return (
+    <div className="interact-block">
+      <h4 className="block-title">Interagir <span className="muted small">— effet aléatoire selon son caractère</span></h4>
+      <div className="interact-grid">
+        {kinds.map((k) => {
+          const ready = interactReadyIn(c, k);
+          const meta = INTERACT_LABELS[k];
+          return (
+            <button key={k} className="interact-btn" disabled={ready > 0} onClick={() => onInteract(c.id, k)} title={meta.hint}>
+              <span className="interact-emoji">{meta.emoji}</span>
+              <span>{meta.name}</span>
+              <span className="muted small">{ready > 0 ? `${Math.ceil(ready / 1000)}s` : meta.hint}</span>
+            </button>
+          );
+        })}
+      </div>
+      {lastText && <p className="interact-last">« {lastText} »</p>}
+    </div>
+  );
+}
+
+function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose }: {
+  c: Character; gold: number; potions: number; rentedFights?: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onBoost: (id: string, stat: StatKey) => void; onClose: () => void;
+  onInteract: (id: string, k: InteractKind) => void; onClose: () => void;
 }) {
   const sp = SPECIES[c.speciesId];
   const xpNext = xpForNext(c.level);
+  const p = c.personality;
   return (
-    <ModalShell title={`Fiche — ${c.name}`} onClose={onClose}>
-      <div className="sheet-top">
-        <div className="amcard-art sheet-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}44, transparent 70%)` }}>
-          <img src={`/sprites/${sp.gfx}.png`} alt={c.name} />
+    <div className="am-page">
+      <header className="am-page-top">
+        <button className="ghost sm" onClick={onClose}>← Retour</button>
+        <div className="am-page-title">{c.name}</div>
+        <span />
+      </header>
+
+      <div className="am-page-body">
+        <section className="am-hero">
+          <div className="am-art" style={{ background: `radial-gradient(circle at 50% 38%, ${sp.tint}55, transparent 72%)` }}>
+            <img src={`/sprites/${sp.gfx}.png`} alt={c.name} />
+          </div>
+          <div className="am-hero-info">
+            <div className="team-name big">
+              {c.name} <span className="lvl">N.{c.level}</span>
+              {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
+              {rentedFights != null && <span className="rent-tag">loué · {rentedFights}c</span>}
+            </div>
+            <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
+            {p && <div className="am-trait">{p.emoji} {p.archetype} — <span className="muted">{p.blurb}</span></div>}
+            <div className="am-mood">Humeur : <strong>{moodLabel(c)}</strong> <span className="muted small">({moodOf(c)}/100)</span></div>
+            <HpBar c={c} />
+            <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
+            <div className="muted small">XP {c.xp}/{xpNext} · Capturé·e le {fmtDate(c.capturedAt)}</div>
+          </div>
+        </section>
+
+        <div className="am-cols">
+          <div className="am-col">
+            <h4 className="block-title">Caractéristiques</h4>
+            <div className="sheet-stats">
+              {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
+                <div key={k} className="sheet-stat"><span>{STAT_LABELS[k]}</span><strong>{c.stats[k]}</strong></div>
+              ))}
+            </div>
+            <TalentChips c={c} />
+            <h4 className="block-title">Soins</h4>
+            <HealControls c={c} gold={gold} potions={potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
+            <InteractButtons c={c} onInteract={onInteract} />
+          </div>
+
+          <div className="am-col">
+            <h4 className="block-title">Descriptif de l'espèce</h4>
+            <p className="am-species-desc">{sp.desc}</p>
+            <h4 className="block-title">Historique</h4>
+            <div className="am-history">
+              {(c.history ?? []).length === 0 && <p className="muted small">Aucun évènement pour l'instant.</p>}
+              {(c.history ?? []).map((h, i) => (
+                <div key={i} className="hist-row">
+                  <span className="hist-icon">{HIST_ICON[h.kind] ?? "•"}</span>
+                  <span className="hist-text">{h.text}</span>
+                  <span className="hist-date muted small">{fmtDate(h.t)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="sheet-side">
-          <div className="team-name big">{c.name} <span className="lvl">N.{c.level}</span>{sp.rarity === "rare" && <span className="rare-tag">RARE</span>}</div>
-          <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
-          <HpBar c={c} />
-          <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
-          <div className="muted small">XP {c.xp}/{xpNext}</div>
-        </div>
       </div>
-      <div className="sheet-stats">
-        {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-          <div key={k} className="sheet-stat"><span>{STAT_LABELS[k]}</span><strong>{c.stats[k]}</strong></div>
-        ))}
-      </div>
-      <TalentChips c={c} />
-      <HealControls c={c} gold={gold} potions={potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
-      <div className="boost-row">
-        <span className="boost-label">Booster ({BOOST_COST}💰) :</span>
-        {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-          <button key={k} className="boost-btn" disabled={gold < BOOST_COST} onClick={() => onBoost(c.id, k)}>{STAT_LABELS[k]} +{BOOST_AMOUNT[k]}</button>
-        ))}
-      </div>
-    </ModalShell>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 // Données statiques du jeu : espèces (auto monsters + bestioles), map, loot.
 
-import type { SpeciesDef, Stats } from "./types";
+import type { SpeciesDef, Stats, InteractKind, Personality } from "./types";
 
 const st = (hp: number, atk: number, def: number, spd: number, sta: number): Stats => ({
   hp,
@@ -23,6 +23,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "ember",
     talentPool: ["ember", "frenzy", "swift", "stoneskin"],
     tint: "#ff7a3c",
+    desc: "Petite salamandre de braise née dans les cheminées volcaniques. Vive et impétueuse, elle frappe fort mais encaisse mal. On dit que sa flamme dorsale reflète son humeur.",
   },
   aquafi: {
     id: "aquafi",
@@ -35,6 +36,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "stoneskin",
     talentPool: ["stoneskin", "thorns", "regen", "ember"],
     tint: "#3cc6ff",
+    desc: "Créature des sources froides à la carapace gorgée d'eau. Lente mais robuste, elle absorbe les coups avec une patience minérale. Calme en apparence, fidèle à qui la respecte.",
   },
   leafkit: {
     id: "leafkit",
@@ -47,6 +49,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "swift",
     talentPool: ["swift", "frenzy", "regen", "thorns"],
     tint: "#6fd97a",
+    desc: "Renardeau de feuilles vives, le plus rapide des trois starters. Joueur et curieux, il esquive plus qu'il n'encaisse. Difficile à canaliser, mais redoutable bien entraîné.",
   },
 
   // ── Auto monster rare (capture après le boss) ────────────────────────────
@@ -61,6 +64,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "regen",
     talentPool: ["regen", "ember", "frenzy", "swift", "thorns", "stoneskin"],
     tint: "#c89bff",
+    desc: "Feu follet d'âme errante, rare et insaisissable. Se régénère en flottant entre les mondes. Mystérieux, il ne se lie qu'aux dresseurs patients et observateurs.",
   },
 
   // ── Bestioles ennemies (créatures simples, pas des auto monsters) ─────────
@@ -75,6 +79,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: null,
     talentPool: [],
     tint: "#b9a07a",
+    desc: "Galet vivant aux dents de pierre, tapi sur les sentiers rocailleux.",
   },
   chirple: {
     id: "chirple",
@@ -87,6 +92,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: null,
     talentPool: [],
     tint: "#ffd24a",
+    desc: "Oisillon criard et nerveux qui fond sur les imprudents.",
   },
   mossprout: {
     id: "mossprout",
@@ -99,6 +105,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: null,
     talentPool: [],
     tint: "#7fae5a",
+    desc: "Bourgeon mobile et têtu qui s'agite dans les fougères.",
   },
   nimbus: {
     id: "nimbus",
@@ -111,6 +118,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: null,
     talentPool: [],
     tint: "#aab8d8",
+    desc: "Nuée électrique qui tourbillonne sur les crêtes venteuses.",
   },
 
   // ── Boss : bestiole massive et coriace (combats longs → égalités) ─────────
@@ -125,6 +133,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "stoneskin",
     talentPool: [],
     tint: "#8c6b4a",
+    desc: "Colosse de roche et de mâchoires, gardien de l'antre. Increvable : ses blessures persistent d'un combat à l'autre.",
   },
 };
 
@@ -315,10 +324,11 @@ export const MAP_STEPS = COMBAT_LOCATIONS;
 
 /** Chemins reliant les lieux (décor). */
 export const MAP_PATHS: [string, string][] = [
+  // village (étoile autour de la place)
   ["plaza", "shop"],
   ["plaza", "heal"],
   ["plaza", "ranch"],
-  ["shop", "heal"],
+  // sentier vers la vallée sauvage (chaîne unique, lisible)
   ["plaza", "moss"],
   ["moss", "windy"],
   ["windy", "traveler"],
@@ -352,7 +362,60 @@ export const RANCH_EXTEND = { price: 30, fights: 3 };
 /** Durée pour régénérer de 0 à PV max. Test : 5 s. À terme : plusieurs heures. */
 export const HEAL_FULL_MS = 5000;
 
-// ── Boost de stat (inventaire, payant en or) ───────────────────────────────
-export const BOOST_COST = 20; // or par boost
-/** Montant ajouté par boost, par stat. */
-export const BOOST_AMOUNT: Record<string, number> = { hp: 8, atk: 3, def: 3, spd: 3, sta: 4 };
+// ── Personnalité & interactions (gratuit, aléatoire, par individu) ──────────
+/** Cooldown entre deux interactions du même type. Test : 8 s. À terme : qq heures. */
+export const INTERACT_COOLDOWN_MS = 8000;
+
+/** Bornes d'humeur. 50 = neutre. */
+export const MOOD_MIN = 0;
+export const MOOD_MAX = 100;
+export const MOOD_START = 60;
+
+export const INTERACT_LABELS: Record<InteractKind, { name: string; emoji: string; hint: string }> = {
+  caresser: { name: "Caresser", emoji: "🤚", hint: "Renforce le lien… si l'individu aime le contact." },
+  coacher: { name: "Coacher", emoji: "🏋️", hint: "Entraînement : peut gagner une stat… ou le braquer." },
+  observer: { name: "Observer", emoji: "🔎", hint: "Étude discrète : peu risqué, révèle parfois un détail." },
+};
+
+/**
+ * Archétypes de caractère. Chaque individu en reçoit un à la capture, PUIS
+ * ses affinités sont perturbées aléatoirement → deux individus du même
+ * archétype réagissent différemment (caractère propre à l'individu).
+ */
+export const ARCHETYPES: Omit<Personality, "blurb">[] = [
+  { archetype: "Affectueux", emoji: "💗", affinity: { caresser: 0.8, coacher: 0.1, observer: 0.2 } },
+  { archetype: "Sauvage", emoji: "🔥", affinity: { caresser: -0.6, coacher: 0.3, observer: -0.2 } },
+  { archetype: "Orgueilleux", emoji: "👑", affinity: { caresser: -0.2, coacher: 0.6, observer: -0.3 } },
+  { archetype: "Craintif", emoji: "🫣", affinity: { caresser: 0.3, coacher: -0.4, observer: -0.5 } },
+  { archetype: "Curieux", emoji: "✨", affinity: { caresser: 0.2, coacher: 0.2, observer: 0.8 } },
+  { archetype: "Stoïque", emoji: "🗿", affinity: { caresser: -0.1, coacher: 0.4, observer: 0.4 } },
+  { archetype: "Joueur", emoji: "🎲", affinity: { caresser: 0.5, coacher: -0.2, observer: 0.3 } },
+  { archetype: "Paresseux", emoji: "😴", affinity: { caresser: 0.4, coacher: -0.6, observer: 0.1 } },
+];
+
+const BLURBS: Record<string, string> = {
+  Affectueux: "Réclame des câlins et fond dès qu'on s'approche.",
+  Sauvage: "Indomptable ; n'apprécie pas qu'on le touche, mais adore se dépenser.",
+  Orgueilleux: "Se prend pour un champion ; veut qu'on le pousse, déteste qu'on l'épie.",
+  Craintif: "Sursaute pour un rien ; gagne en confiance dans la durée.",
+  Curieux: "Fasciné par tout ; adore qu'on l'observe et qu'on lui apprenne.",
+  Stoïque: "Impassible ; rien ne semble l'atteindre, l'entraînement le révèle.",
+  Joueur: "Espiègle et imprévisible ; transforme tout en jeu.",
+  Paresseux: "Économe de ses efforts ; câlins oui, exercice bof.",
+};
+
+/** Génère un caractère UNIQUE (archétype + affinités perturbées). */
+export function makePersonality(rand: () => number = Math.random): Personality {
+  const a = ARCHETYPES[Math.floor(rand() * ARCHETYPES.length)];
+  const jitter = (v: number) => Math.max(-1, Math.min(1, v + (rand() - 0.5) * 0.5));
+  return {
+    archetype: a.archetype,
+    emoji: a.emoji,
+    blurb: BLURBS[a.archetype] ?? "",
+    affinity: {
+      caresser: jitter(a.affinity.caresser),
+      coacher: jitter(a.affinity.coacher),
+      observer: jitter(a.affinity.observer),
+    },
+  };
+}
