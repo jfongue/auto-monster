@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.9 — Document de référence du projet
+> Version 0.10 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,13 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-06-29 — v0.10
+- [Responsive] **Passe mobile-first sur tout le jeu.** Breakpoints 900 / 600 / 360 px.
+- [Responsive] **Header** : `flex-wrap` + `safe-area-inset` + tailles réduites pour ne plus déborder sur petit écran.
+- [Responsive] **Arène de combat** : combattants/sprites passés en `clamp()` (plus de débordement des 180px fixes sur mobile) ; arène et paddings fluides ; overlay/combat en quasi plein écran sous 600px.
+- [Responsive] **Hub / carte / page AM** : grilles repliées en 1 colonne, paddings réduits, carte 64vh, scroll tactile (`-webkit-overflow-scrolling`), cibles de boutons agrandies, soins empilés sous 360px.
+- [Responsive] Nettoyage des media queries 720px dupliquées (stats AM).
 
 ### 2026-06-29 — v0.9
 - [Bug] **Glissement des icônes de la carte corrigé.** Le `button:active` global (`translateY(1px)`) écrasait le `transform: translate(-50%,-50%)` des nœuds `.map-loc` → l'icône sautait au clic. Règle CSS dédiée qui fige le transform au survol/clic.
@@ -73,6 +80,7 @@
 | Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
 | Direction artistique | Oui (§7) | ✅ **Thème fantasy** (palette or/parchemin, typo Cinzel/Spectral, routes courbées) |
+| Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile (breakpoints 900/600/360) |
 | PvP | Oui (§6) | À compléter |
 | UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` |
 

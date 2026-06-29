@@ -42,7 +42,10 @@ h1, h2, h3, .brand, .am-page-title, .team-strip-title, .block-title, .loc-panel-
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
   border-bottom: 1px solid var(--g-gold-deep);
   position: sticky;
   top: 0;
@@ -64,11 +67,14 @@ h1, h2, h3, .brand, .am-page-title, .team-strip-title, .block-title, .loc-panel-
 .top-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 10px;
 }
 .purse {
   font-weight: 700;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 button {
@@ -470,12 +476,14 @@ h3 {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
-  min-height: 380px;
-  background: linear-gradient(180deg, #0e1430 0%, #0a0d18 100%);
-  border: 1px solid var(--g-line);
+  gap: 8px;
+  min-height: clamp(280px, 58vh, 380px);
+  background:
+    radial-gradient(ellipse at 50% 120%, rgba(243, 201, 105, 0.08), transparent 60%),
+    linear-gradient(180deg, #221a35 0%, #120e1d 100%);
+  border: 1px solid var(--g-gold-deep);
   border-radius: 16px;
-  padding: 30px 20px;
+  padding: clamp(14px, 4vw, 30px) clamp(8px, 3vw, 20px);
   overflow: hidden;
 }
 .arena-side {
@@ -483,11 +491,12 @@ h3 {
   flex-direction: column;
   gap: 18px;
   align-items: center;
+  min-width: 0;
 }
 .arena-vs {
   font-weight: 800;
-  color: var(--g-dim);
-  font-size: 18px;
+  color: var(--g-gold);
+  font-size: clamp(14px, 4vw, 18px);
 }
 .fighter {
   position: relative;
@@ -495,7 +504,8 @@ h3 {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  width: 180px;
+  width: clamp(104px, 38vw, 180px);
+  max-width: 100%;
 }
 .fighter.dead {
   opacity: 0.25;
@@ -504,16 +514,16 @@ h3 {
 }
 .fighter-sprite {
   position: relative;
-  width: 130px;
-  height: 130px;
+  width: clamp(88px, 30vw, 130px);
+  height: clamp(88px, 30vw, 130px);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.16s ease, filter 0.1s;
 }
 .fighter-sprite img {
-  max-width: 120px;
-  max-height: 120px;
+  max-width: 92%;
+  max-height: 92%;
   filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.5));
   z-index: 1;
 }
@@ -1277,27 +1287,75 @@ button.sm {
   font-size: 13px;
 }
 
-@media (max-width: 720px) {
-  .cards3 {
-    grid-template-columns: 1fr;
+/* scroll tactile fluide partout où ça défile */
+.map-viewport,
+.am-history,
+.loc-panel-wrap,
+.modal {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══ TABLETTE & DESSOUS ═══════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .hub {
+    padding: 12px 12px 32px;
+    gap: 12px;
   }
-  .map-cols {
-    grid-template-columns: 1fr;
+  .screen {
+    padding: 18px 14px 48px;
   }
-  .sheet-stats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .loc-name {
-    font-size: 10px;
-  }
-  .am-hero {
-    flex-direction: column;
-    text-align: center;
-  }
-  .am-cols {
-    grid-template-columns: 1fr;
-  }
-  .sheet-stats {
-    grid-template-columns: repeat(5, 1fr);
-  }
+}
+
+/* ═══ MOBILE ════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  h1 { font-size: 22px; }
+  .brand { font-size: 16px; }
+  .game-top { padding: 8px 12px; }
+  .top-right { gap: 6px 8px; }
+  .purse { font-size: 13px; }
+  /* boutons : cibles tactiles confortables */
+  button { padding: 10px 14px; }
+  button.ghost.sm, button.sm { padding: 7px 11px; }
+  button.primary.big { padding: 13px 22px; font-size: 15px; }
+
+  .cards3 { grid-template-columns: 1fr; }
+  .map-cols { grid-template-columns: 1fr; }
+
+  .team-strip { padding: 10px; }
+  .team-strip-grid { grid-template-columns: 1fr; gap: 8px; }
+
+  .map-board, .loc-panel, .am-col { padding: 12px; }
+  .map-viewport { height: 64vh; max-height: none; }
+  .loc-name { font-size: 10px; }
+
+  /* combat plein écran sur mobile */
+  .overlay { padding: 8px; }
+  .combat-wrap { padding: 8px; }
+  .combat-head { font-size: 14px; }
+  .arena-caption { font-size: 12px; padding: 6px 12px; }
+
+  /* page AM */
+  .am-hero { flex-direction: column; text-align: center; gap: 14px; padding: 16px; }
+  .am-art { width: 150px; height: 150px; }
+  .am-art img { max-width: 124px; max-height: 124px; }
+  .am-cols { grid-template-columns: 1fr; gap: 12px; }
+  .am-page-body { padding: 16px 12px 48px; }
+  .am-page-title { font-size: 18px; }
+
+  /* 5 stats tiennent sur une ligne mais compactes */
+  .sheet-stats { gap: 5px; }
+  .sheet-stat { padding: 7px 2px; font-size: 11px; }
+  .sheet-stat strong { font-size: 14px; }
+
+  .interact-btn { padding: 10px 4px; font-size: 12px; }
+  .interact-emoji { font-size: 20px; }
+
+  .modal.center { padding: 20px 16px; }
+  .cleared-banner { width: calc(100% - 24px); justify-content: center; text-align: center; }
+}
+
+/* très petits écrans : éviter tout débordement du sélecteur de vitesse */
+@media (max-width: 360px) {
+  .heal-row { flex-wrap: wrap; }
+  .heal-row button { flex: 1 1 100%; }
 }
