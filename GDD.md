@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.10 — Document de référence du projet
+> Version 0.11 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,18 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-03 — v0.11
+- [DA] **Refonte visuelle complète : thème CLAIR moderne** (remplace le thème fantasy sombre). Palette indigo/violet + émeraude, surfaces blanches, ombres douces, typo `Space Grotesk` (titres) + `Inter` (corps). `game.css` entièrement réécrit.
+- [Mise en scène] **Machine à vues** dans `GamePage.tsx` (`route` : `map` / `zone` + overlays) avec **transitions animées juicy** entre pages (`viewIn`, `riseIn`, `popIn`, `stagger`, hover-lift des boutons/cartes).
+- [Onboarding] **Zone de base + choix du 1er AM en dialogue façon Disco Elysium** (`Onboarding`) : portrait de Sylve (mentor), répliques mises en scène (dont une « pensée »), puis sélection du starter. Remplace l'ancien écran `Adoption`.
+- [Monde] **Carte du monde réduite à 3 ZONES** (Clairière du Départ, Vallée Sauvage, Cimes Orageuses) avec anneaux de complétion, badges d'état, chemins pointillés animés, avatar joueur animé. **La carte fade out à l'arrivée** dans une zone (`worldFading`).
+- [Progression] **Taux de complétion par zone** (`zoneProgress`, victoires cumulées / `winsToComplete`). **À 75%**, la zone suivante se **débloque** (`registerZoneWin` + `zonesUnlocked`). La Vallée débloque les Cimes.
+- [Boss/États de zone] Zone menacée (Cimes) = boss `gravelmaw`. **Boss vaincu → zone pacifiée** (`bossDefeated`) : elle passe en mode paisible avec marchand + PNJ. États : `peaceful` / `exploration` / `threatened` (`zoneMood`).
+- [PNJ] **Chat plein écran façon Disco Elysium** (`NpcChat`) pour les lieux à PNJ (marchand/soin/ranch/lore) : portrait + répliques + actions contextuelles (acheter potion, soigner l'équipe, louer/ rendre un monstre).
+- [Bestiaire] **Pokédex** (`BestiaryModal`) : grille de toutes les espèces, silhouette verrouillée tant que non rencontrée. Rencontre enregistrée au lancement du combat (`recordBestiary`), + starters/rare/possédés.
+- [State] v5 : ajout `playerZone`, `bestiary`, `zoneProgress`, `zonesUnlocked`, `bossDefeated` + helpers (`zoneCompletion`, `zoneMood`, `isZoneUnlocked`, `isZonePacified`, `registerZoneWin`, `recordBestiary`) ; `migrate()` backfill. Moteur de combat/ActionLog **inchangé** (tests 105/0).
+- [Data] `data.ts` : type `Zone` + `Npc`, `ZONES`, `ZONE_PATHS`, `MAP_WORLD_W/H`, `START_ZONE`, `zoneById`, `encounterById`. `COMBAT_LOCATIONS`/exports moteur conservés.
 
 ### 2026-06-29 — v0.10
 - [Responsive] **Passe mobile-first sur tout le jeu.** Breakpoints 900 / 600 / 360 px.
@@ -72,14 +84,17 @@
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + bestioles + boss ; variations non implémentées |
-| Carte / exploration | Oui (§5) | ✅ **Grande carte scrollable** avec avatar mobile ; lieux combat + boutique + soin + ranch + dialogues |
-| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Panneaux d'interaction par lieu (potions / soin équipe payant / location de monstres) |
+| Carte / exploration | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes) ; anneaux de complétion, déblocage à 75%, fade à l'arrivée, avatar animé |
+| Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
+| Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
+| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Intégrés au **chat PNJ plein écran** (marchand/soin/ranch) façon Disco Elysium |
+| Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
 | Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
-| Direction artistique | Oui (§7) | ✅ **Thème fantasy** (palette or/parchemin, typo Cinzel/Spectral, routes courbées) |
+| Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues |
 | Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile (breakpoints 900/600/360) |
 | PvP | Oui (§6) | À compléter |
 | UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` |

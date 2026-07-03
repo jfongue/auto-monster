@@ -419,3 +419,221 @@ export function makePersonality(rand: () => number = Math.random): Personality {
     },
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZONES & PNJ (refonte "mise en scène")
+// ─ Trois zones sur la carte du monde. Chaque zone a un état (peaceful /
+//   exploration / threatened) et un lot de PNJ avec qui dialoguer (chat DE).
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ZoneMood = "peaceful" | "exploration" | "threatened";
+
+/** Rôle d'un PNJ → détermine les actions offertes dans le chat. */
+export type NpcRole = "mentor" | "merchant" | "healer" | "ranch" | "lore";
+
+export type Npc = {
+  id: string;
+  name: string;
+  title: string;
+  emoji: string; // portrait de secours (emoji)
+  tint: string; // couleur d'accent du portrait
+  role: NpcRole;
+  /** répliques d'ambiance (chat façon Disco Elysium) */
+  lines: string[];
+};
+
+export type Zone = {
+  id: string;
+  name: string;
+  subtitle: string;
+  x: number; // position sur la carte du monde (0..MAP_W)
+  y: number;
+  icon: string;
+  /** teinte d'accent de la zone (thème clair) */
+  tint: string;
+  /** état par défaut (avant progression) */
+  baseMood: ZoneMood;
+  /** ids d'encounters (combats) présents dans la zone */
+  encounters: string[];
+  /** nb de victoires pour atteindre 100% de complétion */
+  winsToComplete: number;
+  /** id de la zone débloquée à 75% (avec un boss) */
+  unlocks?: string;
+  /** id de l'encounter boss (si zone menacée) */
+  boss?: string;
+  /** PNJ présents quand la zone est paisible */
+  npcs: Npc[];
+  /** PNJ présents pendant la phase d'exploration (avant pacification) */
+  wildNpcs?: Npc[];
+};
+
+export const MAP_WORLD_W = 1200;
+export const MAP_WORLD_H = 560;
+
+export const ZONES: Zone[] = [
+  {
+    id: "clairiere",
+    name: "Clairière du Départ",
+    subtitle: "Le hameau paisible où tout commence.",
+    x: 210,
+    y: 360,
+    icon: "🌿",
+    tint: "#5bbf8a",
+    baseMood: "peaceful",
+    encounters: [],
+    winsToComplete: 0,
+    npcs: [
+      {
+        id: "sylve",
+        name: "Sylve",
+        title: "Gardienne de la clairière",
+        emoji: "🧝‍♀️",
+        tint: "#5bbf8a",
+        role: "mentor",
+        lines: [
+          "« Te voilà enfin. J'ai senti ta venue dans le bruissement des feuilles. »",
+          "« Chaque dresseur commence ici, avec un seul compagnon. Le tien t'attend. »",
+          "« Va vers l'est, la Vallée Sauvage. Bats-toi, encore et encore — elle te livrera ses secrets. »",
+        ],
+      },
+      {
+        id: "perle",
+        name: "Perle",
+        title: "Marchande ambulante",
+        emoji: "🧕",
+        tint: "#e0a34a",
+        role: "merchant",
+        lines: [
+          "« Une potion, dresseur ? Ça remet d'aplomb un Auto Monster amoché. »",
+          "« Mes fioles viennent des sources chaudes. Efficacité garantie. »",
+        ],
+      },
+      {
+        id: "soin",
+        name: "Fontaine de soin",
+        title: "Source claire",
+        emoji: "⛲",
+        tint: "#4aa6e0",
+        role: "healer",
+        lines: [
+          "« Confie tes compagnons à l'eau vive. Elle les remet sur pied en un instant. »",
+        ],
+      },
+      {
+        id: "boris",
+        name: "Boris",
+        title: "Éleveur du ranch",
+        emoji: "🧑‍🌾",
+        tint: "#c98a5a",
+        role: "ranch",
+        lines: [
+          "« Besoin de renfort ? Je loue mes bêtes pour quelques combats, pas plus. »",
+          "« Traite-les bien, elles te le rendront. »",
+        ],
+      },
+    ],
+  },
+  {
+    id: "vallee",
+    name: "Vallée Sauvage",
+    subtitle: "Terres foisonnantes à explorer, combat après combat.",
+    x: 560,
+    y: 300,
+    icon: "🍃",
+    tint: "#6fae4f",
+    baseMood: "exploration",
+    encounters: ["moss", "windy", "scree", "cloud"],
+    winsToComplete: 10,
+    unlocks: "cimes",
+    wildNpcs: [
+      {
+        id: "voyageuse",
+        name: "Nima",
+        title: "Voyageuse",
+        emoji: "🧗‍♀️",
+        tint: "#a06fc9",
+        role: "lore",
+        lines: [
+          "« Gravelmaw ? Ce monstre est increvable… ses blessures restent d'un combat à l'autre. »",
+          "« Plus tu explores cette vallée, plus tu la comprends. Ne lâche rien. »",
+        ],
+      },
+    ],
+    npcs: [
+      {
+        id: "voyageuse",
+        name: "Nima",
+        title: "Voyageuse",
+        emoji: "🧗‍♀️",
+        tint: "#a06fc9",
+        role: "lore",
+        lines: [
+          "« La vallée est apaisée maintenant. On respire. »",
+          "« Les Cimes, là-haut, grondent encore. Sois prudent. »",
+        ],
+      },
+    ],
+  },
+  {
+    id: "cimes",
+    name: "Cimes Orageuses",
+    subtitle: "Un colosse de pierre menace les hauteurs.",
+    x: 940,
+    y: 200,
+    icon: "⛰️",
+    tint: "#7d7fb3",
+    baseMood: "threatened",
+    encounters: ["lair"],
+    winsToComplete: 1,
+    boss: "lair",
+    wildNpcs: [
+      {
+        id: "guetteur",
+        name: "Orn",
+        title: "Guetteur affolé",
+        emoji: "🧙‍♂️",
+        tint: "#c95a5a",
+        role: "lore",
+        lines: [
+          "« Il est là-haut ! Gravelmaw écrase tout sur son passage ! »",
+          "« Toi seul peux l'arrêter. Les Cimes comptent sur toi. »",
+        ],
+      },
+    ],
+    npcs: [
+      {
+        id: "orn",
+        name: "Orn",
+        title: "Marchand des cimes",
+        emoji: "🧙‍♂️",
+        tint: "#7d7fb3",
+        role: "merchant",
+        lines: [
+          "« Le colosse est tombé. Le calme est revenu sur les Cimes. »",
+          "« Reste un peu — j'ai de quoi ravitailler les héros. »",
+        ],
+      },
+      {
+        id: "orn-lore",
+        name: "Nima",
+        title: "Voyageuse",
+        emoji: "🧗‍♀️",
+        tint: "#a06fc9",
+        role: "lore",
+        lines: [
+          "« Tu as pacifié les trois zones. La légende, c'est toi maintenant. »",
+        ],
+      },
+    ],
+  },
+];
+
+export const zoneById = (id: string) => ZONES.find((z) => z.id === id)!;
+export const encounterById = (id: string) => MAP_LOCATIONS.find((l) => l.id === id)!;
+export const START_ZONE = "clairiere";
+
+/** Chemins reliant les zones (décor de la carte du monde). */
+export const ZONE_PATHS: [string, string][] = [
+  ["clairiere", "vallee"],
+  ["vallee", "cimes"],
+];

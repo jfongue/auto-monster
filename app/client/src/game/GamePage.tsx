@@ -1,10 +1,11 @@
-// Tout se passe sur une seule page (hub) :
-//  - une GRANDE carte scrollable avec des lieux de types variés (combat, boutique,
-//    centre de soin, ranch, dialogues) et un AVATAR joueur qui se déplace ;
-//  - on clique un lieu → sa fiche apparaît → on valide le déplacement ;
-//  - une fois arrivé, un PANNEAU d'interactions s'ouvre au-dessus de la carte.
-//  - inventaire (soin/boost) et fiches détaillées en modals.
-// Les montées de niveau augmentent les stats automatiquement (aucun choix).
+// AutoMonster — refonte "monde à zones" + mise en scène.
+//  - Onboarding : dialogue façon Disco Elysium avec la mentor, choix du 1er AM.
+//  - Carte du monde CLAIRE : 3 zones, anneaux de complétion, voyage animé.
+//  - À l'arrivée : la carte fade out → vue de zone.
+//  - Zones d'exploration : combats en boucle → taux de complétion ; 75% débloque
+//    la zone suivante (menacée par un boss). Boss vaincu → zone pacifiée (PNJ).
+//  - PNJ : chat plein écran façon Disco Elysium (marchand, soin, ranch, lore).
+//  - Bestiaire (pokédex) des espèces rencontrées.
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -16,9 +17,6 @@ import {
   STARTERS,
   RARE_REWARD,
   MAP_LOCATIONS,
-  MAP_PATHS,
-  MAP_W,
-  MAP_H,
   POTION_HEAL,
   FULL_HEAL_COST,
   POTION_PRICE,
@@ -26,7 +24,16 @@ import {
   RANCH_OFFERS,
   RANCH_EXTEND,
   INTERACT_LABELS,
+  ZONES,
+  ZONE_PATHS,
+  MAP_WORLD_W,
+  MAP_WORLD_H,
+  START_ZONE,
+  zoneById,
+  encounterById,
   type MapLocation,
+  type Npc,
+  type Zone,
 } from "./engine/data";
 import { runCombat } from "./engine/combat";
 import {
@@ -50,20 +57,34 @@ import {
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
 import type { Character, CombatResult, Stats, StatKey, InteractKind } from "./engine/types";
-import { freshState, migrate, GameState, isLocationCleared, allCleared } from "./state";
+import {
+  freshState,
+  migrate,
+  GameState,
+  isLocationCleared,
+  zoneCompletion,
+  zoneMood,
+  isZoneUnlocked,
+  isZonePacified,
+  registerZoneWin,
+  recordBestiary,
+} from "./state";
 import "./game.css";
 
 type CombatCtx = { loc: MapLocation; result: CombatResult; charId: string };
 type Outcome = "win" | "lose" | "draw";
 type RewardData = { outcome: Outcome; loc: MapLocation; pStat: any; firstClear: boolean; levelsGained: number };
+
+type Route = { v: "map" } | { v: "zone"; zoneId: string };
 type Modal =
   | { k: "none" }
-  | { k: "travel"; locId: string }
   | { k: "combat"; ctx: CombatCtx }
   | { k: "reward"; reward: RewardData }
   | { k: "capture" }
-  | { k: "inventory" }
+  | { k: "chat"; npcId: string; zoneId: string }
   | { k: "amPage"; charId: string }
+  | { k: "bestiary" }
+  | { k: "inventory" }
   | { k: "ranchExtend" };
 
 const STAT_LABELS: Record<StatKey, string> = {
@@ -74,33 +95,27 @@ const STAT_LABELS: Record<StatKey, string> = {
   sta: "⚡ STA",
 };
 
-const locById = (id: string) => MAP_LOCATIONS.find((l) => l.id === id)!;
+/** Zone contenant un encounter (combat). */
+const zoneOfEncounter = (locId: string): Zone | undefined =>
+  ZONES.find((z) => z.encounters.includes(locId));
 
 export default function GamePage() {
   const { logout, user } = useAuth();
   const [gs, setGs] = useState<GameState>(freshState());
   const [loaded, setLoaded] = useState(false);
-  const [adopting, setAdopting] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [route, setRoute] = useState<Route>({ v: "map" });
   const [modal, setModal] = useState<Modal>({ k: "none" });
+  const [worldFading, setWorldFading] = useState(false);
   const [, setTick] = useState(0);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const scrollToPanel = () => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  // sur petit écran (layout empilé), amène le panneau d'interactions à l'écran après un déplacement
-  useEffect(() => {
-    if (gs.started && typeof window !== "undefined" && window.innerWidth < 900) scrollToPanel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gs.playerLoc]);
 
   useEffect(() => {
     (async () => {
       try {
         const { state } = await api.getGameState<Partial<GameState>>();
         if (state && state.started) setGs(migrate(state));
-        else setAdopting(true);
       } catch {
-        setAdopting(true);
+        /* hors-ligne : état frais */
       } finally {
         setLoaded(true);
       }
@@ -122,18 +137,18 @@ export default function GamePage() {
           return c;
         };
         const team = prev.team.map(fix);
-        const rental = prev.rental ? { ...prev.rental, char: fix(prev.rental.char) } : null;
+        const rental = prev.rental ? { ...prev.rental, char: fix(prev.rental.char) } : prev.rental;
         if (changed) {
           const next = { ...prev, team, rental };
           api.saveGameState(next).catch(() => {});
           return next;
         }
+        setTick((x) => x + 1);
         return prev;
       });
-      setTick((t) => t + 1);
-    }, 250);
+    }, 1000);
     return () => window.clearInterval(id);
-  }, [gs]);
+  }, [gs.team, gs.rental]);
 
   async function persist(next: GameState) {
     setGs(next);
@@ -144,7 +159,6 @@ export default function GamePage() {
     }
   }
 
-  // applique une transformation à un Character de l'équipe OU au monstre loué
   function updateChar(charId: string, fn: (c: Character) => Character, extra?: Partial<GameState>) {
     const team = gs.team.map((c) => (c.id === charId ? fn(c) : c));
     const rental =
@@ -155,11 +169,11 @@ export default function GamePage() {
   const findChar = (id: string): Character | undefined =>
     gs.team.find((c) => c.id === id) ?? (gs.rental?.char.id === id ? gs.rental.char : undefined);
 
-  // ── Adoption ──────────────────────────────────────────────────────────────
+  // ── Onboarding : adoption du 1er AM ─────────────────────────────────────────
   function adopt(speciesId: string) {
     const c = makeCharacter(speciesId);
-    setAdopting(false);
-    persist({ ...freshState(), started: true, team: [c], gold: 30, potions: 1 });
+    persist({ ...freshState(), started: true, team: [c], gold: 30, potions: 1, bestiary: [speciesId] });
+    setRoute({ v: "map" });
   }
 
   // ── Soins ───────────────────────────────────────────────────────────────
@@ -181,7 +195,6 @@ export default function GamePage() {
     if (!c || gs.gold < FULL_HEAL_COST || isFull(c)) return;
     updateChar(charId, (x) => ({ ...x, life: x.stats.hp, healStart: null }), { gold: gs.gold - FULL_HEAL_COST });
   }
-
   function doInteract(charId: string, kind: InteractKind) {
     const c = findChar(charId);
     if (!c || interactReadyIn(c, kind) > 0) return;
@@ -189,7 +202,7 @@ export default function GamePage() {
     updateChar(charId, () => res.character);
   }
 
-  // ── Boutique / Centre de soin / Ranch ───────────────────────────────────
+  // ── Marchand / soin / ranch ─────────────────────────────────────────────
   function buyPotion() {
     if (gs.gold < POTION_PRICE) return;
     persist({ ...gs, gold: gs.gold - POTION_PRICE, potions: gs.potions + 1 });
@@ -198,11 +211,7 @@ export default function GamePage() {
     if (gs.gold < HEAL_CENTER_COST) return;
     const needs = gs.team.some((c) => currentLife(c) < c.stats.hp);
     if (!needs) return;
-    persist({
-      ...gs,
-      gold: gs.gold - HEAL_CENTER_COST,
-      team: gs.team.map((c) => ({ ...c, life: c.stats.hp, healStart: null })),
-    });
+    persist({ ...gs, gold: gs.gold - HEAL_CENTER_COST, team: gs.team.map((c) => ({ ...c, life: c.stats.hp, healStart: null })) });
   }
   function rent(offerIdx: number) {
     const offer = RANCH_OFFERS[offerIdx];
@@ -220,10 +229,18 @@ export default function GamePage() {
     setModal({ k: "none" });
   }
 
-  // ── Déplacement ─────────────────────────────────────────────────────────
-  function travelTo(locId: string) {
-    persist({ ...gs, playerLoc: locId });
-    setModal({ k: "none" });
+  // ── Voyage vers une zone (fade de la carte) ──────────────────────────────
+  function goToZone(zoneId: string) {
+    if (!isZoneUnlocked(gs, zoneId)) return;
+    setWorldFading(true);
+    window.setTimeout(() => {
+      persist({ ...gs, playerZone: zoneId });
+      setRoute({ v: "zone", zoneId });
+      setWorldFading(false);
+    }, 480);
+  }
+  function backToMap() {
+    setRoute({ v: "map" });
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -232,18 +249,19 @@ export default function GamePage() {
     if (!base) return;
     const player = commitHeal(base);
     if (player.life <= 0) return;
-    updateChar(charId, () => player);
 
     const enemy = makeEnemy(loc);
     if (loc.isBoss && gs.bossLife[loc.id] != null) enemy.life = gs.bossLife[loc.id];
     const seed = Math.floor(Math.random() * 1_000_000_000);
-    // l'humeur module légèrement les stats de combat (sans changer les PV persistés)
     const result = runCombat({
       seed,
       teamA: [withMoodBattle(player)],
       teamB: [enemy],
       rules: loc.maxTurns ? { maxTurns: loc.maxTurns } : undefined,
     });
+    // rencontre → bestiaire + commit du soin en cours
+    const withBest = loc.enemySpecies ? recordBestiary(gs, loc.enemySpecies) : gs;
+    persist(withCharUpdate(withBest, charId, () => player));
     setModal({ k: "combat", ctx: { loc, result, charId } });
   }
 
@@ -268,15 +286,19 @@ export default function GamePage() {
 
     const bossLife = { ...gs.bossLife };
     if (loc.isBoss) bossLife[loc.id] = Math.max(0, eStat.lifeLeft);
-    const bossDefeated = loc.isBoss && bossLife[loc.id] === 0;
+    const bossKilled = loc.isBoss && bossLife[loc.id] === 0;
 
     let gold = gs.gold;
     let potions = gs.potions;
     let cleared = gs.cleared;
+    let bossDefeated = gs.bossDefeated;
+    let zoneProgress = gs.zoneProgress;
+    let zonesUnlocked = gs.zonesUnlocked;
     let levelsGained = 0;
     let firstClear = false;
 
-    if (outcome === "win" || bossDefeated) {
+    const won = outcome === "win" || bossKilled;
+    if (won) {
       firstClear = !isLocationCleared(gs, loc.id);
       const xpAmt = firstClear ? loc.xp ?? 0 : Math.round((loc.xp ?? 0) / 2);
       gold += firstClear ? loc.gold ?? 0 : Math.round((loc.gold ?? 0) / 2);
@@ -286,12 +308,23 @@ export default function GamePage() {
       levelsGained = xpRes.levelsGained;
       if (firstClear) cleared = [...gs.cleared, loc.id];
       if (loc.isBoss) delete bossLife[loc.id];
+
+      // progression de zone + déblocage
+      const z = zoneOfEncounter(loc.id);
+      if (z) {
+        const advanced = registerZoneWin({ ...gs, zoneProgress, zonesUnlocked }, z.id);
+        zoneProgress = advanced.zoneProgress;
+        zonesUnlocked = advanced.zonesUnlocked;
+        // boss vaincu → zone pacifiée
+        if (bossKilled && z.boss === loc.id && !bossDefeated.includes(z.id)) {
+          bossDefeated = [...bossDefeated, z.id];
+        }
+      }
     } else if (outcome === "lose") {
       gold = Math.floor(gs.gold * 0.9);
       if (getF().life <= 0) setF({ ...getF(), life: Math.max(1, Math.round(getF().stats.hp * 0.3)) });
     }
 
-    // journal de combat de l'individu
     const enemyName = SPECIES[loc.enemySpecies!]?.name ?? loc.name;
     const histText =
       outcome === "win" ? `Victoire vs ${enemyName} (N.${loc.enemyLevel})`
@@ -302,8 +335,8 @@ export default function GamePage() {
 
     if (usedRental && rental) rental.fightsLeft -= 1;
 
-    persist({ ...gs, team, rental, gold, potions, cleared, bossLife });
-    setModal({ k: "reward", reward: { outcome: outcome === "lose" || outcome === "draw" ? outcome : "win", loc, pStat, firstClear, levelsGained } });
+    persist({ ...gs, team, rental, gold, potions, cleared, bossLife, bossDefeated, zoneProgress, zonesUnlocked });
+    setModal({ k: "reward", reward: { outcome: won ? "win" : outcome === "lose" ? "lose" : "draw", loc, pStat, firstClear, levelsGained } });
   }
 
   function closeReward() {
@@ -317,84 +350,92 @@ export default function GamePage() {
 
   function captureRare() {
     const rare = makeCharacter(RARE_REWARD);
-    persist({ ...gs, team: [...gs.team, rare], capturedRare: true });
+    persist({ ...gs, team: [...gs.team, rare], capturedRare: true, bestiary: gs.bestiary.includes(RARE_REWARD) ? gs.bestiary : [...gs.bestiary, RARE_REWARD] });
     setModal(gs.rental && gs.rental.fightsLeft <= 0 ? { k: "ranchExtend" } : { k: "none" });
   }
 
   async function resetGame() {
-    try {
-      await api.resetGameState();
-    } catch {
-      /* ignore */
-    }
+    try { await api.resetGameState(); } catch { /* ignore */ }
     setGs(freshState());
     setModal({ k: "none" });
-    setAdopting(true);
+    setRoute({ v: "map" });
   }
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
-  if (!loaded) return <div className="game-shell"><div className="center pad">Chargement…</div></div>;
+  if (!loaded) return <div className="game-shell"><div className="center-screen"><div className="spinner" /></div></div>;
 
-  const here = locById(gs.playerLoc);
+  if (!gs.started) {
+    return (
+      <div className="game-shell">
+        <Onboarding onPick={adopt} />
+      </div>
+    );
+  }
+
+  const openChat = (npc: Npc, zoneId: string) => setModal({ k: "chat", npcId: npc.id, zoneId });
+  const allPacified = isZonePacified(gs, "cimes");
 
   return (
     <div className="game-shell">
       <header className="game-top">
-        <div className="brand">⚔️ AutoMonster</div>
+        <div className="brand"><span className="brand-badge">⚔️</span> AutoMonster</div>
         <div className="top-right">
-          {gs.started && (
-            <>
-              <span className="purse">💰 {gs.gold} &nbsp;·&nbsp; 🧪 {gs.potions}</span>
-              <button className="ghost" onClick={() => setModal({ k: "inventory" })}>🎒 Inventaire</button>
-            </>
-          )}
-          <button className="ghost" onClick={() => logout()}>{user?.displayName || "Déconnexion"} ⏻</button>
+          <span className="purse">💰 {gs.gold} · 🧪 {gs.potions}</span>
+          <button className="ghost sm" onClick={() => setModal({ k: "bestiary" })}>📖 Bestiaire</button>
+          <button className="ghost sm" onClick={() => setModal({ k: "inventory" })}>🎒 Équipe</button>
+          <button className="ghost sm" onClick={() => logout()}>{user?.displayName || "Déconnexion"} ⏻</button>
         </div>
       </header>
 
-      {adopting ? (
-        <Adoption onPick={adopt} />
-      ) : (
-        <div className="hub">
-          <div className="team-strip">
-            <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
-            <div className="team-strip-grid">
-              {gs.team.map((c) => (
-                <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
-              ))}
-              {gs.rental && (
-                <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
-              )}
-            </div>
+      <div className="hub">
+        <div className="team-strip">
+          <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
+          <div className="team-strip-grid stagger">
+            {gs.team.map((c) => (
+              <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
+            ))}
+            {gs.rental && (
+              <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
+            )}
           </div>
-
-          <div className="loc-panel-wrap" ref={panelRef}>
-            <LocationPanel
-              gs={gs}
-              here={here}
-              onFight={startCombat}
-              onToggleHeal={toggleHeal}
-              onPotion={healPotion}
-              onFull={healFullPaid}
-              onBuyPotion={buyPotion}
-              onHealAll={healAllTeam}
-              onRent={rent}
-              onReturnRental={returnRental}
-              onSheet={(id) => setModal({ k: "amPage", charId: id })}
-            />
-          </div>
-
-          <MapBoard gs={gs} onClickNode={(id) => (id === gs.playerLoc ? scrollToPanel() : setModal({ k: "travel", locId: id }))} />
         </div>
-      )}
 
-      {modal.k === "travel" && (
-        <TravelModal gs={gs} loc={locById(modal.locId)} onConfirm={() => travelTo(modal.locId)} onClose={() => setModal({ k: "none" })} />
-      )}
+        {route.v === "map" && (
+          <WorldMap gs={gs} fading={worldFading} onEnter={goToZone} />
+        )}
+        {route.v === "zone" && (
+          <ZoneScreen
+            gs={gs}
+            zone={zoneById(route.zoneId)}
+            onBack={backToMap}
+            onFight={startCombat}
+            onToggleHeal={toggleHeal}
+            onPotion={healPotion}
+            onFull={healFullPaid}
+            onOpenChat={openChat}
+          />
+        )}
+      </div>
+
+      {modal.k === "chat" && (() => {
+        const zone = zoneById(modal.zoneId);
+        const pool = zoneMood(gs, zone.id) === "peaceful" ? zone.npcs : (zone.wildNpcs ?? zone.npcs);
+        const npc = pool.find((n) => n.id === modal.npcId) ?? pool[0];
+        if (!npc) return null;
+        return (
+          <NpcChat
+            npc={npc} gs={gs}
+            onClose={() => setModal({ k: "none" })}
+            onBuy={buyPotion} onHealAll={healAllTeam} onRent={rent} onReturn={returnRental}
+          />
+        );
+      })()}
 
       {modal.k === "inventory" && (
         <InventoryModal gs={gs} onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid} onSheet={(id) => setModal({ k: "amPage", charId: id })} onClose={() => setModal({ k: "none" })} />
       )}
+
+      {modal.k === "bestiary" && <BestiaryModal gs={gs} onClose={() => setModal({ k: "none" })} />}
 
       {modal.k === "amPage" && (() => {
         const c = findChar(modal.charId);
@@ -402,15 +443,10 @@ export default function GamePage() {
         const isRent = gs.rental?.char.id === c.id;
         return (
           <AmPage
-            c={c}
-            gold={gs.gold}
-            potions={gs.potions}
+            c={c} gold={gs.gold} potions={gs.potions}
             rentedFights={isRent ? gs.rental!.fightsLeft : undefined}
-            onToggleHeal={toggleHeal}
-            onPotion={healPotion}
-            onFull={healFullPaid}
-            onInteract={doInteract}
-            onClose={() => setModal({ k: "none" })}
+            onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid}
+            onInteract={doInteract} onClose={() => setModal({ k: "none" })}
           />
         );
       })()}
@@ -437,15 +473,448 @@ export default function GamePage() {
         <RanchExtendModal species={SPECIES[gs.rental.char.speciesId].name} gold={gs.gold} onExtend={extendRental} onReturn={returnRental} />
       )}
 
-      {gs.started && allCleared(gs) && !adopting && modal.k === "none" && (
-        <div className="cleared-banner">🏆 Vallée entièrement nettoyée ! <button className="ghost sm" onClick={resetGame}>Recommencer</button></div>
+      {allPacified && modal.k === "none" && (
+        <div className="cleared-banner">🏆 Les trois zones sont pacifiées ! <button className="ghost sm" onClick={resetGame}>Recommencer</button></div>
+      )}
+    </div>
+  );
+}
+
+/** Applique une transformation à un Character sur un état donné (pur). */
+function withCharUpdate(s: GameState, charId: string, fn: (c: Character) => Character): GameState {
+  const team = s.team.map((c) => (c.id === charId ? fn(c) : c));
+  const rental = s.rental && s.rental.char.id === charId ? { ...s.rental, char: fn(s.rental.char) } : s.rental;
+  return { ...s, team, rental };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ONBOARDING — dialogue Disco Elysium + choix du starter
+// ═══════════════════════════════════════════════════════════════════════════
+
+function Onboarding({ onPick }: { onPick: (id: string) => void }) {
+  const [step, setStep] = useState<0 | 1>(0);
+  const [pick, setPick] = useState<string>(STARTERS[0]);
+  const sylve = ZONES[0].npcs[0];
+
+  return (
+    <div className="onboard">
+      <div className="de-scene">
+        <div className="de-portrait" style={{ ["--pt" as any]: `${sylve.tint}44` }}>
+          <div className="de-emoji">{sylve.emoji}</div>
+          <div className="de-frame">
+            <div className="de-name">{sylve.name}</div>
+            <div className="de-title">{sylve.title}</div>
+          </div>
+        </div>
+
+        <div className="de-body">
+          {step === 0 ? (
+            <>
+              <div className="de-lines">
+                {sylve.lines.map((l, i) => (
+                  <div key={i} className="de-line" style={{ ["--lc" as any]: sylve.tint }}>
+                    <span className="de-speaker">{sylve.name}</span>{l}
+                  </div>
+                ))}
+                <div className="de-line thought">
+                  <span className="de-speaker">Ton instinct</span>Un compagnon. Le choix qui décidera de tout. Choisis-le bien.
+                </div>
+              </div>
+              <div className="de-choices">
+                <button className="de-choice primary" onClick={() => setStep(1)}>
+                  <span className="de-choice-icon">🐾</span>
+                  <span>
+                    Choisir mon premier Auto Monster
+                    <span className="de-choice-sub">Trois compagnons t'attendent</span>
+                  </span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="de-lines">
+                <div className="de-line" style={{ ["--lc" as any]: sylve.tint }}>
+                  <span className="de-speaker">{sylve.name}</span>« Approche-toi. Lequel répond à ton regard ? »
+                </div>
+              </div>
+              <div className="starter-grid">
+                {STARTERS.map((id) => {
+                  const sp = SPECIES[id];
+                  const c = makeCharacter(id);
+                  return (
+                    <div
+                      key={id}
+                      className={`starter-card ${pick === id ? "active" : ""}`}
+                      onClick={() => setPick(id)}
+                    >
+                      <div className="starter-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}33, transparent 70%)` }}>
+                        <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
+                      </div>
+                      <h3>{sp.name}</h3>
+                      <StatRow stats={c.stats} />
+                      {sp.innate && <div className="talent-chip">✨ {talentName(sp.innate)}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="de-choices">
+                <button className="de-choice primary" onClick={() => onPick(pick)}>
+                  <span className="de-choice-icon">🤝</span>
+                  <span>Adopter {SPECIES[pick].name} et partir à l'aventure</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CARTE DU MONDE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function WorldMap({ gs, fading, onEnter }: { gs: GameState; fading: boolean; onEnter: (id: string) => void }) {
+  const here = zoneById(gs.playerZone);
+  const R = 46, C = 2 * Math.PI * R;
+  const pctX = (x: number) => (x / MAP_WORLD_W) * 100;
+  const pctY = (y: number) => (y / MAP_WORLD_H) * 100;
+
+  return (
+    <div className={`world ${fading ? "fading" : ""}`}>
+      <div className="world-head">
+        <div className="world-title">🗺️ Carte du monde</div>
+        <div className="world-sub">Clique une zone pour t'y rendre</div>
+      </div>
+      <div className="world-canvas">
+        <svg className="world-paths" viewBox={`0 0 ${MAP_WORLD_W} ${MAP_WORLD_H}`} preserveAspectRatio="none">
+          {ZONE_PATHS.map(([a, b]) => {
+            const za = zoneById(a), zb = zoneById(b);
+            const live = isZoneUnlocked(gs, a) && isZoneUnlocked(gs, b);
+            const mx = (za.x + zb.x) / 2, my = (za.y + zb.y) / 2 - 40;
+            const d = `M ${za.x} ${za.y} Q ${mx} ${my} ${zb.x} ${zb.y}`;
+            return <path key={`${a}-${b}`} className={live ? "wp-live" : "wp"} d={d} />;
+          })}
+        </svg>
+
+        {ZONES.map((z) => {
+          const unlocked = isZoneUnlocked(gs, z.id);
+          const mood = zoneMood(gs, z.id);
+          const comp = zoneCompletion(gs, z.id);
+          const here = z.id === gs.playerZone;
+          const threatened = mood === "threatened";
+          const cls = ["zone-node", here ? "here" : "", threatened ? "threatened" : "", unlocked ? "" : "locked"].join(" ");
+          const showRing = z.winsToComplete > 0 && !z.boss;
+          const badge =
+            !unlocked ? { c: "lock", t: "🔒 Verrouillé" }
+            : threatened ? { c: "threat", t: "⚠ Menace" }
+            : mood === "peaceful" && z.baseMood !== "peaceful" ? { c: "calm", t: "✓ Pacifiée" }
+            : comp >= 0.75 && z.unlocks ? { c: "new", t: "✦ Zone suivante ouverte" }
+            : null;
+          return (
+            <button
+              key={z.id}
+              className={cls}
+              style={{ left: `${pctX(z.x)}%`, top: `${pctY(z.y)}%`, ["--zt" as any]: z.tint + "66" }}
+              onClick={() => unlocked && onEnter(z.id)}
+              disabled={!unlocked}
+              title={z.name}
+            >
+              {badge && <span className={`zone-badge ${badge.c}`}>{badge.t}</span>}
+              <span className="zone-orb">
+                {showRing && (
+                  <svg className="zone-ring" viewBox="0 0 100 100" width="100%" height="100%">
+                    <circle className="track" cx="50" cy="50" r={R} />
+                    <circle className="prog" cx="50" cy="50" r={R} strokeDasharray={C} strokeDashoffset={C * (1 - comp)} />
+                  </svg>
+                )}
+                {unlocked ? z.icon : "🔒"}
+              </span>
+              <span className="zone-label">
+                <span className="zn">{z.name}</span>
+                {showRing && <div className="zpct">{Math.round(comp * 100)}% exploré</div>}
+              </span>
+            </button>
+          );
+        })}
+
+        <div className="player-pin" style={{ left: `${pctX(here.x)}%`, top: `${pctY(here.y)}%` }}>🧍</div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VUE DE ZONE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull, onOpenChat }: {
+  gs: GameState; zone: Zone; onBack: () => void;
+  onFight: (loc: MapLocation, charId: string) => void;
+  onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
+  onOpenChat: (npc: Npc, zoneId: string) => void;
+}) {
+  const mood = zoneMood(gs, zone.id);
+  const comp = zoneCompletion(gs, zone.id);
+  const npcs = mood === "peaceful" ? zone.npcs : (zone.wildNpcs ?? []);
+  const hasCombat = zone.encounters.length > 0 && !(zone.boss && isZonePacified(gs, zone.id));
+  const moodLabelTxt = mood === "threatened" ? "⚠ Zone menacée" : mood === "exploration" ? "🧭 Exploration" : "☮ Zone paisible";
+
+  return (
+    <div className="zone-view">
+      <button className="ghost sm zone-back" onClick={onBack}>← Carte du monde</button>
+
+      <div className="zone-hero" style={{ ["--zt" as any]: zone.tint }}>
+        <div className="zh-icon">{zone.icon}</div>
+        <div className="zone-name">{zone.name}</div>
+        <div className="zh-sub">{zone.subtitle}</div>
+        <span className={`zh-state ${mood}`}>{moodLabelTxt}</span>
+
+        {zone.winsToComplete > 0 && !zone.boss && (
+          <div className="zone-progress">
+            <div className="zp-bar"><div className="zp-fill" style={{ width: `${comp * 100}%` }} /></div>
+            <div className="zp-meta">
+              <span>Exploration : {Math.round(comp * 100)}%</span>
+              <span>{comp >= 0.75 ? "✦ Cimes Orageuses débloquées" : `${Math.ceil(0.75 * zone.winsToComplete - (gs.zoneProgress[zone.id] ?? 0))} victoire(s) avant la zone suivante`}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="zone-cols">
+        {hasCombat ? (
+          <ZoneCombat gs={gs} zone={zone} onFight={onFight} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
+        ) : (
+          <div className="card">
+            <div className="card-title">☮ Havre de paix</div>
+            <p className="muted">Aucun combat ici — profite du calme, discute et prépare la suite.</p>
+          </div>
+        )}
+
+        <div className="card">
+          <div className="card-title">💬 Personnages</div>
+          {npcs.length === 0 && <p className="muted small">Personne à qui parler pour l'instant.</p>}
+          <div className="npc-strip">
+            {npcs.map((n) => (
+              <button key={n.id} className="npc-chip" style={{ ["--nt" as any]: n.tint + "22" }} onClick={() => onOpenChat(n, zone.id)}>
+                <span className="npc-av">{n.emoji}</span>
+                <span className="npc-meta">
+                  <div className="npc-nm">{n.name}</div>
+                  <div className="npc-role">{n.title}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
+  gs: GameState; zone: Zone;
+  onFight: (loc: MapLocation, charId: string) => void;
+  onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
+}) {
+  const encounters = zone.encounters.map(encounterById);
+  const [encId, setEncId] = useState(encounters[0]?.id ?? "");
+  const enc = encounters.find((e) => e.id === encId) ?? encounters[0];
+  const combatants = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
+  const firstAlive = combatants.find((c) => currentLife(c) > 0) ?? combatants[0];
+  const [pick, setPick] = useState(firstAlive?.id ?? "");
+  useEffect(() => {
+    if (!combatants.some((c) => c.id === pick)) setPick(firstAlive?.id ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs.team, gs.rental]);
+
+  if (!enc) return null;
+  const sp = SPECIES[enc.enemySpecies!];
+  const chosen = combatants.find((c) => c.id === pick);
+  const ko = chosen ? currentLife(chosen) <= 0 : true;
+  const cleared = isLocationCleared(gs, enc.id);
+
+  return (
+    <div className="card">
+      <div className="card-title">⚔️ {zone.boss ? "Affrontement" : "Rencontres sauvages"}</div>
+
+      {encounters.length > 1 && (
+        <div className="pick-list" style={{ marginBottom: 12 }}>
+          <div className="statgrid" style={{ gap: 6 }}>
+            {encounters.map((e) => {
+              const done = isLocationCleared(gs, e.id);
+              return (
+                <span
+                  key={e.id}
+                  onClick={() => setEncId(e.id)}
+                  style={{ cursor: "pointer", borderColor: e.id === encId ? "var(--acc)" : undefined, background: e.id === encId ? "var(--acc-soft)" : undefined, color: e.id === encId ? "var(--acc)" : undefined }}
+                >
+                  {done ? "✓ " : ""}{e.name} · N.{e.recommendedLevel}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="enemy-preview">
+        <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
+        <div>
+          <div className="enemy-name">
+            {sp.name} <span className="lvl">N.{enc.enemyLevel}</span>
+            {enc.isBoss && <span className="boss-tag">BOSS</span>}
+          </div>
+          {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[enc.id]}</div>}
+          <div className="loot-line">
+            Butin{cleared ? " (déjà nettoyé : ½)" : ""} : 💰 {cleared ? Math.round((enc.gold ?? 0) / 2) : enc.gold}
+            {!cleared && ` · 🧪 ${enc.potions}`} · ⭐ {cleared ? Math.round((enc.xp ?? 0) / 2) : enc.xp} XP
+          </div>
+        </div>
+      </div>
+
+      <h4 className="pick-title">Choisis ton AM</h4>
+      <div className="pick-list">
+        {combatants.map((c) => {
+          const spc = SPECIES[c.speciesId];
+          const isRent = gs.rental?.char.id === c.id;
+          return (
+            <div key={c.id} className={`pick-row ${c.id === pick ? "active" : ""}`} onClick={() => setPick(c.id)}>
+              <img className="mini" src={`/sprites/${spc.gfx}.png`} alt={c.name} />
+              <div className="pick-meta">
+                <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
+                <HpBar c={c} />
+              </div>
+              {c.id === pick && <span className="active-tag">choisi</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {chosen && currentLife(chosen) < chosen.stats.hp && (
+        <HealControls c={chosen} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
+      )}
+      {enc.isBoss && <p className="hint">⚠️ Coriace. S'il s'éternise → égalité, mais les PV du boss sont conservés.</p>}
+      {ko ? <p className="warn">Cet AM est K.O. — soigne-le ou choisis-en un autre.</p> : (
+        <button className="primary big" style={{ width: "100%", marginTop: 12 }} onClick={() => onFight(enc, pick)}>⚔️ Combattre</button>
       )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Partagés
+// CHAT PNJ (Disco Elysium)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
+  npc: Npc; gs: GameState; onClose: () => void;
+  onBuy: () => void; onHealAll: () => void; onRent: (i: number) => void; onReturn: () => void;
+}) {
+  return (
+    <div className="de-overlay" onClick={onClose}>
+      <div className="de-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="de-side" style={{ ["--pt" as any]: npc.tint + "44" }}>
+          <button className="ghost sm de-close" onClick={onClose}>✕</button>
+          <div className="de-emoji">{npc.emoji}</div>
+          <div className="de-name">{npc.name}</div>
+          <div className="de-title">{npc.title}</div>
+        </div>
+        <div className="de-main">
+          <div className="de-lines">
+            {npc.lines.map((l, i) => (
+              <div key={i} className="de-line" style={{ ["--lc" as any]: npc.tint }}>{l}</div>
+            ))}
+          </div>
+
+          {npc.role === "merchant" && (
+            <div className="de-actions">
+              <button className="de-action" disabled={gs.gold < POTION_PRICE} onClick={onBuy}>
+                <span>🧪 Acheter une potion <span className="muted small">(+50% PV)</span></span>
+                <span className="de-a-price">{POTION_PRICE}💰</span>
+              </button>
+              <p className="muted small">Tu as {gs.potions} potion(s) · 💰 {gs.gold}</p>
+            </div>
+          )}
+
+          {npc.role === "healer" && (
+            <div className="de-actions">
+              <div className="team-heal-grid">
+                {gs.team.map((c) => (
+                  <div key={c.id} className="thg-row"><span className="team-name">{c.name}</span><HpBar c={c} /></div>
+                ))}
+              </div>
+              <button className="de-action" disabled={gs.gold < HEAL_CENTER_COST || !gs.team.some((c) => currentLife(c) < c.stats.hp)} onClick={onHealAll}>
+                <span>⛲ Soigner toute l'équipe</span>
+                <span className="de-a-price">{HEAL_CENTER_COST}💰</span>
+              </button>
+            </div>
+          )}
+
+          {npc.role === "ranch" && (
+            <div className="de-actions">
+              {gs.rental ? (
+                <>
+                  <div className="pick-row">
+                    <img className="mini" src={`/sprites/${SPECIES[gs.rental.char.speciesId].gfx}.png`} alt="" />
+                    <div className="pick-meta">
+                      <div className="team-name">{gs.rental.char.name} <span className="rent-tag">loué · {gs.rental.fightsLeft}c</span></div>
+                      <HpBar c={gs.rental.char} />
+                    </div>
+                  </div>
+                  <button className="de-action" onClick={onReturn}><span>↩ Rendre le monstre</span></button>
+                </>
+              ) : (
+                RANCH_OFFERS.map((o, i) => {
+                  const sp = SPECIES[o.speciesId];
+                  return (
+                    <button key={o.speciesId} className="de-action" disabled={gs.gold < o.price} onClick={() => onRent(i)}>
+                      <span>🐴 {sp.name} <span className="muted small">N.{o.level} · {o.fights} combats</span></span>
+                      <span className="de-a-price">{o.price}💰</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BESTIAIRE (pokédex)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) {
+  const owned = new Set([...gs.team.map((c) => c.speciesId), ...(gs.rental ? [gs.rental.char.speciesId] : [])]);
+  const known = new Set([...gs.bestiary, ...owned]);
+  const all = Object.values(SPECIES);
+  return (
+    <ModalShell title={`📖 Bestiaire — ${known.size}/${all.length}`} onClose={onClose} wide>
+      <div className="bestiary">
+        <p className="bestiary-count">Espèces découvertes en combattant et en explorant le monde.</p>
+        <div className="bestiary-grid">
+          {all.map((sp) => {
+            const seen = known.has(sp.id);
+            return (
+              <div key={sp.id} className={`bestiary-card ${seen ? "" : "locked"}`}>
+                <div className="bc-art"><img src={`/sprites/${sp.gfx}.png`} alt={seen ? sp.name : "?"} /></div>
+                <div className="bc-name">{seen ? sp.name : "???"}</div>
+                <div className="bc-kind">
+                  {seen ? (sp.kind === "automonster" ? "Auto Monster" : "Bestiole") : "Non découvert"}
+                  {seen && sp.rarity === "rare" && " · RARE"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Composants partagés (réutilisés)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function StatRow({ stats }: { stats: Stats }) {
@@ -516,247 +985,6 @@ function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Carte
-// ═══════════════════════════════════════════════════════════════════════════
-
-function MapBoard({ gs, onClickNode }: { gs: GameState; onClickNode: (id: string) => void }) {
-  const viewport = useRef<HTMLDivElement>(null);
-  const here = locById(gs.playerLoc);
-
-  // centre la vue sur le joueur à chaque déplacement
-  useEffect(() => {
-    const vp = viewport.current;
-    if (!vp) return;
-    vp.scrollTo({ left: here.x - vp.clientWidth / 2, top: here.y - vp.clientHeight / 2, behavior: "smooth" });
-  }, [gs.playerLoc, here.x, here.y]);
-
-  return (
-    <div className="map-board">
-      <div className="map-title">🗺️ Carte — clique un lieu pour t'y rendre</div>
-      <div className="map-viewport" ref={viewport}>
-        <div className="map-canvas-lg" style={{ width: MAP_W, height: MAP_H }}>
-          <svg className="map-paths" viewBox={`0 0 ${MAP_W} ${MAP_H}`} width={MAP_W} height={MAP_H}>
-            {MAP_PATHS.map(([a, b]) => {
-              const pa = locById(a), pb = locById(b);
-              // courbe douce : point de contrôle décalé perpendiculairement au milieu
-              const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
-              const dx = pb.x - pa.x, dy = pb.y - pa.y;
-              const len = Math.hypot(dx, dy) || 1;
-              const bend = Math.min(60, len * 0.18);
-              const cx = mx - (dy / len) * bend, cy = my + (dx / len) * bend;
-              const d = `M ${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
-              return (
-                <g key={`${a}-${b}`}>
-                  <path className="road-under" d={d} />
-                  <path className="road-over" d={d} />
-                </g>
-              );
-            })}
-          </svg>
-
-          {MAP_LOCATIONS.map((l) => {
-            const cleared = l.type === "combat" && isLocationCleared(gs, l.id);
-            const current = l.id === gs.playerLoc;
-            return (
-              <button
-                key={l.id}
-                className={`map-loc type-${l.type} ${cleared ? "done" : ""} ${l.isBoss ? "boss" : ""} ${current ? "current" : ""}`}
-                style={{ left: l.x, top: l.y }}
-                onClick={() => onClickNode(l.id)}
-                title={l.name}
-              >
-                <span className="loc-dot">{cleared ? "✓" : l.icon}</span>
-                <span className="loc-name">{l.name}</span>
-                {l.type === "combat" && <span className="loc-lvl">N.{l.recommendedLevel}</span>}
-              </button>
-            );
-          })}
-
-          {/* avatar joueur */}
-          <div className="player-token" style={{ left: here.x, top: here.y }}>🧍</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Panneau d'interactions du lieu courant
-// ═══════════════════════════════════════════════════════════════════════════
-
-function LocationPanel(props: {
-  gs: GameState; here: MapLocation;
-  onFight: (loc: MapLocation, charId: string) => void;
-  onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onBuyPotion: () => void; onHealAll: () => void; onRent: (i: number) => void; onReturnRental: () => void;
-  onSheet: (id: string) => void;
-}) {
-  const { here } = props;
-  return (
-    <div className="loc-panel">
-      <div className="loc-panel-head">
-        <span className="loc-panel-icon">{here.icon}</span>
-        <div>
-          <div className="loc-panel-name">{here.name}</div>
-          <div className="muted small">{here.desc}</div>
-        </div>
-      </div>
-      <div className="loc-panel-body">
-        {here.type === "combat" && <CombatPanel {...props} />}
-        {here.type === "shop" && <ShopPanel gold={props.gs.gold} potions={props.gs.potions} onBuy={props.onBuyPotion} />}
-        {here.type === "heal" && <HealPanel gs={props.gs} onHealAll={props.onHealAll} />}
-        {here.type === "ranch" && <RanchPanel gs={props.gs} onRent={props.onRent} onReturn={props.onReturnRental} />}
-        {here.type === "dialogue" && <DialoguePanel lines={here.lines ?? []} />}
-      </div>
-    </div>
-  );
-}
-
-function CombatPanel({ gs, here, onFight, onToggleHeal, onPotion, onFull }: {
-  gs: GameState; here: MapLocation;
-  onFight: (loc: MapLocation, charId: string) => void;
-  onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-}) {
-  const combatants = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
-  const firstAlive = combatants.find((c) => currentLife(c) > 0) ?? combatants[0];
-  const [pick, setPick] = useState(firstAlive?.id ?? "");
-  useEffect(() => {
-    if (!combatants.some((c) => c.id === pick)) setPick(firstAlive?.id ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gs.team, gs.rental]);
-
-  const sp = SPECIES[here.enemySpecies!];
-  const chosen = combatants.find((c) => c.id === pick);
-  const ko = chosen ? currentLife(chosen) <= 0 : true;
-  const cleared = isLocationCleared(gs, here.id);
-
-  return (
-    <>
-      <div className="enemy-preview">
-        <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
-        <div>
-          <div className="enemy-name">
-            {sp.name} <span className="lvl">N.{here.enemyLevel}</span>
-            {here.isBoss && <span className="boss-tag">BOSS</span>}
-          </div>
-          {here.isBoss && gs.bossLife[here.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[here.id]}</div>}
-          <div className="loot-line">
-            Butin{cleared ? " (déjà nettoyé : ½)" : ""} : 💰 {cleared ? Math.round((here.gold ?? 0) / 2) : here.gold}
-            {!cleared && ` · 🧪 ${here.potions}`} · ⭐ {cleared ? Math.round((here.xp ?? 0) / 2) : here.xp} XP
-          </div>
-        </div>
-      </div>
-
-      <h4 className="pick-title">Choisis ton AM</h4>
-      <div className="pick-list">
-        {combatants.map((c) => {
-          const spc = SPECIES[c.speciesId];
-          const isRent = gs.rental?.char.id === c.id;
-          return (
-            <div key={c.id} className={`pick-row ${c.id === pick ? "active" : ""}`} onClick={() => setPick(c.id)}>
-              <img className="mini" src={`/sprites/${spc.gfx}.png`} alt={c.name} />
-              <div className="pick-meta">
-                <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
-                <HpBar c={c} />
-              </div>
-              {c.id === pick && <span className="active-tag">choisi</span>}
-            </div>
-          );
-        })}
-      </div>
-
-      {chosen && currentLife(chosen) < chosen.stats.hp && (
-        <HealControls c={chosen} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
-      )}
-      {here.isBoss && <p className="hint">⚠️ Coriace. S'il s'éternise → égalité, mais les PV du boss sont conservés.</p>}
-      {ko ? <p className="warn">Cet AM est K.O. — soigne-le ou choisis-en un autre.</p> : (
-        <button className="primary big" onClick={() => onFight(here, pick)}>⚔️ Combattre</button>
-      )}
-    </>
-  );
-}
-
-function ShopPanel({ gold, potions, onBuy }: { gold: number; potions: number; onBuy: () => void }) {
-  return (
-    <div className="kiosk">
-      <p className="muted">« Une potion ? Ça remet d'aplomb un AM amoché. »</p>
-      <div className="kiosk-item">
-        <span>🧪 Potion de soin <span className="muted small">(+50% PV, instantané)</span></span>
-        <button className="primary" disabled={gold < POTION_PRICE} onClick={onBuy}>Acheter — {POTION_PRICE}💰</button>
-      </div>
-      <p className="muted small">Tu as {potions} potion(s) · 💰 {gold}</p>
-    </div>
-  );
-}
-
-function HealPanel({ gs, onHealAll }: { gs: GameState; onHealAll: () => void }) {
-  const needs = gs.team.some((c) => currentLife(c) < c.stats.hp);
-  return (
-    <div className="kiosk">
-      <p className="muted">« Confie-moi ton équipe, je la remets sur pied en un instant. »</p>
-      <div className="team-heal-grid">
-        {gs.team.map((c) => (
-          <div key={c.id} className="thg-row">
-            <span className="team-name">{c.name}</span>
-            <HpBar c={c} />
-          </div>
-        ))}
-      </div>
-      <button className="primary big" disabled={!needs || gs.gold < HEAL_CENTER_COST} onClick={onHealAll}>
-        ➕ Soigner toute l'équipe — {HEAL_CENTER_COST}💰
-      </button>
-      {!needs && <p className="muted small">Toute ton équipe est déjà au max.</p>}
-    </div>
-  );
-}
-
-function RanchPanel({ gs, onRent, onReturn }: { gs: GameState; onRent: (i: number) => void; onReturn: () => void }) {
-  if (gs.rental) {
-    const c = gs.rental.char;
-    const sp = SPECIES[c.speciesId];
-    return (
-      <div className="kiosk">
-        <p className="muted">« Tu as déjà un de mes monstres. Ramène-le-moi quand tu veux. »</p>
-        <div className="pick-row">
-          <img className="mini" src={`/sprites/${sp.gfx}.png`} alt={c.name} />
-          <div className="pick-meta">
-            <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span> <span className="rent-tag">loué · {gs.rental.fightsLeft} combat(s)</span></div>
-            <HpBar c={c} />
-          </div>
-        </div>
-        <button className="ghost" onClick={onReturn}>Rendre le monstre</button>
-      </div>
-    );
-  }
-  return (
-    <div className="kiosk">
-      <p className="muted">« Loue un de mes Auto Monsters pour quelques combats. »</p>
-      {RANCH_OFFERS.map((o, i) => {
-        const sp = SPECIES[o.speciesId];
-        return (
-          <div key={o.speciesId} className="ranch-offer">
-            <img className="mini" src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
-            <div className="ranch-meta">
-              <div className="team-name">{sp.name} <span className="lvl">N.{o.level}</span>{sp.rarity === "rare" && <span className="rare-tag">RARE</span>}</div>
-              <div className="muted small">{o.fights} combats · talent : {sp.innate ? talentName(sp.innate) : "—"}</div>
-            </div>
-            <button className="primary" disabled={gs.gold < o.price} onClick={() => onRent(i)}>Louer — {o.price}💰</button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function DialoguePanel({ lines }: { lines: string[] }) {
-  return (
-    <div className="dialogue">
-      {lines.map((l, i) => <p key={i} className="dialogue-line">{l}</p>)}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Modals
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -771,57 +999,6 @@ function ModalShell({ title, onClose, children, wide }: { title: string; onClose
   );
 }
 
-function TravelModal({ gs, loc, onConfirm, onClose }: { gs: GameState; loc: MapLocation; onConfirm: () => void; onClose: () => void }) {
-  const cleared = loc.type === "combat" && isLocationCleared(gs, loc.id);
-  return (
-    <ModalShell title={`${loc.icon} ${loc.name}`} onClose={onClose}>
-      <p className="muted blurb">{loc.desc}</p>
-      {loc.type === "combat" && (() => {
-        const sp = SPECIES[loc.enemySpecies!];
-        return (
-          <div className="enemy-preview">
-            <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
-            <div>
-              <div className="enemy-name">{sp.name} <span className="lvl">N.{loc.enemyLevel}</span>{loc.isBoss && <span className="boss-tag">BOSS</span>}</div>
-              <div className="loot-line">Niveau conseillé : {loc.recommendedLevel}{cleared ? " · déjà nettoyé" : ""}</div>
-            </div>
-          </div>
-        );
-      })()}
-      {loc.type === "shop" && <p>🏪 Boutique : potions de soin.</p>}
-      {loc.type === "heal" && <p>➕ Centre de soin : remise à neuf de l'équipe.</p>}
-      {loc.type === "ranch" && <p>🐴 Ranch : location d'Auto Monsters.</p>}
-      <button className="primary big" onClick={onConfirm}>🚶 Se déplacer ici</button>
-    </ModalShell>
-  );
-}
-
-function Adoption({ onPick }: { onPick: (id: string) => void }) {
-  return (
-    <div className="screen adoption">
-      <h1>Choisis ton premier Auto Monster</h1>
-      <p className="muted">Ce compagnon se battra automatiquement. Chaque espèce a un talent inné.</p>
-      <div className="cards3">
-        {STARTERS.map((id) => {
-          const sp = SPECIES[id];
-          const c = makeCharacter(id);
-          return (
-            <div key={id} className="amcard pick" onClick={() => onPick(id)}>
-              <div className="amcard-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}33, transparent 70%)` }}>
-                <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
-              </div>
-              <h3>{sp.name}</h3>
-              <StatRow stats={c.stats} />
-              {sp.innate && <div className="talent-chip">✨ {talentName(sp.innate)} — <span className="muted">{TALENTS[sp.innate]?.desc}</span></div>}
-              <button className="primary">Adopter</button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }: {
   gs: GameState;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
@@ -829,16 +1006,16 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
 }) {
   const list = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
   return (
-    <ModalShell title="🎒 Inventaire" onClose={onClose} wide>
+    <ModalShell title="🎒 Ton équipe" onClose={onClose} wide>
       <p className="muted">Soigne tes Auto Monsters. Pour les entraîner, ouvre leur fiche. (💰 {gs.gold})</p>
       {list.map((c) => {
         const sp = SPECIES[c.speciesId];
         const isRent = gs.rental?.char.id === c.id;
         return (
-          <div key={c.id} className="inv-card">
-            <div className="inv-head" onClick={() => onSheet(c.id)}>
+          <div key={c.id} className="inv-card card" style={{ marginTop: 12 }}>
+            <div className="pick-row" onClick={() => onSheet(c.id)} style={{ border: "none", background: "transparent", padding: 0 }}>
               <img className="mini" src={`/sprites/${sp.gfx}.png`} alt={c.name} />
-              <div className="inv-meta">
+              <div className="pick-meta">
                 <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{sp.rarity === "rare" && <span className="rare-tag">RARE</span>}{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
                 <HpBar c={c} />
                 <StatRow stats={c.stats} />
@@ -852,7 +1029,6 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
   );
 }
 
-// ── Page AM en plein écran ───────────────────────────────────────────────────
 function fmtDate(ts?: number): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
@@ -861,7 +1037,6 @@ const HIST_ICON: Record<string, string> = { capture: "⭐", combat: "⚔️", in
 
 function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: string, k: InteractKind) => void }) {
   const [, force] = useState(0);
-  // re-render léger pour rafraîchir les cooldowns
   useEffect(() => {
     const id = window.setInterval(() => force((x) => x + 1), 500);
     return () => window.clearInterval(id);
@@ -907,7 +1082,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
 
       <div className="am-page-body">
         <section className="am-hero">
-          <div className="am-art" style={{ background: `radial-gradient(circle at 50% 38%, ${sp.tint}55, transparent 72%)` }}>
+          <div className="am-art" style={{ background: `radial-gradient(circle at 50% 38%, ${sp.tint}33, transparent 72%)` }}>
             <img src={`/sprites/${sp.gfx}.png`} alt={c.name} />
           </div>
           <div className="am-hero-info">
