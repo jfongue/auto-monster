@@ -46,6 +46,15 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Surcharges d'espèces (Éditeur d'espèces) : données globales, partagées par
+  // toutes les parties (nom/stats/rareté/wildEncounterable édités en jeu).
+  await q(`
+    CREATE TABLE IF NOT EXISTS species_overrides (
+      id TEXT PRIMARY KEY,
+      patch TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
   await seedAdmin();
   await seedDemo();
 }

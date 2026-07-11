@@ -34,6 +34,8 @@ export type SpeciesDef = {
   tint: string; // couleur placeholder/aura
   /** Descriptif de l'espèce (lore affiché sur la fiche). */
   desc: string;
+  /** Peut-on la rencontrer en combat PvE sauvage (Forêt) ? Éditable via l'éditeur d'espèces. */
+  wildEncounterable: boolean;
 };
 
 /** Action d'interaction sociale possible avec un AM. */

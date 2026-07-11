@@ -130,6 +130,39 @@ app.delete("/api/game/state", authMiddleware, async (req, res, next) => {
   }
 });
 
+// ── Éditeur d'espèces : surcharges globales (nom/stats/rareté/wildEncounterable) ──
+app.get("/api/species-overrides", authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await q("SELECT id, patch FROM species_overrides");
+    const overrides = {};
+    for (const r of rows) overrides[r.id] = JSON.parse(r.patch);
+    res.json({ overrides });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.put("/api/species-overrides", authMiddleware, async (req, res, next) => {
+  try {
+    const overrides = req.body?.overrides;
+    if (!overrides || typeof overrides !== "object")
+      return res.status(400).json({ error: "overrides requis" });
+    for (const [id, patch] of Object.entries(overrides)) {
+      const json = JSON.stringify(patch);
+      const upd = await q(
+        "UPDATE species_overrides SET patch = $1, updated_at = now() WHERE id = $2",
+        [json, id]
+      );
+      if (!upd.rowCount) {
+        await q("INSERT INTO species_overrides (id, patch) VALUES ($1, $2)", [id, json]);
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // --- Production: servir le front buildé (service unique, une seule URL) ---
 const clientDist = join(__dirname, "..", "..", "client", "dist");
 if (existsSync(clientDist)) {

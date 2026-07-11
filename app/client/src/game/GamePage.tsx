@@ -31,6 +31,7 @@ import {
   START_ZONE,
   zoneById,
   encounterById,
+  applySpeciesOverrides,
   type MapLocation,
   type Npc,
   type Zone,
@@ -56,7 +57,10 @@ import {
   interactReadyIn,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import type { Character, CombatResult, Stats, StatKey, InteractKind } from "./engine/types";
+import { HpBar, StatRow } from "./shared";
+import House from "./House";
+import SpeciesEditor from "./SpeciesEditor";
+import type { Character, CombatResult, StatKey, InteractKind } from "./engine/types";
 import {
   freshState,
   migrate,
@@ -75,7 +79,7 @@ type CombatCtx = { loc: MapLocation; result: CombatResult; charId: string };
 type Outcome = "win" | "lose" | "draw";
 type RewardData = { outcome: Outcome; loc: MapLocation; pStat: any; firstClear: boolean; levelsGained: number };
 
-type Route = { v: "map" } | { v: "zone"; zoneId: string };
+type Route = { v: "house" } | { v: "forest" } | { v: "zone"; zoneId: string } | { v: "shop" };
 type Modal =
   | { k: "none" }
   | { k: "combat"; ctx: CombatCtx }
@@ -85,6 +89,7 @@ type Modal =
   | { k: "amPage"; charId: string }
   | { k: "bestiary" }
   | { k: "inventory" }
+  | { k: "speciesEditor" }
   | { k: "ranchExtend" };
 
 const STAT_LABELS: Record<StatKey, string> = {
@@ -104,9 +109,10 @@ export default function GamePage() {
   const [gs, setGs] = useState<GameState>(freshState());
   const [loaded, setLoaded] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [route, setRoute] = useState<Route>({ v: "map" });
+  const [route, setRoute] = useState<Route>({ v: "house" });
   const [modal, setModal] = useState<Modal>({ k: "none" });
   const [worldFading, setWorldFading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -116,6 +122,12 @@ export default function GamePage() {
         if (state && state.started) setGs(migrate(state));
       } catch {
         /* hors-ligne : état frais */
+      }
+      try {
+        const { overrides } = await api.getSpeciesOverrides();
+        applySpeciesOverrides(overrides as any);
+      } catch {
+        /* pas grave : overrides indisponibles hors-ligne */
       } finally {
         setLoaded(true);
       }
@@ -173,7 +185,7 @@ export default function GamePage() {
   function adopt(speciesId: string) {
     const c = makeCharacter(speciesId);
     persist({ ...freshState(), started: true, team: [c], gold: 30, potions: 1, bestiary: [speciesId] });
-    setRoute({ v: "map" });
+    setRoute({ v: "house" });
   }
 
   // ── Soins ───────────────────────────────────────────────────────────────
@@ -239,8 +251,14 @@ export default function GamePage() {
       setWorldFading(false);
     }, 480);
   }
-  function backToMap() {
-    setRoute({ v: "map" });
+  function backToForest() {
+    setRoute({ v: "forest" });
+  }
+  function goHouse() {
+    setRoute({ v: "house" });
+  }
+  function goShop() {
+    setRoute({ v: "shop" });
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -358,7 +376,7 @@ export default function GamePage() {
     try { await api.resetGameState(); } catch { /* ignore */ }
     setGs(freshState());
     setModal({ k: "none" });
-    setRoute({ v: "map" });
+    setRoute({ v: "house" });
   }
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
@@ -377,45 +395,76 @@ export default function GamePage() {
 
   return (
     <div className="game-shell">
-      <header className="game-top">
-        <div className="brand"><span className="brand-badge">⚔️</span> AutoMonster</div>
-        <div className="top-right">
-          <span className="purse">💰 {gs.gold} · 🧪 {gs.potions}</span>
-          <button className="ghost sm" onClick={() => setModal({ k: "bestiary" })}>📖 Bestiaire</button>
-          <button className="ghost sm" onClick={() => setModal({ k: "inventory" })}>🎒 Équipe</button>
-          <button className="ghost sm" onClick={() => logout()}>{user?.displayName || "Déconnexion"} ⏻</button>
-        </div>
+      <header className="mini-top">
+        <button className="mini-logo" onClick={goHouse} aria-label="Accueil">⚔️</button>
+        <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Menu">
+          <span /><span /><span />
+        </button>
       </header>
 
-      <div className="hub">
-        <div className="team-strip">
-          <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
-          <div className="team-strip-grid stagger">
-            {gs.team.map((c) => (
-              <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
-            ))}
-            {gs.rental && (
-              <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
-            )}
+      {route.v === "house" && (
+        <House
+          team={gs.team}
+          gold={gs.gold}
+          potions={gs.potions}
+          onOpenSheet={(id) => setModal({ k: "amPage", charId: id })}
+          onGoForest={() => setRoute({ v: "forest" })}
+          onGoShop={goShop}
+        />
+      )}
+
+      {(route.v === "forest" || route.v === "zone") && (
+        <div className="hub">
+          <div className="team-strip">
+            <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
+            <div className="team-strip-grid stagger">
+              {gs.team.map((c) => (
+                <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
+              ))}
+              {gs.rental && (
+                <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
+              )}
+            </div>
+          </div>
+
+          {route.v === "forest" && (
+            <>
+              <button className="ghost sm zone-back" onClick={goHouse}>← Maison</button>
+              <WorldMap gs={gs} fading={worldFading} onEnter={goToZone} />
+            </>
+          )}
+          {route.v === "zone" && (
+            <ZoneScreen
+              gs={gs}
+              zone={zoneById(route.zoneId)}
+              onBack={backToForest}
+              onFight={startCombat}
+              onToggleHeal={toggleHeal}
+              onPotion={healPotion}
+              onFull={healFullPaid}
+              onOpenChat={openChat}
+            />
+          )}
+        </div>
+      )}
+
+      {route.v === "shop" && (
+        <BoutiqueScreen gold={gs.gold} potions={gs.potions} onBuy={buyPotion} onBack={goHouse} />
+      )}
+
+      {menuOpen && (
+        <div className="hmenu-overlay" onClick={() => setMenuOpen(false)}>
+          <div className="hmenu-panel" onClick={(e) => e.stopPropagation()}>
+            <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)}>✕</button>
+            <div className="hmenu-user">{user?.displayName || user?.username || "Dresseur"}</div>
+            <div className="hmenu-purse">💰 {gs.gold} · 🧪 {gs.potions}</div>
+            <button className="hmenu-item" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}>📖 Bestiaire</button>
+            <button className="hmenu-item" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}>🎒 Équipe</button>
+            <button className="hmenu-item" onClick={() => { setModal({ k: "speciesEditor" }); setMenuOpen(false); }}>🧬 Éditeur d'espèces</button>
+            <button className="hmenu-item danger" onClick={() => logout()}>⏻ Déconnexion</button>
           </div>
         </div>
-
-        {route.v === "map" && (
-          <WorldMap gs={gs} fading={worldFading} onEnter={goToZone} />
-        )}
-        {route.v === "zone" && (
-          <ZoneScreen
-            gs={gs}
-            zone={zoneById(route.zoneId)}
-            onBack={backToMap}
-            onFight={startCombat}
-            onToggleHeal={toggleHeal}
-            onPotion={healPotion}
-            onFull={healFullPaid}
-            onOpenChat={openChat}
-          />
-        )}
-      </div>
+      )}
 
       {modal.k === "chat" && (() => {
         const zone = zoneById(modal.zoneId);
@@ -436,6 +485,8 @@ export default function GamePage() {
       )}
 
       {modal.k === "bestiary" && <BestiaryModal gs={gs} onClose={() => setModal({ k: "none" })} />}
+
+      {modal.k === "speciesEditor" && <SpeciesEditor onClose={() => setModal({ k: "none" })} />}
 
       {modal.k === "amPage" && (() => {
         const c = findChar(modal.charId);
@@ -712,6 +763,30 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BOUTIQUE — page dédiée minimale (accessible depuis la House). Réutilise la
+// même logique d'achat que le marchand PNJ (F2 : combats/boutique/etc réutilisés).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BoutiqueScreen({ gold, potions, onBuy, onBack }: {
+  gold: number; potions: number; onBuy: () => void; onBack: () => void;
+}) {
+  return (
+    <div className="screen boutique-screen view">
+      <button className="ghost sm zone-back" onClick={onBack}>← Maison</button>
+      <div className="card boutique-card">
+        <div className="card-title" style={{ justifyContent: "center" }}>🏪 Boutique</div>
+        <p className="muted">Perle vend des potions de soin (+50% PV).</p>
+        <div className="boutique-icon">🧪</div>
+        <p className="muted small">Tu as {potions} potion(s) · 💰 {gold}</p>
+        <button className="primary big" disabled={gold < POTION_PRICE} onClick={onBuy} style={{ width: "100%" }}>
+          Acheter une potion — {POTION_PRICE}💰
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
   gs: GameState; zone: Zone;
   onFight: (loc: MapLocation, charId: string) => void;
@@ -916,26 +991,6 @@ function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) 
 // ═══════════════════════════════════════════════════════════════════════════
 // Composants partagés (réutilisés)
 // ═══════════════════════════════════════════════════════════════════════════
-
-function StatRow({ stats }: { stats: Stats }) {
-  return (
-    <div className="statgrid">
-      <span>❤️ {stats.hp}</span><span>⚔️ {stats.atk}</span><span>🛡️ {stats.def}</span><span>💨 {stats.spd}</span><span>⚡ {stats.sta}</span>
-    </div>
-  );
-}
-
-function HpBar({ c }: { c: Character }) {
-  const life = currentLife(c);
-  const pct = Math.round((life / c.stats.hp) * 100);
-  const healing = isHealing(c);
-  return (
-    <div className="hpline">
-      <div className={`hpbar sm ${healing ? "healing" : ""}`}><div className="hpbar-fill" style={{ width: `${pct}%` }} /></div>
-      <span className="hp-num sm">{Math.round(life)}/{c.stats.hp}{healing ? " 💚" : ""}</span>
-    </div>
-  );
-}
 
 function HealControls({ c, gold, potions, onToggleHeal, onPotion, onFull }: {
   c: Character; gold: number; potions: number;

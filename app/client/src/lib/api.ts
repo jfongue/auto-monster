@@ -62,4 +62,13 @@ export const api = {
       body: JSON.stringify({ state }),
     }),
   resetGameState: () => request<{ ok: true }>("/game/state", { method: "DELETE" }),
+
+  // ── Éditeur d'espèces ──
+  getSpeciesOverrides: () =>
+    request<{ overrides: Record<string, unknown> }>("/species-overrides"),
+  saveSpeciesOverrides: (overrides: Record<string, unknown>) =>
+    request<{ ok: true }>("/species-overrides", {
+      method: "PUT",
+      body: JSON.stringify({ overrides }),
+    }),
 };

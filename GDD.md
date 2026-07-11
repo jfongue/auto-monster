@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.12 — Document de référence du projet
+> Version 0.13 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,17 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-11 — v0.13
+- [Bestiaire] **Import des 5 planches fournies (`sprites/planche 0..4.png`) → 43 nouvelles bestioles**, découpées individuellement (script de segmentation par composantes connexes + fusion des particules décoratives au corps le plus proche, fond transparent) et rangées dans `app/client/public/sprites/`. Chaque créature a reçu un nom, des stats de base, une rareté (common/rare) et un tint, ajoutés dans `data.ts` (bloc « Bestiaire étendu »). Le bestiaire passe de 9 à **52 espèces**.
+- [Data] **Nouveau champ `wildEncounterable`** sur `SpeciesDef` : détermine si une espèce peut apparaître en rencontre PvE sauvage (Forêt). Valeur par défaut : `true` pour les bestioles communes, `false` pour les auto monsters jouables/rares et les 8 bestioles « rare » nouvellement importées (réservées, à activer manuellement). `wildSpeciesList()` exposé pour lister les espèces activables.
+- [Outillage] **Éditeur d'espèces** (menu ☰ → « 🧬 Éditeur d'espèces ») : table éditable (nom, 5 stats, rareté, case `wildEncounterable`) pour toutes les espèces, avec recherche/filtre. Sauvegarde persistée **globalement** (partagée par toutes les parties, pas par joueur) via nouvelle table `species_overrides` (Postgres/pg-mem) + routes `GET/PUT /api/species-overrides`. Application des overrides **en place** sur l'objet `SPECIES` (`applySpeciesOverrides`) au chargement de `GamePage`, pour ne pas avoir à retoucher tous les points de lecture (`SPECIES[id]`) dans le code existant.
+- [Home / UX] **Refonte complète de la home, mobile-first et minimaliste.** L'ancienne topbar (logo + or/potions + boutons bestiaire/équipe/déconnexion) est retirée : header réduit à un **logo (haut gauche)** et un **menu hamburger (haut droite)** qui ouvre un panneau latéral (Bestiaire, Équipe, Éditeur d'espèces, Déconnexion).
+- [Home / House] **Nouveau cœur de la home : la House** (`House.tsx`). Vue de côté d'une petite pièce ; le compagnon actif (miniature) s'y déplace tout seul par petits allers-retours avec une **animation de sautillement** (`houseHop`/`houseShadow`, ombre qui pulse). **Clic sur le compagnon → focus** : la pièce laisse place à un panneau (sprite + fiche résumée : nom, niveau, PV, XP, stats) avec un **bouton retour** ; un lien ouvre la fiche complète existante (`AmPage`) pour le détail (soins, historique, interactions). Sélecteur de compagnon actif par petits points si l'équipe a plusieurs membres.
+- [Home / Navigation] **« 🚪 Sortir »** depuis la House révèle deux choix : **Forêt** (réutilise la carte de zones/combats existante, rebaptisée point d'entrée « Forêt » — aucune perte de fonctionnalité : NPC, ranch, boss, bestiaire restent accessibles depuis les zones) et **Boutique** (nouvelle page dédiée minimale, réutilise l'achat de potion existant, plus besoin de passer par le chat PNJ).
+- [Règle absolue — sprites] **Aucun sprite n'est jamais affiché en grand.** Toutes les tailles d'affichage existantes ont été revues à la baisse pour rester "miniature" : fiche AM plein écran (`am-art` 170px → 104px), arène de combat (`fighter-sprite` clamp 130px → 96px max), carte de capture (`amcard-art` 110px → 88px). Nouveaux emplacements (House, focus, éditeur d'espèces) plafonnés dès la conception (respectivement ~80px, ~74px, 26px).
+- [Route] `Route` du `GamePage` passe de `map`/`zone` à **`house` / `forest` / `zone` / `shop`** ; `house` est l'écran par défaut à la connexion et après l'onboarding (adoption du 1er AM).
+- [Refactor] Composants `HpBar`/`StatRow` extraits dans `game/shared.tsx` (partagés entre `GamePage`, `House`, `SpeciesEditor`) pour éviter les imports circulaires.
 
 ### 2026-07-03 — v0.12
 - [DA créatures] **Choix exécuté : DA-D (flat vectoriel)** pour un premier prototype de bestiaire, faute de générateur text-to-image dans l'environnement. Livré : `reference/sheet.svg` + `reference/sheet.png` — **planche 5×5 de 25 créatures originales** (chibi, contour épais `#2b2233`, aplats + 1 ombre, joues roses), réparties sur 15 éléments. Générateur procédural reproductible : `outputs/gen_sheet.py` (6 archétypes : blob / quadrupède / oiseau / spectre / serpent / insecte). Noms + pastille couleur d'élément sous chaque case.
@@ -86,11 +97,13 @@
 |--------|---------|------------------------|
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
-| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + bestioles + boss ; variations non implémentées |
-| Carte / exploration | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes) ; anneaux de complétion, déblocage à 75%, fade à l'arrivée, avatar animé |
+| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + **52 espèces** (9 historiques + 43 importées des planches) ; variations non implémentées |
+| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` par espèce + **Éditeur d'espèces** (menu ☰) persisté globalement (`species_overrides`) |
+| Carte / exploration (« Forêt ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), désormais accessible via **Sortir → Forêt** depuis la House ; anneaux de complétion, déblocage à 75%, fade à l'arrivée, avatar animé |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
-| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Intégrés au **chat PNJ plein écran** (marchand/soin/ranch) façon Disco Elysium |
+| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch intégrés au **chat PNJ** (zones) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature animé (sautillement), focus au clic (fiche résumée + retour), sortie vers Forêt/Boutique |
 | Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
@@ -312,11 +325,14 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 ### 7.2 Écrans principaux
 | Écran | Description |
 |-------|-------------|
-| Carte du monde | Navigation et exploration des zones |
+| **Home / House** *(v0.13, implémenté)* | Écran d'accueil minimaliste : compagnon actif miniature dans une pièce, sautille, focus au clic. Point d'entrée vers Forêt/Boutique via « Sortir » ; menu ☰ (Bestiaire/Équipe/Éditeur d'espèces/Déconnexion) |
+| Carte du monde (« Forêt ») | Navigation et exploration des zones, accessible depuis la House |
+| Boutique | Page dédiée minimale (achat de potions), accessible depuis la House |
 | Combat | Vue de bataille live (rejeu de l'ActionLog) |
 | Gestion d'équipe | Composition, positions |
 | Collection | Monstres possédés |
 | Monstre | Fiche, stats, éléments, skills, spécialisation |
+| Éditeur d'espèces *(v0.13, implémenté, outil de dev)* | Table éditable nom/stats/rareté/`wildEncounterable`, persistée globalement |
 | PvP Lobby | Inscription aux tournois, config équipe PvP |
 
 ---
