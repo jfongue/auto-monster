@@ -382,7 +382,10 @@ export default function GamePage() {
   // ── Rendu ─────────────────────────────────────────────────────────────────
   if (!loaded) return <div className="game-shell"><div className="center-screen"><div className="spinner" /></div></div>;
 
-  if (!gs.started) {
+  if (!gs.started || gs.team.length === 0) {
+    // Filet de sécurité : un état corrompu/partiel (started=true mais équipe
+    // vide, ex. reset interrompu) ne doit jamais afficher une page blanche —
+    // on retombe sur l'onboarding plutôt que de rendre une House sans AM.
     return (
       <div className="game-shell">
         <Onboarding onPick={adopt} />

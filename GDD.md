@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.16 — Document de référence du projet
+> Version 0.17 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,14 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-11 — v0.17
+- [Navigation] Bouton de sortie de la House renommé **« Explorer le monde »** (icône 🗺️, ex-« Forêt »), sous-titre « Carte du monde ».
+- [Rencontres sauvages] **Suppression du choix d'ennemi** dans l'écran de zone : la rencontre non nettoyée est présentée automatiquement, **ennemi centré** (`enemy-preview.centered`, sprite agrandi). **Retrait de la ligne « Butin »** affichée avant combat (le choix de l'AM à envoyer combattre est conservé).
+- [Bandeau équipe] **Rendu plus lisible comme « notre équipe »** : encadré distinct (carte avec bordure/fond, cohérent avec le reste de l'UI), titre **« 🛡️ TON ÉQUIPE »** + sous-titre, à la place d'un simple libellé au-dessus de la grille de compagnons.
+- [Zones / PNJ] **Retrait des dialogues scriptés** façon Disco Elysium (répliques `npc.lines`) dans les zones. Les portraits + actions fonctionnelles restent accessibles (achat de potion, soin complet de l'équipe, location/retour d'un monstre au ranch), simplement sans texte de dialogue.
+- [Carte du monde] **Avatar joueur remplacé par une mini image de l'AM en tête d'équipe** : `player-pin` passe d'un emoji 🧍 à un `<img>` du sprite du 1er AM de l'équipe.
+- [Combat] **Refonte visuelle complète de l'arène**, façon House élargie : grande salle (fond dégradé, ligne de sol, fenêtre décorative) à la place de la mise en page en 2 colonnes + « VS ». Les deux combattants ont une position de repos fixe et **se font face** (sprite ennemi retourné pour regarder vers la gauche). À l'assaut : **déplacement jusqu'à l'adversaire** (action `goto`), impact avec bulle de dégâts (ou mention d'esquive), puis **retour à sa zone** (action `return`). `combat-wrap` élargi (980px → 1200px). Note : seule l'**esquive** existe côté moteur aujourd'hui — pas de mécanique de « blocage » implémentée (à spécifier si voulue).
 
 ### 2026-07-11 — v0.16
 - [Menu ☰ / Compte] **Bouton « Réinitialiser le compte »** dans le menu hamburger : confirmation (`window.confirm`) puis appel de `resetGame()` (déjà existant) — remet l'état à `freshState()` (équipe, or, zones, progression effacés) et repasse par l'**Onboarding** (choix du 1er AM) puisque `started` redevient `false`. Distinct de la Déconnexion (qui ne touche pas à la progression).
@@ -114,14 +122,16 @@
 | Aspect | Designé | Implémenté (état réel) |
 |--------|---------|------------------------|
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
-| Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
+| Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4). **v0.17 :** grande salle façon House élargie, combattants face à face (position de repos fixe + sprite ennemi retourné), assaut = déplacement vers l'adversaire → impact (bulle dégâts/esquive) → retour. |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster) ; variations non implémentées |
 | Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` **et `kind` (Auto Monster / Monstre)** éditables par espèce + **Éditeur d'espèces** (menu ☰) persisté globalement (`species_overrides`) |
-| Carte / exploration (« Forêt ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), désormais accessible via **Sortir → Forêt** depuis la House ; anneaux de complétion, déblocage à 75%, fade à l'arrivée, avatar animé |
+| Carte / exploration (« Explorer le monde ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), accessible via **Sortir → Explorer le monde** depuis la House ; anneaux de complétion, déblocage à 75%, fade à l'arrivée. **v0.17 :** avatar joueur = mini sprite de l'AM en tête d'équipe (plus d'emoji 🧍) |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
+| Rencontres sauvages (zone) | Oui (§5) | ✅ **v0.17 :** plus de choix d'ennemi — la rencontre non nettoyée est présentée automatiquement, ennemi centré, sans ligne de butin ; choix de l'AM à envoyer conservé |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
-| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch intégrés au **chat PNJ** (zones) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
-| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers Forêt/Boutique |
+| Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers **Explorer le monde**/Boutique (v0.17 : bouton renommé) |
+| Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
 | Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
@@ -344,10 +354,10 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 ### 7.2 Écrans principaux
 | Écran | Description |
 |-------|-------------|
-| **Home / House** *(v0.15, implémenté)* | Écran d'accueil minimaliste : compagnon actif miniature en marche aléatoire (pauses variables, déplacement en profondeur, orientation selon le sens), zoom smooth en place + volet d'info à droite au clic (pas de page séparée). Point d'entrée vers Forêt/Boutique via « Sortir » ; menu ☰ (Bestiaire/Équipe/Éditeur d'espèces/Déconnexion) |
-| Carte du monde (« Forêt ») | Navigation et exploration des zones, accessible depuis la House |
+| **Home / House** *(v0.15, implémenté)* | Écran d'accueil minimaliste : compagnon actif miniature en marche aléatoire (pauses variables, déplacement en profondeur, orientation selon le sens), zoom smooth en place + volet d'info à droite au clic (pas de page séparée). Point d'entrée vers **Explorer le monde**/Boutique via « Sortir » ; menu ☰ (Bestiaire/Équipe/Éditeur d'espèces/Déconnexion) |
+| Carte du monde (« Explorer le monde ») *(v0.17 : renommée)* | Navigation et exploration des zones, accessible depuis la House ; avatar joueur = mini sprite de l'AM en tête d'équipe |
 | Boutique | Page dédiée minimale (achat de potions), accessible depuis la House |
-| Combat | Vue de bataille live (rejeu de l'ActionLog) |
+| Combat *(v0.17, refonte visuelle)* | Vue de bataille live (rejeu de l'ActionLog), grande salle façon House élargie, combattants face à face, déplacement/attaque/retour |
 | Gestion d'équipe | Composition, positions |
 | Collection | Monstres possédés |
 | Monstre | Fiche, stats, éléments, skills, spécialisation |
