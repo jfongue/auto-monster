@@ -15,10 +15,11 @@ type Row = {
   stats: Stats;
   rarity: Rarity;
   wildEncounterable: boolean;
+  kind: SpeciesDef["kind"];
 };
 
 function toRow(sp: SpeciesDef): Row {
-  return { name: sp.name, stats: { ...sp.baseStats }, rarity: sp.rarity, wildEncounterable: sp.wildEncounterable };
+  return { name: sp.name, stats: { ...sp.baseStats }, rarity: sp.rarity, wildEncounterable: sp.wildEncounterable, kind: sp.kind };
 }
 
 export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
@@ -55,7 +56,7 @@ export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
       const overrides: Record<string, Partial<SpeciesDef>> = {};
       for (const id of dirty) {
         const r = rows[id];
-        overrides[id] = { name: r.name, baseStats: r.stats, rarity: r.rarity, wildEncounterable: r.wildEncounterable };
+        overrides[id] = { name: r.name, baseStats: r.stats, rarity: r.rarity, wildEncounterable: r.wildEncounterable, kind: r.kind };
       }
       if (Object.keys(overrides).length > 0) {
         await api.saveSpeciesOverrides(overrides);
@@ -117,6 +118,7 @@ export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
             <span>💨</span>
             <span>⚡</span>
             <span>Rareté</span>
+            <span>Type</span>
             <span>PvE sauvage</span>
           </div>
           {filtered.map((id) => {
@@ -150,6 +152,14 @@ export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
                   <option value="common">common</option>
                   <option value="rare">rare</option>
                   <option value="boss">boss</option>
+                </select>
+                <select
+                  className="editor-kind"
+                  value={r.kind}
+                  onChange={(e) => patch(id, (row) => ({ ...row, kind: e.target.value as SpeciesDef["kind"] }))}
+                >
+                  <option value="automonster">Auto Monster</option>
+                  <option value="bestiole">Monstre</option>
                 </select>
                 <input
                   type="checkbox"

@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.13 — Document de référence du projet
+> Version 0.15 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,21 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-11 — v0.15
+- [Home / House — errance] **Déplacement du compagnon refondu en marche aléatoire organique** : au lieu d'un aller-retour métronomique (setInterval fixe), le compagnon choisit une position cible aléatoire (x horizontal + profondeur), s'y déplace, puis observe une **pause de durée variable** (0.5s à ~3.2s) avant de repartir — via une boucle de `setTimeout` récursifs (marche 0.9–1.7s, pause 0.5–3.2s), suspendue en mode focus.
+- [Home / House — profondeur] **Nouvel axe de profondeur** : le compagnon peut aussi s'arrêter plus ou moins « loin » dans la pièce (position verticale `bottom` variable entre l'avant-plan et la ligne de sol), sans changement d'échelle (pas de scale lié à la profondeur, comme demandé).
+- [Home / House — orientation] Le compagnon **regarde dans le sens de son déplacement** (flip horizontal du sprite) à chaque nouvelle destination choisie, plutôt qu'au seul rebond contre les bords.
+- [Home / House — focus] **Le clic ne remplace plus la pièce par un écran séparé.** La pièce et un **volet d'info à droite** (`house-panel`) coexistent désormais dans une même mise en page (`house-stage`, flex) : au clic, le compagnon **zoome en douceur sur place** (transition `transform: scale()`, ~2.1×, toujours dans la pièce — jamais plein écran, conformément à la règle absolue « sprite miniature ») pendant que le volet glisse depuis la droite (largeur, opacité et translation animées en CSS, léger décalage de timing pour un effet séquencé). Le bas de la House (légende, points d'équipe, bouton Sortir) s'estompe en fondu pendant le focus plutôt que de disparaître brutalement.
+
+### 2026-07-11 — v0.14
+- [Espèces] **Retrait des 8 espèces historiques devenues obsolètes** : `flameling`, `aquafi`, `leafkit` (anciens starters), `willowisp` (ancienne rare), `peblix`, `chirple`, `mossprout`, `nimbus` (anciennes bestioles de base). `gravelmaw` (boss) conservé. Sprites conservés sur disque (non supprimés) mais plus référencés comme espèces jouables/rencontrables.
+- [Starters] **Nouveaux starters : Poofowl, Fungoot, Emberpup** (promus depuis le bestiaire importé des planches → `kind: "automonster"`, `wildEncounterable: false`), avec talent inné assigné (Poofowl → régénération, Fungoot → épines, Emberpup → braise) et palette de talents. `STARTERS` mis à jour dans `data.ts`.
+- [Rare] **Nouvelle récompense rare post-boss : Haloux** (promu automonster, remplace `willowisp`). `RARE_REWARD` mis à jour.
+- [Ranch] `RANCH_OFFERS` mis à jour (`emberpup` niveau 4, `haloux` niveau 6) suite au retrait de `leafkit`/`willowisp`.
+- [Vallée sauvage] Ennemis des 4 combats de base remplacés par des espèces du bestiaire importé, en gardant la cohérence de flaveur : `mossprout`→`sprigling`, `chirple`→`squawklet`, `peblix`→`cobbleback`, `nimbus`→`murkwisp`.
+- [Éditeur d'espèces] **Champ `kind` (Auto Monster / Monstre) rendu éditable** dans l'Éditeur d'espèces (menu ☰), au même titre que nom/stats/rareté/`wildEncounterable`. Le joueur peut désormais reclassifier librement n'importe quelle espèce entre AM jouable et simple monstre sauvage, persisté globalement via `species_overrides` (même mécanisme que les autres champs).
+- [Tests/Outils] `engine.test.ts` et `sim.ts` basculés sur les nouveaux starters (`poofowl`/`fungoot`/`emberpup`) à la place des espèces retirées. 105 ok / 0 échec.
 
 ### 2026-07-11 — v0.13
 - [Bestiaire] **Import des 5 planches fournies (`sprites/planche 0..4.png`) → 43 nouvelles bestioles**, découpées individuellement (script de segmentation par composantes connexes + fusion des particules décoratives au corps le plus proche, fond transparent) et rangées dans `app/client/public/sprites/`. Chaque créature a reçu un nom, des stats de base, une rareté (common/rare) et un tint, ajoutés dans `data.ts` (bloc « Bestiaire étendu »). Le bestiaire passe de 9 à **52 espèces**.
@@ -97,13 +112,13 @@
 |--------|---------|------------------------|
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4) |
-| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters + 1 rare + **52 espèces** (9 historiques + 43 importées des planches) ; variations non implémentées |
-| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` par espèce + **Éditeur d'espèces** (menu ☰) persisté globalement (`species_overrides`) |
+| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster) ; variations non implémentées |
+| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` **et `kind` (Auto Monster / Monstre)** éditables par espèce + **Éditeur d'espèces** (menu ☰) persisté globalement (`species_overrides`) |
 | Carte / exploration (« Forêt ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), désormais accessible via **Sortir → Forêt** depuis la House ; anneaux de complétion, déblocage à 75%, fade à l'arrivée, avatar animé |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch intégrés au **chat PNJ** (zones) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
-| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature animé (sautillement), focus au clic (fiche résumée + retour), sortie vers Forêt/Boutique |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers Forêt/Boutique |
 | Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
@@ -325,7 +340,7 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 ### 7.2 Écrans principaux
 | Écran | Description |
 |-------|-------------|
-| **Home / House** *(v0.13, implémenté)* | Écran d'accueil minimaliste : compagnon actif miniature dans une pièce, sautille, focus au clic. Point d'entrée vers Forêt/Boutique via « Sortir » ; menu ☰ (Bestiaire/Équipe/Éditeur d'espèces/Déconnexion) |
+| **Home / House** *(v0.15, implémenté)* | Écran d'accueil minimaliste : compagnon actif miniature en marche aléatoire (pauses variables, déplacement en profondeur, orientation selon le sens), zoom smooth en place + volet d'info à droite au clic (pas de page séparée). Point d'entrée vers Forêt/Boutique via « Sortir » ; menu ☰ (Bestiaire/Équipe/Éditeur d'espèces/Déconnexion) |
 | Carte du monde (« Forêt ») | Navigation et exploration des zones, accessible depuis la House |
 | Boutique | Page dédiée minimale (achat de potions), accessible depuis la House |
 | Combat | Vue de bataille live (rejeu de l'ActionLog) |

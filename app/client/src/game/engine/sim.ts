@@ -20,7 +20,7 @@ function dist(label: string, build: () => { a: Character; step: number }, n = 40
 console.log("Distribution des issues (V victoire / D défaite / = égalité)\n");
 
 // Starters niveau 1 sur les 4 premières étapes
-for (const sp of ["flameling", "aquafi", "leafkit"]) {
+for (const sp of ["poofowl", "fungoot", "emberpup"]) {
   for (let step = 0; step < 4; step++) {
     dist(`${sp} L1 vs étape ${step + 1}`, () => ({ a: makeCharacter(sp), step }));
   }
@@ -52,7 +52,7 @@ function bossRun(buildAM: () => Character, n = 200) {
 }
 
 console.log("\nBOSS (PV persistants, plusieurs parties) :");
-console.log("flameling L1 brut :");
-bossRun(() => makeCharacter("flameling"));
-console.log("aquafi niveau ~4 (XP, stats auto) :");
-bossRun(() => addXp(makeCharacter("aquafi"), 400).character);
+console.log("poofowl L1 brut :");
+bossRun(() => makeCharacter("poofowl"));
+console.log("fungoot niveau ~4 (XP, stats auto) :");
+bossRun(() => addXp(makeCharacter("fungoot"), 400).character);

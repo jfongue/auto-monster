@@ -18,7 +18,7 @@ function check(name: string, cond: boolean, extra = "") {
 
 console.log("F1 — Déterminisme");
 {
-  const a: Character = makeCharacter("flameling");
+  const a: Character = makeCharacter("emberpup");
   const b: Character = makeEnemy(COMBAT_LOCATIONS[0]);
   const r1 = runCombat({ seed: 123, teamA: [a], teamB: [b] });
   const r2 = runCombat({ seed: 123, teamA: [a], teamB: [b] });
@@ -30,7 +30,7 @@ console.log("F1 — Déterminisme");
 
 console.log("F9 — Structure du log");
 {
-  const r = runCombat({ seed: 7, teamA: [makeCharacter("leafkit")], teamB: [makeEnemy(COMBAT_LOCATIONS[1])] });
+  const r = runCombat({ seed: 7, teamA: [makeCharacter("fungoot")], teamB: [makeEnemy(COMBAT_LOCATIONS[1])] });
   check("commence par des 'add'", r.log[0].t === "add");
   check("contient un 'display'", r.log.some((a) => a.t === "display"));
   check("finit par 'finish'", r.log[r.log.length - 1].t === "finish");
@@ -42,7 +42,7 @@ console.log("F4/F16 — Terminaison & cohérence dégâts");
 {
   let drew = false;
   for (let seed = 0; seed < 40; seed++) {
-    const r = runCombat({ seed, teamA: [makeCharacter("flameling")], teamB: [makeEnemy(COMBAT_LOCATIONS[0])] });
+    const r = runCombat({ seed, teamA: [makeCharacter("emberpup")], teamB: [makeEnemy(COMBAT_LOCATIONS[0])] });
     const fin = r.log[r.log.length - 1];
     if (fin.t !== "finish") {
       check("combat termine toujours par finish", false, `seed ${seed}`);
@@ -57,8 +57,8 @@ console.log("F4/F16 — Terminaison & cohérence dégâts");
   }
   // Mécanisme d'égalité : 2 tanks à faibles dégâts + maxTurns court → personne ne meurt.
   {
-    const t1 = makeCharacter("aquafi");
-    const t2 = makeCharacter("aquafi");
+    const t1 = makeCharacter("poofowl");
+    const t2 = makeCharacter("poofowl");
     const r = runCombat({ seed: 1, teamA: [t1], teamB: [t2], rules: { maxTurns: 8 } });
     drew = r.winner === null && r.log.some((a) => a.t === "timeLimit");
     check("combat trop long → égalité (timeLimit + winner null)", drew);
@@ -67,7 +67,7 @@ console.log("F4/F16 — Terminaison & cohérence dégâts");
 
 console.log("Progression — XP & montée auto des stats");
 {
-  const c = makeCharacter("flameling");
+  const c = makeCharacter("emberpup");
   const hpBefore = c.stats.hp;
   const atkBefore = c.stats.atk;
   const res = addXp(c, xpForNext(1) + xpForNext(2) + 5);
@@ -79,7 +79,7 @@ console.log("Progression — XP & montée auto des stats");
 
 console.log("Soin — régénération continue");
 {
-  const c = makeCharacter("aquafi");
+  const c = makeCharacter("poofowl");
   c.life = 0;
   const t0 = 1_000_000;
   const healing = startHeal(c, t0);
@@ -92,15 +92,15 @@ console.log("Soin — régénération continue");
 
 console.log("Caractère & interactions (par individu)");
 {
-  const c = makeCharacter("flameling");
+  const c = makeCharacter("emberpup");
   check("personnalité générée", !!c.personality && !!c.personality.archetype);
   check("date de capture renseignée", typeof c.capturedAt === "number");
   check("humeur de départ", c.mood === 60);
   check("historique avec capture", (c.history ?? [])[0]?.kind === "capture");
 
   // deux individus de même espèce → caractères distincts (affinités jitterées)
-  const a = makeCharacter("flameling");
-  const b = makeCharacter("flameling");
+  const a = makeCharacter("emberpup");
+  const b = makeCharacter("emberpup");
   const same = JSON.stringify(a.personality!.affinity) === JSON.stringify(b.personality!.affinity);
   check("affinités propres à l'individu (distinctes)", !same);
 
@@ -113,7 +113,7 @@ console.log("Caractère & interactions (par individu)");
   check("cooldown écoulé après le délai", interactReadyIn(res.character, "caresser", t0 + 10_000) === 0);
 
   // mood bas → malus de combat (atk réduite)
-  const grumpy = { ...makeCharacter("flameling"), mood: 0 };
+  const grumpy = { ...makeCharacter("emberpup"), mood: 0 };
   check("humeur basse → atk de combat réduite", withMoodBattle(grumpy).stats.atk < grumpy.stats.atk);
 }
 

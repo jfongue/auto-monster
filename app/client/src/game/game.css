@@ -544,15 +544,23 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .hmenu-item.danger { margin-top: auto; color: var(--red); border-color: #ffd7dd; }
 
 /* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════ */
-.house { max-width: 440px; margin: 0 auto; padding: 6px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.house-purse { align-self: flex-end; font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; box-shadow: var(--shadow-sm); }
+.house { max-width: 440px; margin: 0 auto; padding: 6px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; transition: max-width 0.5s cubic-bezier(.45,.05,.35,1); }
+.house.house-open { max-width: 720px; }
+.house-purse { align-self: flex-end; font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; box-shadow: var(--shadow-sm); transition: opacity 0.3s ease; }
+.house-purse.faded { opacity: 0; pointer-events: none; }
 .house-purse .dot { color: var(--faint); }
 
+/* Scène = pièce + volet d'info, côte à côte ; le volet prend sa place en
+   glissant depuis la droite quand la pièce passe en mode focus. */
+.house-stage { position: relative; width: 100%; display: flex; align-items: stretch; gap: 0; }
+
 .house-room {
-  position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden;
+  position: relative; flex: 1 1 100%; min-width: 0; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden;
   background: var(--surface-2);
   border: 1px solid var(--line);
+  transition: flex-basis 0.55s cubic-bezier(.45,.05,.35,1);
 }
+.house-open .house-room { flex: 0 1 56%; }
 .house-floor-line { position: absolute; left: 0; right: 0; top: 62%; height: 1px; background: var(--line-strong); }
 .house-window {
   position: absolute; top: 16%; left: 50%; transform: translateX(-50%);
@@ -561,17 +569,37 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   border: 1px solid var(--line-strong);
 }
 .house-critter {
-  position: absolute; bottom: 12%; transform: translateX(-50%);
+  position: absolute; transform: translateX(-50%);
   width: 25%; aspect-ratio: 1; padding: 0; border: none; background: transparent; box-shadow: none;
   display: flex; align-items: flex-end; justify-content: center;
-  transition: left 1.05s cubic-bezier(.45,.05,.35,1);
-  animation: houseHop 1.1s ease-in-out infinite;
+  transition: left 1.3s cubic-bezier(.45,.05,.35,1), bottom 1.3s cubic-bezier(.45,.05,.35,1);
+  z-index: 2;
 }
-.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); }
+.house-critter-anim {
+  display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%;
+  transition: transform 0.55s cubic-bezier(.34,1.2,.4,1);
+}
+.house-critter-anim.walking { animation: houseHop 0.55s ease-in-out infinite; }
+.house-critter-anim.zoomed { transform: scale(2.1); z-index: 3; }
+.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); transition: transform 0.3s ease; }
 .house-critter.dir-l img { transform: scaleX(-1); }
-.house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); animation: houseShadow 1.1s ease-in-out infinite; }
-@keyframes houseHop { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-13px); } }
-@keyframes houseShadow { 0%,100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(0.78); opacity: 0.35; } }
+.house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); }
+@keyframes houseHop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-13px); } }
+
+/* Volet d'info à droite : caché (largeur nulle) puis glisse au clic. */
+.house-panel {
+  flex: 0 0 0%; min-width: 0; opacity: 0; transform: translateX(14px);
+  overflow: hidden; white-space: nowrap;
+  display: flex; flex-direction: column; gap: 6px; padding: 0; align-self: center;
+  transition: flex-basis 0.55s cubic-bezier(.45,.05,.35,1), opacity 0.4s ease 0.1s, transform 0.45s ease 0.1s, padding 0.55s cubic-bezier(.45,.05,.35,1);
+}
+.house-open .house-panel { flex: 0 0 40%; opacity: 1; transform: translateX(0); white-space: normal; padding-left: 16px; }
+.house-panel .team-name.big { justify-content: flex-start; }
+.house-panel .statgrid { justify-content: flex-start; }
+.house-back { align-self: flex-start; margin-bottom: 4px; }
+
+.house-below { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; transition: opacity 0.3s ease; }
+.house-below.faded { opacity: 0; pointer-events: none; }
 
 .house-caption { display: flex; align-items: center; gap: 8px; }
 .house-dots { display: flex; gap: 6px; }
@@ -595,15 +623,6 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .exit-choice .exit-txt { font-weight: 700; display: flex; flex-direction: column; }
 .exit-choice .exit-sub { font-size: 11px; font-weight: 500; color: var(--dim); margin-top: 2px; }
 
-.house-focus { width: 100%; }
-.house-back { margin-bottom: 10px; }
-.house-focus-body { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
-.house-focus-art { width: 128px; height: 128px; border-radius: 18px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); box-shadow: none; }
-.house-focus-art img { max-width: 74px; max-height: 74px; object-fit: contain; filter: drop-shadow(0 10px 12px rgba(0,0,0,0.16)); }
-.house-focus-info { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.house-focus-info .team-name.big { justify-content: center; }
-.house-focus-info .statgrid { justify-content: center; }
-
 /* ══ BOUTIQUE (page dédiée minimale) ══════════════════════════════════════ */
 .boutique-screen { max-width: 420px; }
 .boutique-card { text-align: center; }
@@ -618,7 +637,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .editor-table { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
 .editor-row {
   display: grid;
-  grid-template-columns: 40px 1.4fr repeat(5, 56px) 96px 44px;
+  grid-template-columns: 40px 1.4fr repeat(5, 56px) 96px 110px 44px;
   align-items: center; gap: 6px; padding: 6px 8px; border-radius: 10px;
 }
 .editor-row.editor-head { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -629,6 +648,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .editor-name { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; font-weight: 600; min-width: 0; }
 .editor-stat { width: 56px; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; text-align: center; }
 .editor-rarity { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
+.editor-kind { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }

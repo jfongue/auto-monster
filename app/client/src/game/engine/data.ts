@@ -11,122 +11,64 @@ const st = (hp: number, atk: number, def: number, spd: number, sta: number): Sta
 });
 
 export const SPECIES: Record<string, SpeciesDef> = {
-  // ── Auto monsters jouables (3 starters) ──────────────────────────────────
-  flameling: {
-    id: "flameling",
-    name: "Flameling",
+  // ── Auto monsters jouables (3 starters, v0.14) ───────────────────────────
+  poofowl: {
+    id: "poofowl",
+    name: "Poofowl",
     kind: "automonster",
     rarity: "common",
-    gfx: "flameling",
+    gfx: "poofowl",
     size: 100,
-    baseStats: st(55, 26, 8, 48, 30),
+    baseStats: st(58, 15, 14, 30, 32),
+    innate: "regen",
+    talentPool: ["regen", "stoneskin", "swift", "thorns"],
+    tint: "#aaa4a0",
+    desc: "Boule de duvet cornue, mi-chouette mi-mouton, adore somnoler. Douce et increvable, elle récupère vite entre deux combats.",
+    wildEncounterable: false,
+  },
+  fungoot: {
+    id: "fungoot",
+    name: "Fungoot",
+    kind: "automonster",
+    rarity: "common",
+    gfx: "fungoot",
+    size: 100,
+    baseStats: st(56, 15, 16, 26, 30),
+    innate: "thorns",
+    talentPool: ["thorns", "stoneskin", "regen", "ember"],
+    tint: "#b29075",
+    desc: "Champignon tacheté renfrogné, pousse en cercles dans la mousse humide. Rancunier : il rend chaque coup reçu avec intérêt.",
+    wildEncounterable: false,
+  },
+  emberpup: {
+    id: "emberpup",
+    name: "Emberpup",
+    kind: "automonster",
+    rarity: "common",
+    gfx: "emberpup",
+    size: 100,
+    baseStats: st(54, 20, 10, 44, 34),
     innate: "ember",
     talentPool: ["ember", "frenzy", "swift", "stoneskin"],
-    tint: "#ff7a3c",
-    desc: "Petite salamandre de braise née dans les cheminées volcaniques. Vive et impétueuse, elle frappe fort mais encaisse mal. On dit que sa flamme dorsale reflète son humeur.",
-    wildEncounterable: false,
-  },
-  aquafi: {
-    id: "aquafi",
-    name: "Aquafi",
-    kind: "automonster",
-    rarity: "common",
-    gfx: "aquafi",
-    size: 100,
-    baseStats: st(82, 18, 16, 38, 35),
-    innate: "stoneskin",
-    talentPool: ["stoneskin", "thorns", "regen", "ember"],
-    tint: "#3cc6ff",
-    desc: "Créature des sources froides à la carapace gorgée d'eau. Lente mais robuste, elle absorbe les coups avec une patience minérale. Calme en apparence, fidèle à qui la respecte.",
-    wildEncounterable: false,
-  },
-  leafkit: {
-    id: "leafkit",
-    name: "Leafkit",
-    kind: "automonster",
-    rarity: "common",
-    gfx: "leafkit",
-    size: 100,
-    baseStats: st(60, 21, 9, 62, 28),
-    innate: "swift",
-    talentPool: ["swift", "frenzy", "regen", "thorns"],
-    tint: "#6fd97a",
-    desc: "Renardeau de feuilles vives, le plus rapide des trois starters. Joueur et curieux, il esquive plus qu'il n'encaisse. Difficile à canaliser, mais redoutable bien entraîné.",
+    tint: "#bb6d40",
+    desc: "Lionceau à crinière de braise, plus joueur qu'agressif malgré ses flammes. Vif et mordant en combat.",
     wildEncounterable: false,
   },
 
   // ── Auto monster rare (capture après le boss) ────────────────────────────
-  willowisp: {
-    id: "willowisp",
-    name: "Willowisp",
+  haloux: {
+    id: "haloux",
+    name: "Haloux",
     kind: "automonster",
     rarity: "rare",
-    gfx: "willowisp",
+    gfx: "haloux",
     size: 105,
-    baseStats: st(75, 28, 12, 55, 45),
-    innate: "regen",
-    talentPool: ["regen", "ember", "frenzy", "swift", "thorns", "stoneskin"],
-    tint: "#c89bff",
-    desc: "Feu follet d'âme errante, rare et insaisissable. Se régénère en flottant entre les mondes. Mystérieux, il ne se lie qu'aux dresseurs patients et observateurs.",
+    baseStats: st(70, 22, 15, 48, 40),
+    innate: "swift",
+    talentPool: ["swift", "regen", "ember", "stoneskin", "thorns", "frenzy"],
+    tint: "#d7c093",
+    desc: "Oiselet angélique à l'auréole dorée, rare porte-bonheur des voyageurs. Se lie à qui a prouvé sa valeur face à Gravelmaw.",
     wildEncounterable: false,
-  },
-
-  // ── Bestioles ennemies (créatures simples, pas des auto monsters) ─────────
-  peblix: {
-    id: "peblix",
-    name: "Peblix",
-    kind: "bestiole",
-    rarity: "common",
-    gfx: "peblix",
-    size: 95,
-    baseStats: st(46, 12, 10, 30, 0),
-    innate: null,
-    talentPool: [],
-    tint: "#b9a07a",
-    desc: "Galet vivant aux dents de pierre, tapi sur les sentiers rocailleux.",
-    wildEncounterable: true,
-  },
-  chirple: {
-    id: "chirple",
-    name: "Chirple",
-    kind: "bestiole",
-    rarity: "common",
-    gfx: "chirple",
-    size: 90,
-    baseStats: st(38, 15, 5, 52, 0),
-    innate: null,
-    talentPool: [],
-    tint: "#ffd24a",
-    desc: "Oisillon criard et nerveux qui fond sur les imprudents.",
-    wildEncounterable: true,
-  },
-  mossprout: {
-    id: "mossprout",
-    name: "Mossprout",
-    kind: "bestiole",
-    rarity: "common",
-    gfx: "mossprout",
-    size: 95,
-    baseStats: st(58, 13, 9, 28, 0),
-    innate: null,
-    talentPool: [],
-    tint: "#7fae5a",
-    desc: "Bourgeon mobile et têtu qui s'agite dans les fougères.",
-    wildEncounterable: true,
-  },
-  nimbus: {
-    id: "nimbus",
-    name: "Nimbus",
-    kind: "bestiole",
-    rarity: "common",
-    gfx: "nimbus",
-    size: 95,
-    baseStats: st(50, 16, 7, 46, 0),
-    innate: null,
-    talentPool: [],
-    tint: "#aab8d8",
-    desc: "Nuée électrique qui tourbillonne sur les crêtes venteuses.",
-    wildEncounterable: true,
   },
 
   // ── Boss : bestiole massive et coriace (combats longs → égalités) ─────────
@@ -148,8 +90,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
   // ── Bestiaire étendu (import planches, 2026-07-11) ───────────────────────
   // 43 nouvelles bestioles sauvages. Stats/noms/rareté/wildEncounterable
   // sont des valeurs de départ éditables via l'Éditeur d'espèces (menu ☰).
+  // (emberpup, poofowl, fungoot, haloux promues Auto Monsters jouables v0.14,
+  // déplacées en tête de fichier — 39 bestioles restent ici.)
   foxleaf: { id: "foxleaf", name: "Foxleaf", kind: "bestiole", rarity: "common", gfx: "foxleaf", size: 100, baseStats: st(48, 15, 7, 50, 0), innate: null, talentPool: [], tint: "#838e5a", desc: "Petit renard feuillu qui bondit dans les sous-bois, sa queue bruissant comme un bosquet.", wildEncounterable: true },
-  emberpup: { id: "emberpup", name: "Emberpup", kind: "bestiole", rarity: "common", gfx: "emberpup", size: 100, baseStats: st(50, 18, 8, 42, 0), innate: null, talentPool: [], tint: "#bb6d40", desc: "Lionceau à crinière de braise, plus joueur qu'agressif malgré ses flammes.", wildEncounterable: true },
   ottermis: { id: "ottermis", name: "Ottermis", kind: "bestiole", rarity: "common", gfx: "ottermis", size: 100, baseStats: st(60, 14, 12, 34, 0), innate: null, talentPool: [], tint: "#6f8d9f", desc: "Loutre des rivages froids, curieuse et toujours prête à plonger.", wildEncounterable: true },
   sprigling: { id: "sprigling", name: "Sprigling", kind: "bestiole", rarity: "common", gfx: "sprigling", size: 100, baseStats: st(56, 13, 11, 30, 0), innate: null, talentPool: [], tint: "#9f9b6e", desc: "Jeune tortue verte dont la coquille bourgeonne au printemps.", wildEncounterable: true },
   cobbleback: { id: "cobbleback", name: "Cobbleback", kind: "bestiole", rarity: "common", gfx: "cobbleback", size: 100, baseStats: st(58, 12, 16, 24, 0), innate: null, talentPool: [], tint: "#766869", desc: "Tortue de granit trapue, imperturbable même sous les coups.", wildEncounterable: true },
@@ -163,7 +106,6 @@ export const SPECIES: Record<string, SpeciesDef> = {
   geodite: { id: "geodite", name: "Geodite", kind: "bestiole", rarity: "rare", gfx: "geodite", size: 100, baseStats: st(72, 20, 20, 22, 0), innate: null, talentPool: [], tint: "#6c817f", desc: "Golem de cristal aux yeux ambrés, rare relique des grottes profondes.", wildEncounterable: false },
   axolume: { id: "axolume", name: "Axolume", kind: "bestiole", rarity: "rare", gfx: "axolume", size: 100, baseStats: st(70, 22, 13, 40, 0), innate: null, talentPool: [], tint: "#cda28b", desc: "Axolotl ailé scintillant, rare esprit des sources sacrées.", wildEncounterable: false },
   petalump: { id: "petalump", name: "Petalump", kind: "bestiole", rarity: "common", gfx: "petalump", size: 100, baseStats: st(54, 12, 11, 30, 0), innate: null, talentPool: [], tint: "#95a062", desc: "Petite tortue coiffée d'une fleur, paisible grignoteuse de pétales.", wildEncounterable: true },
-  poofowl: { id: "poofowl", name: "Poofowl", kind: "bestiole", rarity: "common", gfx: "poofowl", size: 100, baseStats: st(52, 11, 12, 28, 0), innate: null, talentPool: [], tint: "#aaa4a0", desc: "Boule de duvet cornue, mi-chouette mi-mouton, adore somnoler.", wildEncounterable: true },
   glooze: { id: "glooze", name: "Glooze", kind: "bestiole", rarity: "common", gfx: "glooze", size: 100, baseStats: st(50, 16, 8, 32, 0), innate: null, talentPool: [], tint: "#7b5d98", desc: "Gelée violette marquée d'un crâne, plus câline que menaçante.", wildEncounterable: true },
   ribbiton: { id: "ribbiton", name: "Ribbiton", kind: "bestiole", rarity: "common", gfx: "ribbiton", size: 100, baseStats: st(44, 15, 6, 48, 0), innate: null, talentPool: [], tint: "#8c9973", desc: "Grenouille ailée qui bondit d'une berge à l'autre en voletant.", wildEncounterable: true },
   scarabolt: { id: "scarabolt", name: "Scarabolt", kind: "bestiole", rarity: "common", gfx: "scarabolt", size: 100, baseStats: st(56, 17, 14, 32, 0), innate: null, talentPool: [], tint: "#566b88", desc: "Scarabée cuirassé aux cornes acérées, robuste combattant des sous-bois.", wildEncounterable: true },
@@ -172,7 +114,6 @@ export const SPECIES: Record<string, SpeciesDef> = {
   bloomcrest: { id: "bloomcrest", name: "Bloomcrest", kind: "bestiole", rarity: "common", gfx: "bloomcrest", size: 100, baseStats: st(46, 14, 7, 38, 0), innate: null, talentPool: [], tint: "#a98879", desc: "Esprit floral couronné de pétales, danse au moindre souffle de vent.", wildEncounterable: true },
   icubis: { id: "icubis", name: "Icubis", kind: "bestiole", rarity: "rare", gfx: "icubis", size: 100, baseStats: st(68, 17, 20, 20, 0), innate: null, talentPool: [], tint: "#6791b6", desc: "Cube de glace vivant, rare curiosité des lacs gelés.", wildEncounterable: false },
   ribbonel: { id: "ribbonel", name: "Ribbonel", kind: "bestiole", rarity: "common", gfx: "ribbonel", size: 100, baseStats: st(42, 17, 6, 46, 0), innate: null, talentPool: [], tint: "#a18ba9", desc: "Ruban violet en spirale, insaisissable et toujours en mouvement.", wildEncounterable: true },
-  fungoot: { id: "fungoot", name: "Fungoot", kind: "bestiole", rarity: "common", gfx: "fungoot", size: 100, baseStats: st(52, 13, 12, 26, 0), innate: null, talentPool: [], tint: "#b29075", desc: "Champignon tacheté renfrogné, pousse en cercles dans la mousse humide.", wildEncounterable: true },
   cattermil: { id: "cattermil", name: "Cattermil", kind: "bestiole", rarity: "common", gfx: "cattermil", size: 100, baseStats: st(46, 11, 10, 26, 0), innate: null, talentPool: [], tint: "#938e66", desc: "Chenille dorée aux antennes curieuses, patiente avant sa métamorphose.", wildEncounterable: true },
   wickember: { id: "wickember", name: "Wickember", kind: "bestiole", rarity: "common", gfx: "wickember", size: 100, baseStats: st(48, 18, 8, 38, 0), innate: null, talentPool: [], tint: "#9d7f79", desc: "Lanterne-citrouille malicieuse, sa flamme danse au rythme de son humeur.", wildEncounterable: true },
   finspike: { id: "finspike", name: "Finspike", kind: "bestiole", rarity: "common", gfx: "finspike", size: 100, baseStats: st(50, 19, 10, 44, 0), innate: null, talentPool: [], tint: "#7284a5", desc: "Petit prédateur aquatique aux ailerons acérés, rapide en embuscade.", wildEncounterable: true },
@@ -180,7 +121,6 @@ export const SPECIES: Record<string, SpeciesDef> = {
   leapleaf: { id: "leapleaf", name: "Leapleaf", kind: "bestiole", rarity: "common", gfx: "leapleaf", size: 100, baseStats: st(46, 15, 6, 52, 0), innate: null, talentPool: [], tint: "#96ab6e", desc: "Renardeau facétieux qui laisse une traînée de feuilles en sautant.", wildEncounterable: true },
   armadge: { id: "armadge", name: "Armadge", kind: "bestiole", rarity: "common", gfx: "armadge", size: 100, baseStats: st(56, 12, 17, 22, 0), innate: null, talentPool: [], tint: "#897972", desc: "Tatou blindé qui se love en boule au moindre danger.", wildEncounterable: true },
   frostspine: { id: "frostspine", name: "Frostspine", kind: "bestiole", rarity: "common", gfx: "frostspine", size: 100, baseStats: st(52, 16, 12, 32, 0), innate: null, talentPool: [], tint: "#7fa4c0", desc: "Hérisson de givre aux piquants cristallins, craint le redoux.", wildEncounterable: true },
-  haloux: { id: "haloux", name: "Haloux", kind: "bestiole", rarity: "rare", gfx: "haloux", size: 100, baseStats: st(66, 18, 14, 44, 0), innate: null, talentPool: [], tint: "#d7c093", desc: "Oiselet angélique à l'auréole dorée, rare porte-bonheur des voyageurs.", wildEncounterable: false },
   sporeling: { id: "sporeling", name: "Sporeling", kind: "bestiole", rarity: "common", gfx: "sporeling", size: 100, baseStats: st(54, 12, 11, 28, 0), innate: null, talentPool: [], tint: "#a39367", desc: "Tortue forestière coiffée de champignons et d'une fleur, sent la mousse fraîche.", wildEncounterable: true },
   tarblob: { id: "tarblob", name: "Tarblob", kind: "bestiole", rarity: "common", gfx: "tarblob", size: 100, baseStats: st(52, 16, 9, 30, 0), innate: null, talentPool: [], tint: "#7f649b", desc: "Mare de goudron violet grimaçante, colle à tout ce qu'elle touche.", wildEncounterable: true },
   voltkit: { id: "voltkit", name: "Voltkit", kind: "bestiole", rarity: "common", gfx: "voltkit", size: 100, baseStats: st(44, 17, 6, 56, 0), innate: null, talentPool: [], tint: "#c5a95e", desc: "Renardeau électrique à la queue en éclair, ne tient jamais en place.", wildEncounterable: true },
@@ -211,8 +151,8 @@ export function applySpeciesOverrides(overrides: Record<string, Partial<SpeciesD
   }
 }
 
-export const STARTERS = ["flameling", "aquafi", "leafkit"] as const;
-export const RARE_REWARD = "willowisp";
+export const STARTERS = ["poofowl", "fungoot", "emberpup"] as const;
+export const RARE_REWARD = "haloux";
 
 // ── Carte : grande toile, lieux de types variés, déplacement par nœuds ──────
 /** Type d'un lieu sur la carte. */
@@ -315,7 +255,7 @@ export const MAP_LOCATIONS: MapLocation[] = [
     y: 620,
     icon: "⚔️",
     desc: "Une petite pousse remue dans les fougères.",
-    enemySpecies: "mossprout",
+    enemySpecies: "sprigling",
     enemyLevel: 1,
     isBoss: false,
     recommendedLevel: 1,
@@ -331,7 +271,7 @@ export const MAP_LOCATIONS: MapLocation[] = [
     y: 440,
     icon: "⚔️",
     desc: "Un piaillement strident fond sur toi.",
-    enemySpecies: "chirple",
+    enemySpecies: "squawklet",
     enemyLevel: 2,
     isBoss: false,
     recommendedLevel: 2,
@@ -347,7 +287,7 @@ export const MAP_LOCATIONS: MapLocation[] = [
     y: 640,
     icon: "⚔️",
     desc: "Un caillou… qui a des dents.",
-    enemySpecies: "peblix",
+    enemySpecies: "cobbleback",
     enemyLevel: 3,
     isBoss: false,
     recommendedLevel: 3,
@@ -363,7 +303,7 @@ export const MAP_LOCATIONS: MapLocation[] = [
     y: 400,
     icon: "⚔️",
     desc: "Une brume électrique tourbillonne.",
-    enemySpecies: "nimbus",
+    enemySpecies: "murkwisp",
     enemyLevel: 4,
     isBoss: false,
     recommendedLevel: 4,
@@ -426,8 +366,8 @@ export const HEAL_CENTER_COST = 25; // or pour soigner toute l'équipe à fond
 // ── Ranch : location d'Auto Monsters ─────────────────────────────────────────
 export type RanchOffer = { speciesId: string; level: number; price: number; fights: number };
 export const RANCH_OFFERS: RanchOffer[] = [
-  { speciesId: "leafkit", level: 4, price: 20, fights: 3 },
-  { speciesId: "willowisp", level: 6, price: 45, fights: 3 },
+  { speciesId: "emberpup", level: 4, price: 20, fights: 3 },
+  { speciesId: "haloux", level: 6, price: 45, fights: 3 },
 ];
 /** Prolongation de contrat (proposée au dernier combat). */
 export const RANCH_EXTEND = { price: 30, fights: 3 };

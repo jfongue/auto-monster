@@ -22,7 +22,7 @@ export function buildFighter(c: Character, side: 0 | 1, fid: number, rng: Rng): 
     fid,
     side,
     name: c.name,
-    gfx: sp?.gfx ?? "flameling",
+    gfx: sp?.gfx ?? "emberpup",
     size: sp?.size ?? 100,
     tint: sp?.tint ?? "#888",
     level: c.level,
