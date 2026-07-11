@@ -62,10 +62,8 @@ export default function House({
           <div className="house-purse">💰 {gold} <span className="dot">·</span> 🧪 {potions}</div>
 
           <div className="house-room">
-            <div className="house-window">
-              <span className="house-window-glow" />
-            </div>
-            <div className="house-shelf">🪴</div>
+            <div className="house-floor-line" />
+            <div className="house-window" />
             <button
               className={`house-critter dir-${dirRef.current > 0 ? "r" : "l"}`}
               style={{ left: `${walkX}%` }}
@@ -117,7 +115,7 @@ export default function House({
         <div className="house-focus view">
           <button className="ghost sm house-back" onClick={() => setFocused(false)}>← Retour</button>
           <div className="house-focus-body">
-            <div className="house-focus-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}2e, transparent 72%)` }}>
+            <div className="house-focus-art">
               <img src={`/sprites/${sp.gfx}.png`} alt={c.name} draggable={false} />
             </div>
             <div className="house-focus-info">
@@ -130,7 +128,7 @@ export default function House({
               <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
               <div className="muted small">XP {c.xp}/{xpNext}</div>
               <StatRow stats={c.stats} />
-              <button className="primary" style={{ marginTop: 10 }} onClick={() => onOpenSheet(c.id)}>
+              <button className="house-exit-btn" style={{ marginTop: 10, maxWidth: "none" }} onClick={() => onOpenSheet(c.id)}>
                 Voir la fiche complète
               </button>
             </div>

@@ -545,19 +545,17 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-purse .dot { color: var(--faint); }
 
 .house-room {
-  position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 26px; overflow: hidden;
-  background:
-    linear-gradient(180deg, #eef1fc 0%, #eef1fc 62%, #dfe6cf 62%, #cddab5 100%);
-  border: 1px solid var(--line); box-shadow: var(--shadow);
+  position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
 }
+.house-floor-line { position: absolute; left: 0; right: 0; top: 62%; height: 1px; background: var(--line-strong); }
 .house-window {
-  position: absolute; top: 14%; left: 50%; transform: translateX(-50%);
-  width: 34%; aspect-ratio: 1; border-radius: 16px;
-  background: linear-gradient(160deg, #cfe0ff, #eef4ff);
-  border: 6px solid #fff; box-shadow: var(--shadow-sm);
+  position: absolute; top: 16%; left: 50%; transform: translateX(-50%);
+  width: 20%; aspect-ratio: 1; border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
 }
-.house-window-glow { position: absolute; inset: 0; background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.8), transparent 60%); }
-.house-shelf { position: absolute; top: 16%; right: 8%; font-size: 26px; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.12)); }
 .house-critter {
   position: absolute; bottom: 12%; transform: translateX(-50%);
   width: 25%; aspect-ratio: 1; padding: 0; border: none; background: transparent; box-shadow: none;
@@ -565,9 +563,9 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   transition: left 1.05s cubic-bezier(.45,.05,.35,1);
   animation: houseHop 1.1s ease-in-out infinite;
 }
-.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 8px 8px rgba(0,0,0,0.18)); transform: scaleX(1); }
+.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); }
 .house-critter.dir-l img { transform: scaleX(-1); }
-.house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 10px; border-radius: 50%; background: rgba(30,30,50,0.18); filter: blur(3px); animation: houseShadow 1.1s ease-in-out infinite; }
+.house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); animation: houseShadow 1.1s ease-in-out infinite; }
 @keyframes houseHop { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-13px); } }
 @keyframes houseShadow { 0%,100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(0.78); opacity: 0.35; } }
 
@@ -577,20 +575,26 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-dot.on { background: var(--acc); }
 
 .house-exit-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; margin-top: 4px; }
-.house-exit-btn { font-size: 14px; }
+.house-exit-btn {
+  font-size: 14px; width: 100%; max-width: 260px;
+  background: var(--ink); color: #fff; border: none; box-shadow: none;
+}
+.house-exit-btn:hover:not(:disabled) { background: var(--ink-2); box-shadow: none; }
 .house-exit-choices { display: flex; gap: 10px; width: 100%; }
 .exit-choice {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 16px 10px; border-radius: 16px; text-align: center;
+  padding: 16px 10px; border-radius: 14px; text-align: center; box-shadow: none;
+  background: var(--surface); border: 1px solid var(--line);
 }
-.exit-choice .exit-ico { font-size: 26px; }
+.exit-choice:hover:not(:disabled) { box-shadow: none; border-color: var(--line-strong); }
+.exit-choice .exit-ico { font-size: 22px; filter: grayscale(1) opacity(0.75); }
 .exit-choice .exit-txt { font-weight: 700; display: flex; flex-direction: column; }
 .exit-choice .exit-sub { font-size: 11px; font-weight: 500; color: var(--dim); margin-top: 2px; }
 
 .house-focus { width: 100%; }
 .house-back { margin-bottom: 10px; }
 .house-focus-body { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
-.house-focus-art { width: 128px; height: 128px; border-radius: 22px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+.house-focus-art { width: 128px; height: 128px; border-radius: 18px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); box-shadow: none; }
 .house-focus-art img { max-width: 74px; max-height: 74px; object-fit: contain; filter: drop-shadow(0 10px 12px rgba(0,0,0,0.16)); }
 .house-focus-info { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .house-focus-info .team-name.big { justify-content: center; }
