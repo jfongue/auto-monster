@@ -527,7 +527,25 @@ export default function GamePage() {
       {allPacified && modal.k === "none" && (
         <div className="cleared-banner">🏆 Les trois zones sont pacifiées ! <button className="ghost sm" onClick={resetGame}>Recommencer</button></div>
       )}
+
+      <BuildFooter />
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FOOTER — date/heure/auteur du dernier commit sur lequel la version tourne.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BuildFooter() {
+  const label = __COMMIT_DATE__
+    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" }).format(new Date(__COMMIT_DATE__))
+    : null;
+  return (
+    <footer className="build-footer">
+      {label ? `${__COMMIT_AUTHOR__} · ${label}` : "version locale (hors git)"}
+      {__COMMIT_HASH__ && <span className="build-hash"> · {__COMMIT_HASH__}</span>}
+    </footer>
   );
 }
 
