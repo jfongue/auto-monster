@@ -1,5 +1,6 @@
 // F10 — Renderer "bête" : rejoue l'ActionLog action par action. Aucun calcul de
-// combat ici. Visuels simplistes (sprites, barres de vie, lunge, dégâts flottants).
+// combat ici. Salle façon Home élargie : les deux camps se font face, l'attaquant
+// traverse la salle vers l'adversaire, frappe (bulle de dégâts/esquive), puis revient.
 
 import { useEffect, useRef, useState } from "react";
 import type { Action } from "../engine/types";
