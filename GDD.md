@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.17 — Document de référence du projet
+> Version 0.18 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,9 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-11 — v0.18
+- [Robustesse / Onboarding] **Correctif page blanche** : `GamePage` affichait une House vide (retourne `null` faute de personnage actif) quand `started=true` mais l'équipe était vide (état incohérent, ex. reset interrompu) — header + footer visibles, aucun contenu. La condition d'affichage de l'Onboarding est étendue de `!gs.started` à `!gs.started || gs.team.length === 0` : toute équipe vide retombe désormais sur le choix du 1er AM au lieu d'un écran blanc.
 
 ### 2026-07-11 — v0.17
 - [Navigation] Bouton de sortie de la House renommé **« Explorer le monde »** (icône 🗺️, ex-« Forêt »), sous-titre « Carte du monde ».
