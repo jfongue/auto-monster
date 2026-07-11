@@ -15,13 +15,19 @@ type Sprite = {
   life: number;
   maxLife: number;
   dead: boolean;
-  lunge: number; // décalage horizontal en cours d'attaque
+  x: number; // position horizontale courante, en % de la largeur de la salle
   flash: boolean;
 };
 
 type Pop = { id: number; fid: number; text: string; kind: "dmg" | "crit" | "heal" | "miss" };
 
 const BASE_DELAY = 240;
+
+// Position "au repos" de chaque camp dans la salle (façon Home élargie), et
+// distance d'approche lors d'un assaut : l'attaquant traverse la salle vers
+// l'adversaire, frappe, puis revient chez lui.
+const HOME_X: Record<0 | 1, number> = { 0: 24, 1: 76 };
+const APPROACH_GAP = 15;
 
 export default function CombatView({
   log,
@@ -88,7 +94,7 @@ export default function CombatView({
             life: a.life,
             maxLife: a.maxLife,
             dead: false,
-            lunge: 0,
+            x: HOME_X[a.side],
             flash: false,
           },
         }));
@@ -103,15 +109,19 @@ export default function CombatView({
         delay = 360;
         break;
       case "goto": {
-        const dir = log.find((x) => x.t === "add" && (x as any).fid === a.fid) as any;
-        const side = dir?.side ?? 0;
-        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], lunge: side === 0 ? 46 : -46 } } : s));
-        delay = 170;
+        // L'attaquant traverse la salle jusqu'à proximité de l'adversaire.
+        setSprites((s) => {
+          const cur = s[a.fid];
+          if (!cur) return s;
+          const dest = cur.side === 0 ? HOME_X[1] - APPROACH_GAP : HOME_X[0] + APPROACH_GAP;
+          return { ...s, [a.fid]: { ...cur, x: dest } };
+        });
+        delay = 320;
         break;
       }
       case "return":
-        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], lunge: 0 } } : s));
-        delay = 120;
+        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], x: HOME_X[s[a.fid].side] } } : s));
+        delay = 260;
         break;
       case "damage": {
         setSprites((s) => {
@@ -161,14 +171,13 @@ export default function CombatView({
     schedule(play, delay);
   }
 
-  const side0 = Object.values(sprites).filter((s) => s.side === 0);
-  const side1 = Object.values(sprites).filter((s) => s.side === 1);
-
   return (
     <div className="combat-arena">
-      <div className="arena-side left">{side0.map((s) => renderFighter(s, pops))}</div>
-      <div className="arena-vs">VS</div>
-      <div className="arena-side right">{side1.map((s) => renderFighter(s, pops))}</div>
+      <div className="combat-room">
+        <div className="combat-floor-line" />
+        <div className="combat-window" />
+        {Object.values(sprites).map((s) => renderFighter(s, pops))}
+      </div>
       {caption && <div className="arena-caption">{caption}</div>}
     </div>
   );
@@ -194,8 +203,11 @@ function findPrevLife(log: Action[], i: number, tid: number): number {
 function renderFighter(s: Sprite, pops: Pop[]) {
   const pct = Math.max(0, Math.round((s.life / s.maxLife) * 100));
   const mine = pops.filter((p) => p.fid === s.fid);
+  // Les deux camps se font face : côté droit (les ennemis) regarde vers la
+  // gauche, on retourne donc son sprite (l'art est dessiné tourné à droite).
+  const flip = s.side === 1;
   return (
-    <div key={s.fid} className={`fighter ${s.dead ? "dead" : ""}`}>
+    <div key={s.fid} className={`fighter ${s.dead ? "dead" : ""}`} style={{ left: `${s.x}%` }}>
       <div className="fighter-pops">
         {mine.map((p) => (
           <span key={p.id} className={`pop ${p.kind}`}>
@@ -206,13 +218,14 @@ function renderFighter(s: Sprite, pops: Pop[]) {
       <div
         className="fighter-sprite"
         style={{
-          transform: `translateX(${s.lunge}px) scale(${s.size / 100})`,
+          transform: `scale(${(s.size / 100) * (flip ? -1 : 1)}, ${s.size / 100})`,
           filter: s.flash ? "brightness(2.2)" : "none",
         }}
       >
         <div className="fighter-aura" style={{ background: s.tint }} />
         <img src={`/sprites/${s.gfx}.png`} alt={s.name} draggable={false} />
       </div>
+      <span className="fighter-shadow" />
       <div className="fighter-info">
         <div className="fighter-name">
           {s.name} <span className="lvl">N.{s.level}</span>

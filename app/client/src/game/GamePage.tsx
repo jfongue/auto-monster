@@ -416,7 +416,7 @@ export default function GamePage() {
       {(route.v === "forest" || route.v === "zone") && (
         <div className="hub">
           <div className="team-strip">
-            <div className="team-strip-title">⚜️ Ton équipe — clique un compagnon</div>
+            <div className="team-strip-title">🛡️ TON ÉQUIPE <span className="team-strip-sub">clique un compagnon pour sa fiche</span></div>
             <div className="team-strip-grid stagger">
               {gs.team.map((c) => (
                 <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
@@ -461,6 +461,17 @@ export default function GamePage() {
             <button className="hmenu-item" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}>📖 Bestiaire</button>
             <button className="hmenu-item" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}>🎒 Équipe</button>
             <button className="hmenu-item" onClick={() => { setModal({ k: "speciesEditor" }); setMenuOpen(false); }}>🧬 Éditeur d'espèces</button>
+            <button
+              className="hmenu-item danger"
+              onClick={() => {
+                if (window.confirm("Réinitialiser ton compte ? Toute la progression (équipe, or, zones) sera perdue et tu referas l'onboarding depuis le début.")) {
+                  resetGame();
+                  setMenuOpen(false);
+                }
+              }}
+            >
+              ♻️ Réinitialiser le compte
+            </button>
             <button className="hmenu-item danger" onClick={() => logout()}>⏻ Déconnexion</button>
           </div>
         </div>
@@ -646,6 +657,8 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 
 function WorldMap({ gs, fading, onEnter }: { gs: GameState; fading: boolean; onEnter: (id: string) => void }) {
   const here = zoneById(gs.playerZone);
+  const lead = gs.team[0];
+  const leadSp = lead ? SPECIES[lead.speciesId] : null;
   const R = 46, C = 2 * Math.PI * R;
   const pctX = (x: number) => (x / MAP_WORLD_W) * 100;
   const pctY = (y: number) => (y / MAP_WORLD_H) * 100;
@@ -708,7 +721,14 @@ function WorldMap({ gs, fading, onEnter }: { gs: GameState; fading: boolean; onE
           );
         })}
 
-        <div className="player-pin" style={{ left: `${pctX(here.x)}%`, top: `${pctY(here.y)}%` }}>🧍</div>
+        {leadSp && (
+          <img
+            className="player-pin"
+            src={`/sprites/${leadSp.gfx}.png`}
+            alt="Toi"
+            style={{ left: `${pctX(here.x)}%`, top: `${pctY(here.y)}%` }}
+          />
+        )}
       </div>
     </div>
   );
@@ -762,7 +782,7 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
         )}
 
         <div className="card">
-          <div className="card-title">💬 Personnages</div>
+          <div className="card-title">🧑‍🤝‍🧑 Personnages</div>
           {npcs.length === 0 && <p className="muted small">Personne à qui parler pour l'instant.</p>}
           <div className="npc-strip">
             {npcs.map((n) => (
@@ -811,8 +831,9 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
 }) {
   const encounters = zone.encounters.map(encounterById);
-  const [encId, setEncId] = useState(encounters[0]?.id ?? "");
-  const enc = encounters.find((e) => e.id === encId) ?? encounters[0];
+  // Pas de choix d'ennemi : on présente automatiquement la première rencontre
+  // non encore nettoyée (sinon la première), centrée à l'écran.
+  const enc = encounters.find((e) => !isLocationCleared(gs, e.id)) ?? encounters[0];
   const combatants = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
   const firstAlive = combatants.find((c) => currentLife(c) > 0) ?? combatants[0];
   const [pick, setPick] = useState(firstAlive?.id ?? "");
@@ -825,44 +846,18 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
   const sp = SPECIES[enc.enemySpecies!];
   const chosen = combatants.find((c) => c.id === pick);
   const ko = chosen ? currentLife(chosen) <= 0 : true;
-  const cleared = isLocationCleared(gs, enc.id);
 
   return (
     <div className="card">
       <div className="card-title">⚔️ {zone.boss ? "Affrontement" : "Rencontres sauvages"}</div>
 
-      {encounters.length > 1 && (
-        <div className="pick-list" style={{ marginBottom: 12 }}>
-          <div className="statgrid" style={{ gap: 6 }}>
-            {encounters.map((e) => {
-              const done = isLocationCleared(gs, e.id);
-              return (
-                <span
-                  key={e.id}
-                  onClick={() => setEncId(e.id)}
-                  style={{ cursor: "pointer", borderColor: e.id === encId ? "var(--acc)" : undefined, background: e.id === encId ? "var(--acc-soft)" : undefined, color: e.id === encId ? "var(--acc)" : undefined }}
-                >
-                  {done ? "✓ " : ""}{e.name} · N.{e.recommendedLevel}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="enemy-preview">
+      <div className="enemy-preview centered">
         <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
-        <div>
-          <div className="enemy-name">
-            {sp.name} <span className="lvl">N.{enc.enemyLevel}</span>
-            {enc.isBoss && <span className="boss-tag">BOSS</span>}
-          </div>
-          {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[enc.id]}</div>}
-          <div className="loot-line">
-            Butin{cleared ? " (déjà nettoyé : ½)" : ""} : 💰 {cleared ? Math.round((enc.gold ?? 0) / 2) : enc.gold}
-            {!cleared && ` · 🧪 ${enc.potions}`} · ⭐ {cleared ? Math.round((enc.xp ?? 0) / 2) : enc.xp} XP
-          </div>
+        <div className="enemy-name">
+          {sp.name} <span className="lvl">N.{enc.enemyLevel}</span>
+          {enc.isBoss && <span className="boss-tag">BOSS</span>}
         </div>
+        {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[enc.id]}</div>}
       </div>
 
       <h4 className="pick-title">Choisis ton AM</h4>
@@ -912,12 +907,6 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
           <div className="de-title">{npc.title}</div>
         </div>
         <div className="de-main">
-          <div className="de-lines">
-            {npc.lines.map((l, i) => (
-              <div key={i} className="de-line" style={{ ["--lc" as any]: npc.tint }}>{l}</div>
-            ))}
-          </div>
-
           {npc.role === "merchant" && (
             <div className="de-actions">
               <button className="de-action" disabled={gs.gold < POTION_PRICE} onClick={onBuy}>

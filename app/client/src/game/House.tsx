@@ -157,8 +157,8 @@ export default function House({
           {exitOpen && (
             <div className="house-exit-choices stagger">
               <button className="exit-choice" onClick={onGoForest}>
-                <span className="exit-ico">🌲</span>
-                <span className="exit-txt">Forêt<span className="exit-sub">Combats sauvages</span></span>
+                <span className="exit-ico">🗺️</span>
+                <span className="exit-txt">Explorer le monde<span className="exit-sub">Carte du monde</span></span>
               </button>
               <button className="exit-choice" onClick={onGoShop}>
                 <span className="exit-ico">🏪</span>

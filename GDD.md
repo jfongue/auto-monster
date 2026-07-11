@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.15 — Document de référence du projet
+> Version 0.16 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,9 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-11 — v0.16
+- [Menu ☰ / Compte] **Bouton « Réinitialiser le compte »** dans le menu hamburger : confirmation (`window.confirm`) puis appel de `resetGame()` (déjà existant) — remet l'état à `freshState()` (équipe, or, zones, progression effacés) et repasse par l'**Onboarding** (choix du 1er AM) puisque `started` redevient `false`. Distinct de la Déconnexion (qui ne touche pas à la progression).
 
 ### 2026-07-11 — v0.15
 - [Home / House — errance] **Déplacement du compagnon refondu en marche aléatoire organique** : au lieu d'un aller-retour métronomique (setInterval fixe), le compagnon choisit une position cible aléatoire (x horizontal + profondeur), s'y déplace, puis observe une **pause de durée variable** (0.5s à ~3.2s) avant de repartir — via une boucle de `setTimeout` récursifs (marche 0.9–1.7s, pause 0.5–3.2s), suspendue en mode focus.
@@ -120,6 +123,7 @@
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch intégrés au **chat PNJ** (zones) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
 | Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers Forêt/Boutique |
 | Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
+| Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
