@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.11 — Document de référence du projet
+> Version 0.12 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,9 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-03 — v0.12
+- [DA créatures] **Choix exécuté : DA-D (flat vectoriel)** pour un premier prototype de bestiaire, faute de générateur text-to-image dans l'environnement. Livré : `reference/sheet.svg` + `reference/sheet.png` — **planche 5×5 de 25 créatures originales** (chibi, contour épais `#2b2233`, aplats + 1 ombre, joues roses), réparties sur 15 éléments. Générateur procédural reproductible : `outputs/gen_sheet.py` (6 archétypes : blob / quadrupède / oiseau / spectre / serpent / insecte). Noms + pastille couleur d'élément sous chaque case.
 
 ### 2026-07-03 — v0.11
 - [DA] **Refonte visuelle complète : thème CLAIR moderne** (remplace le thème fantasy sombre). Palette indigo/violet + émeraude, surfaces blanches, ombres douces, typo `Space Grotesk` (titres) + `Inter` (corps). `game.css` entièrement réécrit.
