@@ -145,6 +145,28 @@ export default function GamePage() {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }
 
+  // Back navigateur / Android : ferme d'abord le modal ouvert, puis remonte à la
+  // maison, sans jamais quitter l'app. On maintient toujours une entrée d'historique
+  // à dépiler.
+  const modalRef = useRef(modal);
+  modalRef.current = modal;
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const menuOpenRef = useRef(menuOpen);
+  menuOpenRef.current = menuOpen;
+  useEffect(() => {
+    window.history.pushState(null, "");
+    const onPop = () => {
+      if (modalRef.current.k !== "none") setModal({ k: "none" });
+      else if (menuOpenRef.current) setMenuOpen(false);
+      else if (routeRef.current.v !== "house") setRoute({ v: "house" });
+      window.history.pushState(null, "");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -577,7 +599,7 @@ export default function GamePage() {
       {menuOpen && (
         <div className="hmenu-overlay" onClick={() => setMenuOpen(false)}>
           <div className="hmenu-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)}>✕</button>
+            <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu">✕</button>
             <div className="hmenu-user">{user?.displayName || user?.username || "Dresseur"}</div>
             <div className="hmenu-purse">💰 {gs.gold} · 🧪 {gs.potions}</div>
             <button className="hmenu-item" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}>📖 Bestiaire</button>
@@ -648,6 +670,13 @@ export default function GamePage() {
                 {[1, 2, 4].map((sp) => (
                   <button key={sp} className={speed === sp ? "on" : ""} onClick={() => setSpeed(sp)}>×{sp}</button>
                 ))}
+                <button
+                  className="ghost sm combat-flee"
+                  aria-label="Abandonner le combat"
+                  onClick={() => { if (window.confirm("Abandonner ce combat ? Aucun gain ni perte.")) setModal({ k: "none" }); }}
+                >
+                  Abandonner
+                </button>
               </div>
             </div>
             <CombatView log={modal.ctx.result.log} speed={speed} onFinish={onCombatFinish} />
@@ -683,7 +712,7 @@ export default function GamePage() {
       )}
 
       {allPacified && modal.k === "none" && (
-        <div className="cleared-banner">🏆 Les trois zones sont pacifiées ! <button className="ghost sm" onClick={resetGame}>Recommencer</button></div>
+        <div className="cleared-banner">🏆 Les trois zones sont pacifiées ! <button className="ghost sm" onClick={() => { if (window.confirm("Tout recommencer ? Ta progression sera définitivement perdue.")) resetGame(); }}>Recommencer</button></div>
       )}
 
       <div className="toasts">
@@ -1116,7 +1145,7 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
     <div className="de-overlay" onClick={onClose}>
       <div className="de-panel" onClick={(e) => e.stopPropagation()}>
         <div className="de-side" style={{ ["--pt" as any]: npc.tint + "44" }}>
-          <button className="ghost sm de-close" onClick={onClose}>✕</button>
+          <button className="ghost sm de-close" onClick={onClose} aria-label="Fermer">✕</button>
           <div className="de-emoji">{npc.emoji}</div>
           <div className="de-name">{npc.name}</div>
           <div className="de-title">{npc.title}</div>
@@ -1329,7 +1358,7 @@ function ModalShell({ title, onClose, children, wide }: { title: string; onClose
   return (
     <div className="overlay" onClick={onClose}>
       <div className={`modal ${wide ? "wide" : ""}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h3>{title}</h3><button className="ghost sm" onClick={onClose}>✕</button></div>
+        <div className="modal-head"><h3>{title}</h3><button className="ghost sm" onClick={onClose} aria-label="Fermer">✕</button></div>
         <div className="modal-body">{children}</div>
       </div>
     </div>

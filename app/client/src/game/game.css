@@ -90,6 +90,12 @@ button {
 button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow); }
 button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
 button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+/* Focus clavier visible partout (a11y) — anneau indigo, sans gêner la souris. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
 button.primary {
   background: linear-gradient(135deg, var(--acc), var(--acc-2));
   border-color: transparent; color: #fff;
@@ -377,9 +383,11 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 /* ── barres de vie / xp ──────────────────────────────────────────────────── */
 .hpline { display: flex; align-items: center; gap: 8px; }
 .hpline .hpbar { flex: 1; }
-.hpbar { height: 9px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin: 4px 0; border: 1px solid var(--line); }
+.hpbar { position: relative; height: 9px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin: 4px 0; border: 1px solid var(--line); }
 .hpbar.sm { height: 7px; }
-.hpbar-fill { height: 100%; background: linear-gradient(90deg, #ff7a6b, var(--green)); transition: width 0.3s ease; }
+.hpbar-fill { height: 100%; background: linear-gradient(90deg, #ff7a6b, var(--green)); transition: width 0.25s cubic-bezier(.4,0,.2,1); position: relative; z-index: 1; }
+/* Traînée (chip damage) : reste en arrière puis rattrape → on lit l'ampleur du coup. */
+.hpbar-trail { position: absolute; inset: 0; height: 100%; background: rgba(255,255,255,0.85); transition: width 0.55s cubic-bezier(.4,0,.2,1) 0.18s; }
 .hpbar.healing .hpbar-fill { animation: healpulse 1.1s ease-in-out infinite; }
 @keyframes healpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.25); } }
 .hp-num { font-size: 11px; color: var(--dim); }
@@ -469,7 +477,41 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   width: clamp(96px, 24vw, 170px);
   transition: left 0.5s cubic-bezier(.45,.05,.35,1);
 }
+/* Coup porté (attaquant) & recul (cible) — animés sur le wrapper pour ne pas
+   écraser le scale/flip inline du sprite. */
+.fighter.lunge { animation: fLunge 0.26s cubic-bezier(.3,1.4,.5,1); }
+.fighter.hurt { animation: fHurt 0.26s ease; }
+@keyframes fLunge { 0%,100% { transform: translate(-50%,0); } 45% { transform: translate(-50%,-10px) scale(1.06); } }
+@keyframes fHurt {
+  0%,100% { transform: translate(-50%,0); }
+  20% { transform: translate(calc(-50% + 7px),0); }
+  45% { transform: translate(calc(-50% - 6px),0); }
+  70% { transform: translate(calc(-50% + 3px),0); }
+}
 .fighter.dead { opacity: 0.25; filter: grayscale(1); transition: opacity 0.5s, filter 0.5s; }
+/* Chute au K.O. */
+.fighter.dead .fighter-sprite { animation: koFall 0.5s cubic-bezier(.3,.7,.4,1) forwards; }
+@keyframes koFall { to { transform: translateY(14px) rotate(-14deg); opacity: 0.5; } }
+
+/* Screen-shake de la salle à l'impact. */
+.combat-room.sk { animation: roomShake 0.24s ease; }
+.combat-room.sk-big { animation: roomShakeBig 0.36s ease; }
+@keyframes roomShake {
+  0%,100% { transform: translate(0,0); }
+  15% { transform: translate(-4px,2px); }
+  40% { transform: translate(5px,-3px); }
+  65% { transform: translate(-3px,2px); }
+  85% { transform: translate(2px,-1px); }
+}
+@keyframes roomShakeBig {
+  0%,100% { transform: translate(0,0); }
+  12% { transform: translate(-9px,5px) rotate(-0.4deg); }
+  30% { transform: translate(10px,-6px) rotate(0.4deg); }
+  50% { transform: translate(-8px,4px); }
+  70% { transform: translate(6px,-3px); }
+  88% { transform: translate(-3px,2px); }
+}
+
 .fighter-sprite { position: relative; width: clamp(64px, 17vw, 100px); height: clamp(64px, 17vw, 100px); display: flex; align-items: center; justify-content: center; transition: transform 0.16s ease, filter 0.1s; }
 .fighter-sprite img { max-width: 92%; max-height: 92%; filter: drop-shadow(0 10px 12px rgba(0,0,0,0.18)); z-index: 1; }
 .fighter-aura { position: absolute; width: 90px; height: 26px; bottom: 2px; border-radius: 50%; filter: blur(10px); opacity: 0.45; }
@@ -479,7 +521,12 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .fighter-pops { position: absolute; top: -12px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; z-index: 5; }
 .pop { position: absolute; font-weight: 800; font-size: 18px; animation: floatUp 0.9s ease forwards; white-space: nowrap; }
 .pop.dmg { color: var(--red); }
-.pop.crit { color: #e8a800; font-size: 24px; }
+.pop.crit { color: #e8a800; font-size: 30px; text-shadow: 0 2px 7px rgba(232,168,0,0.45); animation: floatUpCrit 1s cubic-bezier(.2,1,.3,1) forwards; }
+@keyframes floatUpCrit {
+  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+  25% { transform: translateY(-16px) scale(1.35); opacity: 1; }
+  100% { transform: translateY(-54px) scale(1); opacity: 0; }
+}
 .pop.heal { color: var(--green); }
 .pop.miss { color: var(--dim); font-size: 14px; }
 .pop.talent { color: #6b46c1; font-size: 15px; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
@@ -630,10 +677,20 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 }
 .house-critter-anim.walking { animation: houseHop 0.55s ease-in-out infinite; }
 .house-critter-anim.zoomed { transform: scale(2.1); z-index: 3; }
+/* Corps : porte respiration (idle) + rebond joyeux (câlin), séparé du flip (img)
+   et du déplacement/zoom (anim) pour éviter les conflits de transform. */
+.hc-body { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; transform-origin: 50% 100%; }
+.hc-body.idle { animation: houseBreath 3.4s ease-in-out infinite; }
+.hc-body.reacting { animation: houseCheer 0.52s cubic-bezier(.3,1.5,.5,1); }
 .house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); transition: transform 0.3s ease; }
 .house-critter.dir-r img { transform: scaleX(-1); }
 .house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); }
 @keyframes houseHop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-13px); } }
+@keyframes houseBreath { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.02,0.97); } }
+@keyframes houseCheer { 0%,100% { transform: translateY(0) scale(1,1); } 35% { transform: translateY(-14px) scale(0.94,1.08); } 65% { transform: translateY(0) scale(1.08,0.92); } }
+/* Émote flottante au-dessus du compagnon. */
+.house-emote { position: absolute; top: -6%; left: 50%; transform: translateX(-50%); font-size: 26px; pointer-events: none; z-index: 4; animation: emoteFloat 0.95s ease forwards; }
+@keyframes emoteFloat { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5); } 25% { opacity: 1; transform: translate(-50%, -8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -34px) scale(1); } }
 
 /* Volet d'info à droite : caché (largeur nulle) puis glisse au clic. */
 .house-panel {
@@ -791,16 +848,16 @@ button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
 
 /* ── Branches de spécialisation (fiche AM + modal de choix) ───────────────── */
 .branch-block { margin-top: 14px; }
-.branch-current { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }
+.branch-current { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; background: var(--surface-2); }
 .branch-head { display: flex; align-items: center; gap: 6px; font-size: 15px; }
 .branch-ico { font-size: 18px; }
 .branch-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.branch-tier { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
-.branch-tier.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.branch-tier { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.branch-tier.on { border-color: var(--acc); color: var(--acc); font-weight: 600; }
 .branch-tier.off { opacity: 0.55; }
 .branch-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 @media (max-width: 560px) { .branch-choices { grid-template-columns: 1fr; } }
-.branch-choice { text-align: left; padding: 14px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; transition: border-color .15s, transform .15s; }
-.branch-choice:hover { border-color: var(--accent); transform: translateY(-2px); }
+.branch-choice { text-align: left; padding: 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color .15s, transform .15s; }
+.branch-choice:hover { border-color: var(--acc); transform: translateY(-2px); }
 .branch-choice .branch-head { font-size: 16px; }
 .branch-desc { margin: 6px 0 0; color: var(--dim); font-size: 13px; }

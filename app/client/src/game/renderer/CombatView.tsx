@@ -18,6 +18,8 @@ type Sprite = {
   dead: boolean;
   x: number; // position horizontale courante, en % de la largeur de la salle
   flash: boolean;
+  hurt: boolean; // recul/tremblement à l'encaissement
+  lunge: boolean; // coup porté (squash & stretch de l'attaquant)
 };
 
 type Pop = { id: number; fid: number; text: string; kind: "dmg" | "crit" | "heal" | "miss" | "talent" };
@@ -44,7 +46,10 @@ export default function CombatView({
 }) {
   const [sprites, setSprites] = useState<Record<number, Sprite>>({});
   const [pops, setPops] = useState<Pop[]>([]);
+  const [shake, setShake] = useState<"" | "sk" | "sk-big">("");
   const [caption, setCaption] = useState<string>("");
+  // Dernier attaquant connu (émis par `goto`) : sert à jouer son coup au moment du `damage`.
+  const attackerRef = useRef<number | null>(null);
   const [bubble, setBubble] = useState<{ title: string; text: string } | null>(null);
   const idxRef = useRef(0);
   const popSeq = useRef(0);
@@ -61,8 +66,10 @@ export default function CombatView({
     shownStops.current = { turn: false, talent: false };
     setSprites({});
     setPops([]);
+    setShake("");
     setCaption("");
     setBubble(null);
+    attackerRef.current = null;
     play();
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -85,6 +92,13 @@ export default function CombatView({
     };
   }
   const pendingResume = useRef<(() => void) | null>(null);
+
+  const shakeTimer = useRef<number | null>(null);
+  function triggerShake(kind: "sk" | "sk-big") {
+    setShake(kind);
+    if (shakeTimer.current) window.clearTimeout(shakeTimer.current);
+    shakeTimer.current = window.setTimeout(() => setShake(""), kind === "sk-big" ? 380 : 260);
+  }
 
   function addPop(fid: number, text: string, kind: Pop["kind"]) {
     const id = popSeq.current++;
@@ -116,6 +130,8 @@ export default function CombatView({
             dead: false,
             x: HOME_X[a.side],
             flash: false,
+            hurt: false,
+            lunge: false,
           },
         }));
         delay = 90;
@@ -130,6 +146,7 @@ export default function CombatView({
         break;
       case "goto": {
         // L'attaquant traverse la salle jusqu'à proximité de l'adversaire.
+        attackerRef.current = a.fid;
         setSprites((s) => {
           const cur = s[a.fid];
           if (!cur) return s;
@@ -144,17 +161,26 @@ export default function CombatView({
         delay = 260;
         break;
       case "damage": {
+        const atk = attackerRef.current;
         setSprites((s) => {
           const t = s[a.tid];
           if (!t) return s;
-          return { ...s, [a.tid]: { ...t, life: a.life, flash: true } };
+          const next = { ...s, [a.tid]: { ...t, life: a.life, flash: true, hurt: true } };
+          if (atk != null && s[atk] && atk !== a.tid) next[atk] = { ...s[atk], lunge: true };
+          return next;
         });
-        addPop(a.tid, `-${pickDmg(log, i)}${a.crit ? "!" : ""}`, a.crit ? "crit" : "dmg");
-        window.setTimeout(
-          () => setSprites((s) => (s[a.tid] ? { ...s, [a.tid]: { ...s[a.tid], flash: false } } : s)),
-          160
-        );
-        delay = a.crit ? 360 : 230;
+        triggerShake(a.crit ? "sk-big" : "sk");
+        addPop(a.tid, `-${pickDmg(log, i)}${a.crit ? " ✦" : ""}`, a.crit ? "crit" : "dmg");
+        if (a.crit) setCaption("Coup critique !");
+        window.setTimeout(() => {
+          setSprites((s) => {
+            const next = { ...s };
+            if (next[a.tid]) next[a.tid] = { ...next[a.tid], flash: false, hurt: false };
+            if (atk != null && next[atk]) next[atk] = { ...next[atk], lunge: false };
+            return next;
+          });
+        }, 260);
+        delay = a.crit ? 380 : 240;
         break;
       }
       case "dodge":
@@ -178,11 +204,12 @@ export default function CombatView({
         break;
       case "statusTick": {
         // Dégâts périodiques d'une altération : mise à jour PV + pop rouge.
-        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], life: a.life, flash: true } } : s));
+        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], life: a.life, flash: true, hurt: true } } : s));
+        triggerShake("sk");
         addPop(a.fid, `-${a.dmg} ${a.kind === "poison" ? "☠️" : "🔥"}`, "dmg");
         window.setTimeout(
-          () => setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], flash: false } } : s)),
-          160
+          () => setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], flash: false, hurt: false } } : s)),
+          260
         );
         delay = 260;
         break;
@@ -248,7 +275,7 @@ export default function CombatView({
 
   return (
     <div className="combat-arena">
-      <div className="combat-room">
+      <div className={`combat-room ${shake}`}>
         <div className="combat-floor-line" />
         <div className="combat-window" />
         {Object.values(sprites).map((s) => renderFighter(s, pops))}
@@ -294,7 +321,11 @@ function renderFighter(s: Sprite, pops: Pop[]) {
   // gauche, on retourne donc son sprite (l'art est dessiné tourné à droite).
   const flip = s.side === 1;
   return (
-    <div key={s.fid} className={`fighter ${s.dead ? "dead" : ""}`} style={{ left: `${s.x}%` }}>
+    <div
+      key={s.fid}
+      className={`fighter ${s.dead ? "dead" : ""} ${s.hurt ? "hurt" : ""} ${s.lunge ? "lunge" : ""}`}
+      style={{ left: `${s.x}%` }}
+    >
       <div className="fighter-pops">
         {mine.map((p) => (
           <span key={p.id} className={`pop ${p.kind}`}>
@@ -318,6 +349,7 @@ function renderFighter(s: Sprite, pops: Pop[]) {
           {s.name} <span className="lvl">N.{s.level}</span>
         </div>
         <div className="hpbar">
+          <div className="hpbar-trail" style={{ width: `${pct}%` }} />
           <div className="hpbar-fill" style={{ width: `${pct}%` }} />
         </div>
         <div className="hp-num">

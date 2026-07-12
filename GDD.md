@@ -14,6 +14,14 @@
 ### 2026-07-12 — v0.25
 - [DA — fond global `.game-shell`] **Simplification du fond de page principal** : suppression des deux radial-gradients colorés (indigo/teal) superposés au linear-gradient, remplacés par un **gris uni** (`var(--bg)`, `#f2f4fb`). Jugé « immonde » par le joueur ; le fond de page est désormais plat, sans halo décoratif.
 
+### 2026-07-12 — v0.25
+- [Polish — grosse vague UX/Flow/UI/Visuel (P0)] Passage de polish transversal après audit des 4 axes.
+  - **Combat / juice** : screen-shake de la salle à chaque impact (`sk`/`sk-big` sur crit), squash & stretch (`fLunge` sur l'attaquant, `fHurt` recul de la cible), **traînée « chip damage »** sur les barres de PV (couche `hpbar-trail` qui rattrape en retard → on lit l'ampleur d'un coup), crit revalorisé (pop doré 30px arqué `floatUpCrit` + caption « Coup critique ! » + « ✦ »), chute au K.O. (`koFall`), petit shake sur les ticks de statut.
+  - **Flow / navigation** : bouton **Abandonner** dans l'entête de combat (confirm, aucun gain/perte) → plus d'écran borgne ; **gestion du back navigateur/Android** (`popstate` + `history.pushState`) : ferme le modal ouvert, puis le menu, puis remonte à la maison, sans jamais quitter l'app. Confirm ajouté sur « Recommencer » de la bannière zones pacifiées (perte totale).
+  - **UI / a11y** : `:focus-visible` **global** (anneau indigo sur boutons/liens/champs) → navigation clavier enfin visible ; `aria-label` sur les ✕ (menu, chat, Modal générique). Bug CSS corrigé : `.branch-*` utilisait `var(--border)`/`var(--accent)` inexistants → remplacés par `--line`/`--acc` (bordures/couleurs des branches enfin rendues).
+  - **Home / ambiance** : le compagnon **respire au repos** (`houseBreath` idle permanent), **réagit au clic** (rebond joyeux `houseCheer` + émote flottante ❤️/✨/🎵) et lâche une **émote spontanée** toutes les ~11–22 s → sensation de vie ; corps isolé dans `.hc-body` pour ne pas entrer en conflit avec le flip/zoom/marche.
+- [Tests] `tsc -b` OK, `vite build` OK (49 modules), moteur **132 ok / 0 échec** (inchangé — polish purement front, moteur non touché).
+
 ### 2026-07-12 — v0.24
 - [Auto Monsters — refonte identités & branches] **Chaque AM jouable a désormais un playstyle clair + 2 branches de spécialisation cohérentes**, choisies par le joueur à un palier (`BRANCH_CHOICE_LEVEL = 3`, irréversible), dont les talents se débloquent par niveaux (core au niv 3, upgrade au niv 6). Pas de changement de forme (décision : branches = ensembles de talents uniquement).
   - **Emberpup** 🔥 (agressif) → **Frénésie** (critiques → *Fournaise* : chaque crit augmente durablement la Force) | **Brasier** (*Embrasement* : brûlure DoT → *Pyromane* : +35% dégâts sur cible en feu).

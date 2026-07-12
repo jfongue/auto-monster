@@ -48,6 +48,17 @@ export default function House({
   const [pos, setPos] = useState({ x: 46, y: 12 });
   const [walking, setWalking] = useState(false);
   const [dir, setDir] = useState<1 | -1>(1);
+  const [reacting, setReacting] = useState(false);
+  const [emote, setEmote] = useState<string | null>(null);
+
+  // Petite réaction affective : rebond joyeux + émote flottante (clic = "câlin").
+  const EMOTES = ["❤️", "✨", "😊", "🎵", "💜", "🌟"];
+  function react(emo?: string) {
+    setReacting(true);
+    setEmote(emo ?? EMOTES[Math.floor(Math.random() * EMOTES.length)]);
+    window.setTimeout(() => setReacting(false), 520);
+    window.setTimeout(() => setEmote(null), 950);
+  }
 
   const idx = Math.min(activeIdx, Math.max(0, team.length - 1));
   const c = team[idx];
@@ -89,6 +100,26 @@ export default function House({
     };
   }, [focused, c]);
 
+  // Signes de vie spontanés : de temps en temps, une petite émote au repos.
+  useEffect(() => {
+    if (focused || !c) return;
+    let cancelled = false;
+    let timer: number;
+    const loop = () => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        react();
+        loop();
+      }, randBetween(11000, 22000));
+    };
+    loop();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, c]);
+
   if (!c || !sp) return null;
 
   const xpNext = xpForNext(c.level);
@@ -106,11 +137,15 @@ export default function House({
           <button
             className={`house-critter dir-${dir > 0 ? "r" : "l"}`}
             style={critterStyle}
-            onClick={() => !focused && setFocused(true)}
-            title={focused ? undefined : `Voir ${c.name}`}
+            onClick={() => { react(); if (!focused) setFocused(true); }}
+            title={focused ? `Caresser ${c.name}` : `Voir ${c.name}`}
+            aria-label={`${c.name} — voir la fiche`}
           >
+            {emote && <span className="house-emote">{emote}</span>}
             <div className={`house-critter-anim ${walking && !focused ? "walking" : ""} ${focused ? "zoomed" : ""}`}>
-              <img src={`/sprites/${sp.gfx}.png`} alt={c.name} draggable={false} />
+              <span className={`hc-body ${!walking && !focused ? "idle" : ""} ${reacting ? "reacting" : ""}`}>
+                <img src={`/sprites/${sp.gfx}.png`} alt={c.name} draggable={false} />
+              </span>
             </div>
             <span className="house-critter-shadow" />
           </button>
