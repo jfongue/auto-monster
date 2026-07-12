@@ -32,6 +32,13 @@
   --r-sm: 12px;
 }
 
+/* Le jeu impose son fond gris clair au document entier : sinon le thème sombre
+   global de `index.css` (body noir #0f1115) reste visible derrière l'app, au
+   rebond de scroll et dans les zones non peintes. */
+html:has(.game-shell), body:has(.game-shell) {
+  background: var(--bg) !important;
+}
+
 .game-shell {
   min-height: 100vh;
   background: var(--bg);
