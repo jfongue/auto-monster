@@ -34,27 +34,35 @@ export default function CombatView({
   log,
   onFinish,
   speed,
+  tutorial = false,
 }: {
   log: Action[];
   onFinish: (winner: 0 | 1 | null) => void;
   speed: number;
+  /** Mode guidé : le combat se met en pause aux moments-clés avec une bulle explicative. */
+  tutorial?: boolean;
 }) {
   const [sprites, setSprites] = useState<Record<number, Sprite>>({});
   const [pops, setPops] = useState<Pop[]>([]);
   const [caption, setCaption] = useState<string>("");
+  const [bubble, setBubble] = useState<{ title: string; text: string } | null>(null);
   const idxRef = useRef(0);
   const popSeq = useRef(0);
   const timer = useRef<number | null>(null);
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const finishedRef = useRef(false);
+  // Jalons tutorial déjà déclenchés (ordre de tour, 1er talent).
+  const shownStops = useRef<{ turn: boolean; talent: boolean }>({ turn: false, talent: false });
 
   useEffect(() => {
     idxRef.current = 0;
     finishedRef.current = false;
+    shownStops.current = { turn: false, talent: false };
     setSprites({});
     setPops([]);
     setCaption("");
+    setBubble(null);
     play();
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -66,6 +74,17 @@ export default function CombatView({
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(fn, Math.max(16, ms / speedRef.current));
   }
+
+  // Met le playback en pause et affiche une bulle ; reprend au clic « Compris ».
+  function stopWith(title: string, text: string, resume: () => void) {
+    if (timer.current) window.clearTimeout(timer.current);
+    setBubble({ title, text });
+    pendingResume.current = () => {
+      setBubble(null);
+      resume();
+    };
+  }
+  const pendingResume = useRef<(() => void) | null>(null);
 
   function addPop(fid: number, text: string, kind: Pop["kind"]) {
     const id = popSeq.current++;
@@ -170,10 +189,44 @@ export default function CombatView({
       case "finish":
         if (!finishedRef.current) {
           finishedRef.current = true;
-          schedule(() => onFinish(a.winner), 500);
+          if (tutorial) {
+            stopWith(
+              "Combat terminé",
+              a.winner === 0
+                ? "Victoire ! Tu n'as rien piloté — tout s'est joué avant le combat, dans le choix de ton monstre et de ses stats."
+                : "Le combat se joue tout seul : la stratégie est dans la préparation, pas dans l'exécution.",
+              () => onFinish(a.winner)
+            );
+          } else {
+            schedule(() => onFinish(a.winner), 500);
+          }
         }
         return;
     }
+
+    // Jalons pédagogiques (mode guidé uniquement) : on met en pause après avoir
+    // joué l'action, puis on reprend au clic.
+    if (tutorial) {
+      if (a.t === "goto" && !shownStops.current.turn) {
+        shownStops.current.turn = true;
+        stopWith(
+          "À qui le tour ?",
+          "Le combattant le plus rapide (💨 Vitesse) agit en premier, et d'autant plus souvent qu'il est rapide. Tu ne choisis rien : tout dépend des stats.",
+          () => schedule(play, delay)
+        );
+        return;
+      }
+      if (a.t === "talentProc" && !shownStops.current.talent) {
+        shownStops.current.talent = true;
+        stopWith(
+          "Un talent s'est déclenché !",
+          "Ce label violet, c'est le talent inné de ton monstre qui s'active tout seul. Aucune action de ta part — il fait partie de son identité.",
+          () => schedule(play, delay)
+        );
+        return;
+      }
+    }
+
     schedule(play, delay);
   }
 
@@ -185,6 +238,17 @@ export default function CombatView({
         {Object.values(sprites).map((s) => renderFighter(s, pops))}
       </div>
       {caption && <div className="arena-caption">{caption}</div>}
+      {bubble && (
+        <div className="tuto-bubble-overlay">
+          <div className="tuto-bubble">
+            <div className="tuto-bubble-title">{bubble.title}</div>
+            <div className="tuto-bubble-text">{bubble.text}</div>
+            <button className="tuto-bubble-btn" onClick={() => pendingResume.current?.()}>
+              Compris →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

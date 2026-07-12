@@ -57,7 +57,7 @@ import {
   interactReadyIn,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import { HpBar, StatRow, TalentList, talentTooltip } from "./shared";
+import { HpBar, StatRow, TalentList, talentTooltip, roleOf } from "./shared";
 import House, { type QuestGlance } from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
@@ -690,81 +690,134 @@ function withCharUpdate(s: GameState, charId: string, fn: (c: Character) => Char
 // ONBOARDING — dialogue Disco Elysium + choix du starter
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Ennemi débilité du combat guidé : victoire garantie, combat court et lisible.
+function makeTutorialEnemy(): Character {
+  const base = makeCharacter("sprigling");
+  return {
+    ...base,
+    id: "tuto-enemy",
+    name: SPECIES["sprigling"]?.name ?? "Sauvageon",
+    stats: { hp: 34, atk: 6, def: 1, spd: 5 },
+    life: 34,
+  };
+}
+
+const STAT_CARDS: { key: StatKey; icon: string; label: string; desc: string }[] = [
+  { key: "hp", icon: "❤️", label: "Vie", desc: "Ses points de vie. À 0, il est K.O." },
+  { key: "atk", icon: "⚔️", label: "Force", desc: "Les dégâts qu'il inflige en frappant." },
+  { key: "def", icon: "🛡️", label: "Armure", desc: "Réduit les dégâts qu'il subit." },
+  { key: "spd", icon: "💨", label: "Vitesse", desc: "Plus elle est haute, plus il agit souvent." },
+];
+
+// Onboarding en wizard : (0) choix du monstre, (1) lecture de sa fiche,
+// (2) combat guidé avec bulles, (3) présentation du hub et de la boucle.
 function Onboarding({ onPick }: { onPick: (id: string) => void }) {
-  const [step, setStep] = useState<0 | 1>(0);
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const [pick, setPick] = useState<string>(STARTERS[0]);
-  const sylve = ZONES[0].npcs[0];
+  const [fight, setFight] = useState<CombatResult | null>(null);
+  const sp = SPECIES[pick];
+  const hero = makeCharacter(pick);
+
+  function beginFight() {
+    const res = runCombat({ seed: 424242, teamA: [makeCharacter(pick)], teamB: [makeTutorialEnemy()] });
+    setFight(res);
+    setStep(2);
+  }
+
+  const TITLES = ["Choisis ton monstre", "Sa fiche", "Ton premier combat", "Ta maison"];
 
   return (
     <div className="onboard">
-      <div className="de-scene">
-        <div className="de-portrait" style={{ ["--pt" as any]: `${sylve.tint}44` }}>
-          <div className="de-emoji">{sylve.emoji}</div>
-          <div className="de-frame">
-            <div className="de-name">{sylve.name}</div>
-            <div className="de-title">{sylve.title}</div>
+      <div className="ob-wizard">
+        <div className="ob-head">
+          <div className="ob-dots">
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i} className={`ob-dot ${i === step ? "on" : ""} ${i < step ? "done" : ""}`} />
+            ))}
           </div>
+          <div className="ob-step-title">{TITLES[step]}</div>
         </div>
 
-        <div className="de-body">
-          {step === 0 ? (
-            <>
-              <div className="de-lines">
-                {sylve.lines.map((l, i) => (
-                  <div key={i} className="de-line" style={{ ["--lc" as any]: sylve.tint }}>
-                    <span className="de-speaker">{sylve.name}</span>{l}
-                  </div>
-                ))}
-                <div className="de-line thought">
-                  <span className="de-speaker">Ton instinct</span>Un compagnon. Le choix qui décidera de tout. Choisis-le bien.
-                </div>
-              </div>
-              <div className="de-choices">
-                <button className="de-choice primary" onClick={() => setStep(1)}>
-                  <span className="de-choice-icon">🐾</span>
-                  <span>
-                    Choisir mon premier Auto Monster
-                    <span className="de-choice-sub">Trois compagnons t'attendent</span>
-                  </span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="de-lines">
-                <div className="de-line" style={{ ["--lc" as any]: sylve.tint }}>
-                  <span className="de-speaker">{sylve.name}</span>« Approche-toi. Lequel répond à ton regard ? »
-                </div>
-              </div>
-              <div className="starter-grid">
-                {STARTERS.map((id) => {
-                  const sp = SPECIES[id];
-                  const c = makeCharacter(id);
-                  return (
-                    <div
-                      key={id}
-                      className={`starter-card ${pick === id ? "active" : ""}`}
-                      onClick={() => setPick(id)}
-                    >
-                      <div className="starter-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}33, transparent 70%)` }}>
-                        <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
-                      </div>
-                      <h3>{sp.name}</h3>
-                      <StatRow stats={c.stats} />
-                      {sp.innate && <div className="talent-chip" title={talentTooltip(sp.innate)}>{TALENTS[sp.innate]?.icon ?? "✨"} {talentName(sp.innate)}<span className="talent-chip-desc">{TALENTS[sp.innate]?.desc}</span></div>}
+        {step === 0 && (
+          <div className="ob-panel">
+            <p className="ob-lead">Ton monstre se bat <b>tout seul</b>. Ses stats et son talent décideront du combat — choisis bien.</p>
+            <div className="starter-grid">
+              {STARTERS.map((id) => {
+                const s = SPECIES[id];
+                const c = makeCharacter(id);
+                return (
+                  <div key={id} className={`starter-card ${pick === id ? "active" : ""}`} onClick={() => setPick(id)}>
+                    <div className="starter-art" style={{ background: `radial-gradient(circle at 50% 40%, ${s.tint}33, transparent 70%)` }}>
+                      <img src={`/sprites/${s.gfx}.png`} alt={s.name} />
                     </div>
-                  );
-                })}
+                    <h3>{s.name}</h3>
+                    <StatRow stats={c.stats} />
+                    {s.innate && <div className="talent-chip" title={talentTooltip(s.innate)}>{TALENTS[s.innate]?.icon ?? "✨"} {talentName(s.innate)}<span className="talent-chip-desc">{TALENTS[s.innate]?.desc}</span></div>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="ob-actions">
+              <button className="ob-btn primary" onClick={() => setStep(1)}>Choisir {sp.name} →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="ob-panel">
+            <div className="ob-hero">
+              <div className="ob-hero-art" style={{ background: `radial-gradient(circle at 50% 40%, ${sp.tint}33, transparent 70%)` }}>
+                <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
               </div>
-              <div className="de-choices">
-                <button className="de-choice primary" onClick={() => onPick(pick)}>
-                  <span className="de-choice-icon">🤝</span>
-                  <span>Adopter {SPECIES[pick].name} et partir à l'aventure</span>
-                </button>
+              <div className="ob-hero-id">
+                <h3>{sp.name}</h3>
+                <div className="ob-role">{roleOf(hero.stats)}</div>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+            <div className="ob-statcards">
+              {STAT_CARDS.map((sc) => (
+                <div key={sc.key} className="ob-statcard">
+                  <div className="ob-statcard-top"><span className="ob-statcard-icon">{sc.icon}</span><b>{sc.label}</b><span className="ob-statcard-val">{hero.stats[sc.key]}</span></div>
+                  <div className="ob-statcard-desc">{sc.desc}</div>
+                </div>
+              ))}
+            </div>
+            {sp.innate && (
+              <div className="ob-talentcard">
+                <span className="ob-statcard-icon">{TALENTS[sp.innate]?.icon ?? "✨"}</span>
+                <div><b>{talentName(sp.innate)}</b> — son talent inné, {TALENTS[sp.innate]?.desc?.toLowerCase() ?? "toujours actif"}. Il se déclenche <b>seul</b> en combat.</div>
+              </div>
+            )}
+            <div className="ob-actions">
+              <button className="ob-btn ghost" onClick={() => setStep(0)}>← Retour</button>
+              <button className="ob-btn primary" onClick={beginFight}>Voir un combat →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && fight && (
+          <div className="ob-panel ob-panel-fight">
+            <p className="ob-lead">Regarde. Tu ne pilotes rien — le combat se joue automatiquement.</p>
+            <CombatView log={fight.log} speed={1} tutorial onFinish={() => setStep(3)} />
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="ob-panel">
+            <p className="ob-lead">C'est tout le principe : <b>la stratégie est dans la préparation</b>, pas dans l'exécution.</p>
+            <div className="ob-loop">
+              <div className="ob-loop-step"><span>🗺️</span>Explore &amp; enchaîne les combats</div>
+              <div className="ob-loop-arrow">→</div>
+              <div className="ob-loop-step"><span>💰</span>Gagne or &amp; XP</div>
+              <div className="ob-loop-arrow">→</div>
+              <div className="ob-loop-step"><span>💪</span>Renforce ton équipe</div>
+            </div>
+            <p className="ob-note">Depuis ta maison, ouvre 🗺️ <b>Explorer</b> pour ton premier vrai combat.</p>
+            <div className="ob-actions">
+              <button className="ob-btn primary big" onClick={() => onPick(pick)}>Adopter {sp.name} et commencer</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

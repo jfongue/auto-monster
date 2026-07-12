@@ -13,7 +13,7 @@
   --line-strong: #d6dcec;
   --ink: #232746;
   --ink-2: #464d70;
-  --dim: #838aac;
+  --dim: #6b7098;      /* texte secondaire — foncé pour contraste AA (~4.8:1 sur blanc) */
   --faint: #aeb4cd;
   --acc: #5b6ee0;      /* indigo */
   --acc-2: #8a7bf0;    /* violet doux */
@@ -134,62 +134,68 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .stagger > *:nth-child(5) { animation-delay: 0.28s; }
 
 /* ══ ONBOARDING — dialogue façon Disco Elysium ════════════════════════════ */
-.onboard { min-height: 100vh; display: flex; align-items: stretch; justify-content: center; padding: clamp(14px, 4vw, 40px); }
-.de-scene {
-  width: min(1000px, 100%);
-  display: grid; grid-template-columns: 300px 1fr; gap: clamp(16px, 3vw, 34px);
-  align-items: center; animation: viewIn 0.5s cubic-bezier(.22,.9,.3,1) both;
-}
-@media (max-width: 720px) { .de-scene { grid-template-columns: 1fr; } }
-.de-portrait {
-  position: relative; align-self: stretch; min-height: 360px; border-radius: 24px;
-  background: linear-gradient(180deg, var(--pt, #d9e2ff), #fff);
-  border: 1px solid var(--line); box-shadow: var(--shadow-lg);
-  display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
-}
-.de-portrait .de-emoji {
-  font-size: clamp(120px, 22vw, 190px);
-  filter: drop-shadow(0 18px 24px rgba(0,0,0,0.18));
-  animation: bob 5s ease-in-out infinite; margin-bottom: 6px; z-index: 1;
-}
-.de-portrait::before {
-  content: ""; position: absolute; inset: 0;
-  background: radial-gradient(120% 80% at 50% 120%, var(--pt, #d9e2ff) 0%, transparent 60%);
-  opacity: 0.7;
-}
-.de-portrait .de-frame {
-  position: absolute; left: 14px; bottom: 14px; z-index: 2;
-  background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
-  border-radius: 12px; padding: 8px 12px; box-shadow: var(--shadow-sm);
-}
-.de-frame .de-name { font-weight: 700; font-size: 15px; }
-.de-frame .de-title { font-size: 11px; color: var(--dim); }
+.onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: clamp(14px, 4vw, 40px); }
 
-.de-body { min-width: 0; }
-.de-lines { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
-.de-line {
-  position: relative; background: var(--surface); border: 1px solid var(--line);
-  border-left: 4px solid var(--lc, var(--acc)); border-radius: 14px; padding: 14px 18px;
-  font-size: clamp(15px, 2.2vw, 17px); line-height: 1.5; color: var(--ink-2);
-  box-shadow: var(--shadow-sm); animation: riseIn 0.5s cubic-bezier(.22,.9,.3,1) both;
+/* ══ ONBOARDING — WIZARD ══════════════════════════════════════════════════ */
+.ob-wizard {
+  width: min(720px, 100%); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 24px; box-shadow: var(--shadow-lg); padding: clamp(18px, 3.5vw, 30px);
+  animation: viewIn 0.45s cubic-bezier(.22,.9,.3,1) both;
 }
-.de-line .de-speaker { display: block; font-weight: 700; font-size: 12px; color: var(--lc, var(--acc)); margin-bottom: 3px; font-family: "Space Grotesk"; }
-.de-line.thought { font-style: italic; border-left-color: var(--faint); color: var(--dim); }
-.de-line:nth-child(1) { animation-delay: 0.05s; }
-.de-line:nth-child(2) { animation-delay: 0.35s; }
-.de-line:nth-child(3) { animation-delay: 0.65s; }
-.de-line:nth-child(4) { animation-delay: 0.95s; }
+.ob-head { text-align: center; margin-bottom: 18px; }
+.ob-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
+.ob-dot { width: 26px; height: 6px; border-radius: 999px; background: var(--line-strong); transition: background 0.25s, width 0.25s; }
+.ob-dot.done { background: var(--acc-2); }
+.ob-dot.on { background: var(--acc); width: 40px; }
+.ob-step-title { font-size: clamp(20px, 4vw, 26px); font-weight: 700; color: var(--ink); }
 
-.de-choices { display: flex; flex-direction: column; gap: 10px; }
-.de-choice {
-  text-align: left; display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px; border-radius: 14px; background: var(--surface);
-  border: 1px solid var(--line-strong); font-weight: 600;
-  animation: riseIn 0.5s both; animation-delay: 1.05s;
+.ob-panel { display: flex; flex-direction: column; gap: 16px; animation: riseIn 0.4s cubic-bezier(.22,.9,.3,1) both; }
+.ob-lead { font-size: clamp(14px, 2.2vw, 16px); line-height: 1.5; color: var(--ink-2); text-align: center; margin: 0; }
+.ob-note { font-size: 13px; color: var(--dim); text-align: center; margin: 0; }
+
+.ob-actions { display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
+.ob-btn {
+  padding: 13px 22px; border-radius: 14px; font-weight: 700; font-size: 15px;
+  background: var(--acc); color: #fff; border: none; box-shadow: var(--shadow-sm);
+  cursor: pointer; transition: transform 0.12s, filter 0.15s;
 }
-.de-choice:hover:not(:disabled) { border-color: var(--acc); }
-.de-choice .de-choice-icon { font-size: 22px; }
-.de-choice .de-choice-sub { font-weight: 500; font-size: 12px; color: var(--dim); }
+.ob-btn:hover { filter: brightness(1.05); transform: translateY(-2px); }
+.ob-btn.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--line-strong); box-shadow: none; }
+.ob-btn.primary { background: linear-gradient(135deg, var(--acc), var(--acc-2)); }
+.ob-btn.big { font-size: 16px; padding: 15px 28px; }
+
+/* étape 1 — fiche */
+.ob-hero { display: flex; align-items: center; gap: 16px; justify-content: center; }
+.ob-hero-art { border-radius: 16px; padding: 10px; }
+.ob-hero-art img { width: 88px; height: 88px; object-fit: contain; filter: drop-shadow(0 10px 12px rgba(0,0,0,0.15)); }
+.ob-hero-id h3 { margin: 0 0 6px; font-size: 20px; }
+.ob-role { display: inline-block; font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px; }
+.ob-statcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .ob-statcards { grid-template-columns: 1fr; } }
+.ob-statcard { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; }
+.ob-statcard-top { display: flex; align-items: center; gap: 7px; font-size: 14px; }
+.ob-statcard-icon { font-size: 18px; }
+.ob-statcard-val { margin-left: auto; font-weight: 800; color: var(--acc); font-size: 16px; }
+.ob-statcard-desc { font-size: 12px; color: var(--dim); margin-top: 4px; line-height: 1.4; }
+.ob-talentcard { display: flex; align-items: flex-start; gap: 10px; background: var(--acc-soft); border: 1px solid #dfe2fb; border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+
+/* étape 2 — combat guidé */
+.ob-panel-fight .combat-arena { margin: 0; }
+
+/* étape 3 — boucle */
+.ob-loop { display: flex; align-items: stretch; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.ob-loop-step { flex: 1; min-width: 120px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; }
+.ob-loop-step span { font-size: 26px; }
+.ob-loop-arrow { display: flex; align-items: center; color: var(--faint); font-weight: 700; }
+@media (max-width: 480px) { .ob-loop-arrow { display: none; } }
+
+/* bulle tutorial (dans CombatView) */
+.tuto-bubble-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(35, 39, 70, 0.32); backdrop-filter: blur(2px); border-radius: inherit; z-index: 5; animation: viewIn 0.2s both; }
+.tuto-bubble { width: min(340px, 84%); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 18px 20px; text-align: center; animation: popIn 0.25s both; }
+.tuto-bubble-title { font-weight: 800; font-size: 17px; color: var(--acc); margin-bottom: 8px; }
+.tuto-bubble-text { font-size: 14px; line-height: 1.5; color: var(--ink-2); margin-bottom: 14px; }
+.tuto-bubble-btn { padding: 10px 20px; border-radius: 12px; font-weight: 700; background: linear-gradient(135deg, var(--acc), var(--acc-2)); color: #fff; border: none; cursor: pointer; }
+.tuto-bubble-btn:hover { filter: brightness(1.05); }
 
 /* choix de starter */
 .starter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 4px; }
@@ -445,7 +451,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .speedctl button { padding: 6px 12px; font-size: 12px; }
 .speedctl button.on { background: linear-gradient(135deg, var(--acc), var(--acc-2)); color: #fff; border-color: transparent; }
 
-.combat-arena { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.combat-arena { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .combat-room {
   position: relative; width: 100%;
   min-height: clamp(280px, 46vw, 460px);
@@ -593,17 +599,26 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 
 .house-room {
   position: relative; flex: 1 1 100%; min-width: 0; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  /* Fond uni & seamless : prolongement de la couleur de la page/house,
+     sans boîte grise ni bordure. Un léger halo lumineux donne du volume. */
+  background: transparent;
+  border: none;
   transition: flex-basis 0.55s cubic-bezier(.45,.05,.35,1);
 }
 .house-open .house-room { flex: 0 1 56%; }
-.house-floor-line { position: absolute; left: 0; right: 0; top: 62%; height: 1px; background: var(--line-strong); }
+/* Ancien "trait de sol" recyclé en ombre douce au sol, large, pour ancrer
+   le compagnon quelle que soit sa profondeur. */
+.house-floor-line {
+  position: absolute; left: 8%; right: 8%; top: auto; bottom: 10%; height: 24%;
+  background: radial-gradient(120% 100% at 50% 100%, rgba(35, 39, 70, 0.09), transparent 72%);
+  filter: blur(6px); pointer-events: none;
+}
+/* Ancienne "fenêtre" recyclée en halo lumineux ambiant (pas de boîte). */
 .house-window {
-  position: absolute; top: 16%; left: 50%; transform: translateX(-50%);
-  width: 20%; aspect-ratio: 1; border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
+  position: absolute; top: 4%; left: 50%; transform: translateX(-50%);
+  width: 66%; height: 62%; aspect-ratio: auto; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(138, 123, 240, 0.16), rgba(91, 110, 224, 0.05) 48%, transparent 72%);
+  border: none; filter: blur(10px); pointer-events: none;
 }
 .house-critter {
   position: absolute; transform: translateX(-50%);

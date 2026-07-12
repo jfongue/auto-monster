@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.21 — Document de référence du projet
+> Version 0.23 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,17 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.23
+- [Onboarding — refonte] **Abandon du dialogue Disco Elysium (mentor Sylve)** au profit d'un **wizard plein écran en 4 étapes** avec barre de progression (pastilles), une action/concept par écran : **(1) Choisis ton monstre** (3 starters, tag de rôle + barres de stats + talent inné, phrase-clé « ton monstre se bat tout seul »), **(2) Sa fiche** (zoom sur le choix, 4 cartouches ❤️⚔️🛡️💨 avec valeur + explication, encart talent inné « se déclenche seul »), **(3) Ton premier combat** (combat guidé réel contre un ennemi débilité, seed fixe, vitesse ×1), **(4) Ta maison** (rappel du pilier « stratégie = préparation » + schéma de boucle Explorer→Or/XP→Renforcer, puis adoption).
+- [Combat — mode tutorial] **`CombatView` accepte `tutorial?: boolean`** : le playback se **met en pause automatiquement** aux jalons pédagogiques avec une **bulle explicative** (bouton « Compris → ») — (a) 1er `goto` : « à qui le tour ? » (rôle de la Vitesse), (b) 1er `talentProc` : « un talent s'est déclenché seul », (c) `finish` : « tu n'as rien piloté, tout se joue avant ». Rétro-compatible (hors tutorial, comportement inchangé). `.combat-arena` passé en `position: relative` pour l'overlay de bulle.
+- [Code] `Onboarding` réécrit dans `GamePage.tsx` (steps 0–3, combat calculé via `runCombat` seed 424242 vs `makeTutorialEnemy` = sprigling débilité). Styles `.de-*` (dialogue) remplacés par `.ob-*` + `.tuto-bubble-*` dans `game.css` ; `.starter-*` conservés. Mentor Sylve/`npc.lines` plus utilisés par l'onboarding.
+- [Build/Tests] `tsc -b` OK, `vite build` OK (49 modules, bundle émis — vérifié via outDir temporaire, `dist/` monté non inscriptible depuis le sandbox). Moteur : 105 ok / 0 échec.
+
+### 2026-07-12 — v0.22
+- [Home / House — visuel] **Refonte du fond de la pièce.** Suppression de la « boîte grise » (`--surface-2` + bordure + ligne de sol 1px + fenêtre grise en boîte) jugée peu lisible. La pièce a désormais un **fond transparent = prolongement seamless de la couleur de la page/house** (fond uni, plus de rupture de teinte ni de cadre). Deux éléments existants recyclés en pur décor lumineux (sans toucher `House.tsx`) : `house-floor-line` → **ombre douce au sol** large (radial-gradient flou) qui ancre le compagnon quelle que soit sa profondeur ; `house-window` → **halo lumineux ambiant** (radial violet/indigo flou) qui donne du volume. L'ombre propre du compagnon (`house-critter-shadow`) reste le repère de contact principal.
+- [Lisibilité — contraste] **`--dim` foncé de `#838aac` à `#6b7098`** : le texte secondaire (légendes, sous-titres de sorties, `muted`, niveaux) était sous le seuil WCAG AA sur blanc (~3.4:1) ; il passe désormais AA (~4.8:1 sur blanc). Palette et hiérarchie visuelle préservées.
+- [Tests] `tsc -b` OK, `vite build` OK (bundle émis), moteur 105 ok / 0 échec.
 
 ### 2026-07-12 — v0.21
 - [UX — boucle raccourcie] **Chemin House→combat aplati** : le sous-menu « 🚪 Sortir » est supprimé — les 3 sorties (🗺️ Explorer / 🏟️ Arène / 🏪 Boutique) sont affichées **directement** sur la House. Le **fade artificiel de 480 ms** à l'entrée d'une zone est retiré (entrée immédiate). La **pick-list « Choisis ton AM » est masquée quand l'équipe n'a qu'un seul combattant** (zone et arène : le seul AM est envoyé d'office, sa fiche PV reste visible).
@@ -156,7 +167,7 @@
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
 | Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers **Explorer le monde**/Boutique (v0.17 : bouton renommé) |
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
-| Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
+| Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (`CombatView tutorial`, pauses + bulles) → hub/boucle → adoption. Remplace le dialogue Disco Elysium |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
 | Stats & talents lisibles (v0.20) | Oui | ✅ **4 stats** (stamina retirée) ; fiche en **barres + tag de rôle** ; talents avec **icône + infobulle** ; **labels flottants de talent en combat** (`talentProc`) |
