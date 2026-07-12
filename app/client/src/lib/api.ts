@@ -9,6 +9,20 @@ export interface User {
   createdAt: string;
 }
 
+/** Adversaire d'arène : instantané minimal de l'équipe d'un autre dresseur. */
+export interface ArenaOpponent {
+  userId: number;
+  trainer: string;
+  teamSize: number;
+  lead: {
+    speciesId: string;
+    name: string;
+    level: number;
+    stats: { hp: number; atk: number; def: number; spd: number; sta: number };
+    talents: string[];
+  };
+}
+
 const TOKEN_KEY = "ab_token";
 
 export function getToken(): string | null {
@@ -62,6 +76,10 @@ export const api = {
       body: JSON.stringify({ state }),
     }),
   resetGameState: () => request<{ ok: true }>("/game/state", { method: "DELETE" }),
+
+  // ── Arène (duels asynchrones) ──
+  getArenaOpponents: () =>
+    request<{ opponents: ArenaOpponent[] }>("/arena/opponents"),
 
   // ── Éditeur d'espèces ──
   getSpeciesOverrides: () =>

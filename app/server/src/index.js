@@ -130,6 +130,44 @@ app.delete("/api/game/state", authMiddleware, async (req, res, next) => {
   }
 });
 
+// ── Arène : équipes des autres dresseurs (duels asynchrones) ────────────────
+// On expose un instantané minimal (nom du dresseur + AM de tête) des autres
+// joueurs ayant une partie démarrée. Le combat est simulé côté client.
+app.get("/api/arena/opponents", authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await q(
+      `SELECT u.id, u.username, u.display_name, g.state
+       FROM game_states g JOIN users u ON u.id = g.user_id
+       WHERE g.user_id <> $1`,
+      [req.user.id]
+    );
+    const opponents = [];
+    for (const r of rows) {
+      try {
+        const st = JSON.parse(r.state);
+        if (!st?.started || !Array.isArray(st.team) || st.team.length === 0) continue;
+        // AM de tête = le plus haut niveau
+        const lead = [...st.team].sort((a, b) => (b.level ?? 1) - (a.level ?? 1))[0];
+        opponents.push({
+          userId: r.id,
+          trainer: r.display_name || r.username || "Dresseur",
+          teamSize: st.team.length,
+          lead: {
+            speciesId: lead.speciesId,
+            name: lead.name,
+            level: lead.level ?? 1,
+            stats: lead.stats,
+            talents: lead.talents ?? [],
+          },
+        });
+      } catch { /* état illisible : on ignore ce joueur */ }
+    }
+    res.json({ opponents });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ── Éditeur d'espèces : surcharges globales (nom/stats/rareté/wildEncounterable) ──
 app.get("/api/species-overrides", authMiddleware, async (req, res, next) => {
   try {

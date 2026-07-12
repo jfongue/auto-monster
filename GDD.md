@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.18 — Document de référence du projet
+> Version 0.19 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,13 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.19
+- [Boucle quotidienne] **Nouveau pilier « revenir tous les jours »** (state v6) : **bonus quotidien** à la connexion (or croissant avec le **streak** de jours consécutifs, +1 potion tous les 3 jours), **3 quêtes du jour** (gagner 3 combats, 3 interactions, gagner 1 duel d'arène) avec récompenses à réclamer, reset au changement de jour. Nouveau **Journal du jour** (modal 📅, s'ouvre seul la 1re fois de la journée, pastille rouge quand quelque chose est réclamable).
+- [Repos hors-ligne] Les AM **récupèrent PV et humeur avec le temps réel d'absence** (`applyOfflineRest` : PV 0→max en ~6 h, humeur qui dérive vers 60, rien sous 10 min). Toast de bienvenue « tes AM se sont reposés » au retour. `lastSeen` estampillé à chaque sauvegarde.
+- [Social / Arène] **Arène des Dresseurs** (duels asynchrones) : nouvel endpoint `GET /api/arena/opponents` (instantané du meilleur AM des autres joueurs), écran Arène accessible depuis la House (Sortir → 🏟️ Arène). Duels **amicaux** (PV non persistés), max **3 victoires récompensées/jour** (+20💰), rival bot « Nova » généré au niveau du joueur si aucun autre joueur n'existe.
+- [UI/UX] **Header enrichi** : porte-monnaie (💰/🧪) toujours visible + bouton 📅 Journal avec pastille ; bourse dupliquée retirée de la House. **Système de toasts** (quête accomplie, bonus réclamé, repos) en bas d'écran. House : 3 sorties (Explorer / Arène / Boutique), empilées sous 390 px.
+- [Tests] Nouveau `daily.smoke.ts` (15 checks : streak continu/cassé, claim/double-claim de quêtes, repos hors-ligne, compteur de duels). Moteur : 105 ok / 0 échec inchangé.
 
 ### 2026-07-11 — v0.18
 - [Robustesse / Onboarding] **Correctif page blanche** : `GamePage` affichait une House vide (retourne `null` faute de personnage actif) quand `started=true` mais l'équipe était vide (état incohérent, ex. reset interrompu) — header + footer visibles, aucun contenu. La condition d'affichage de l'Onboarding est étendue de `!gs.started` à `!gs.started || gs.team.length === 0` : toute équipe vide retombe désormais sur le choix du 1er AM au lieu d'un écran blanc.
@@ -144,8 +151,10 @@
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
 | Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues |
 | Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile (breakpoints 900/600/360) |
-| PvP | Oui (§6) | À compléter |
-| UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` |
+| Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour, testé (`daily.smoke.ts`) |
+| Repos hors-ligne (PV/humeur temps réel) | Oui (v0.19) | ✅ `applyOfflineRest` (PV max en ~6 h, humeur → 60), toast de retour |
+| PvP | Oui (§6) | 🟡 **Arène de duels asynchrones** (`Arena.tsx` + `GET /api/arena/opponents`) : duel amical vs le meilleur AM d'un autre joueur (ou bot Nova), 3 victoires récompensées/jour. Pas encore de PvP synchrone/classé ni de liste d'amis |
+| UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` ; header avec bourse permanente + Journal 📅 ; toasts de feedback |
 
 ---
 

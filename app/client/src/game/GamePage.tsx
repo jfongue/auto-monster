@@ -60,6 +60,9 @@ import { TALENTS, talentName } from "./engine/talents";
 import { HpBar, StatRow } from "./shared";
 import House from "./House";
 import SpeciesEditor from "./SpeciesEditor";
+import DailyJournal from "./Daily";
+import Arena, { makeDuelEnemy } from "./Arena";
+import type { ArenaOpponent } from "../lib/api";
 import type { Character, CombatResult, StatKey, InteractKind } from "./engine/types";
 import {
   freshState,
@@ -72,25 +75,41 @@ import {
   isZonePacified,
   registerZoneWin,
   recordBestiary,
+  todayKey,
+  canClaimDaily,
+  claimDaily,
+  ensureDaily,
+  bumpQuest,
+  claimQuest,
+  hasDailyClaimable,
+  applyOfflineRest,
+  arenaWinsToday,
+  ARENA_MAX_REWARDED_WINS,
+  ARENA_WIN_GOLD,
 } from "./state";
 import "./game.css";
 
-type CombatCtx = { loc: MapLocation; result: CombatResult; charId: string };
+type CombatCtx = { loc: MapLocation; result: CombatResult; charId: string; duel?: ArenaOpponent };
 type Outcome = "win" | "lose" | "draw";
 type RewardData = { outcome: Outcome; loc: MapLocation; pStat: any; firstClear: boolean; levelsGained: number };
+type DuelRewardData = { won: boolean; trainer: string; gold: number; dmg: number };
 
-type Route = { v: "house" } | { v: "forest" } | { v: "zone"; zoneId: string } | { v: "shop" };
+type Route = { v: "house" } | { v: "forest" } | { v: "zone"; zoneId: string } | { v: "shop" } | { v: "arena" };
 type Modal =
   | { k: "none" }
   | { k: "combat"; ctx: CombatCtx }
   | { k: "reward"; reward: RewardData }
+  | { k: "duelReward"; r: DuelRewardData }
   | { k: "capture" }
   | { k: "chat"; npcId: string; zoneId: string }
   | { k: "amPage"; charId: string }
   | { k: "bestiary" }
   | { k: "inventory" }
   | { k: "speciesEditor" }
-  | { k: "ranchExtend" };
+  | { k: "ranchExtend" }
+  | { k: "daily" };
+
+type Toast = { id: number; text: string };
 
 const STAT_LABELS: Record<StatKey, string> = {
   hp: "❤️ PV",
@@ -114,12 +133,30 @@ export default function GamePage() {
   const [worldFading, setWorldFading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setTick] = useState(0);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastId = useRef(0);
+
+  function pushToast(text: string) {
+    const id = ++toastId.current;
+    setToasts((t) => [...t, { id, text }]);
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  }
 
   useEffect(() => {
     (async () => {
       try {
         const { state } = await api.getGameState<Partial<GameState>>();
-        if (state && state.started) setGs(migrate(state));
+        if (state && state.started) {
+          // Repos hors-ligne + quêtes fraîches du jour, puis persist.
+          const { state: rested, report } = applyOfflineRest(migrate(state));
+          const s = ensureDaily(rested);
+          setGs(s);
+          api.saveGameState(s).catch(() => {});
+          if (report.healedHp >= 5) {
+            pushToast(`😴 Pendant ton absence, tes AM se sont reposés : +${report.healedHp} PV${report.moodUp ? " et le moral est remonté" : ""}.`);
+          }
+          if (canClaimDaily(s)) setModal({ k: "daily" });
+        }
       } catch {
         /* hors-ligne : état frais */
       }
@@ -163,9 +200,10 @@ export default function GamePage() {
   }, [gs.team, gs.rental]);
 
   async function persist(next: GameState) {
-    setGs(next);
+    const stamped = { ...next, lastSeen: Date.now() };
+    setGs(stamped);
     try {
-      await api.saveGameState(next);
+      await api.saveGameState(stamped);
     } catch {
       /* hors-ligne */
     }
@@ -184,7 +222,7 @@ export default function GamePage() {
   // ── Onboarding : adoption du 1er AM ─────────────────────────────────────────
   function adopt(speciesId: string) {
     const c = makeCharacter(speciesId);
-    persist({ ...freshState(), started: true, team: [c], gold: 30, potions: 1, bestiary: [speciesId] });
+    persist(ensureDaily({ ...freshState(), started: true, team: [c], gold: 30, potions: 1, bestiary: [speciesId] }));
     setRoute({ v: "house" });
   }
 
@@ -211,7 +249,9 @@ export default function GamePage() {
     const c = findChar(charId);
     if (!c || interactReadyIn(c, kind) > 0) return;
     const res = interact(c, kind);
-    updateChar(charId, () => res.character);
+    const { state: bumped, completed } = bumpQuest(gs, "interact");
+    persist(withCharUpdate(bumped, charId, () => res.character));
+    completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
   }
 
   // ── Marchand / soin / ranch ─────────────────────────────────────────────
@@ -260,6 +300,9 @@ export default function GamePage() {
   function goShop() {
     setRoute({ v: "shop" });
   }
+  function goArena() {
+    setRoute({ v: "arena" });
+  }
 
   // ── Combat ────────────────────────────────────────────────────────────────
   function startCombat(loc: MapLocation, charId: string) {
@@ -283,8 +326,46 @@ export default function GamePage() {
     setModal({ k: "combat", ctx: { loc, result, charId } });
   }
 
+  // ── Duels d'arène (asynchrones, amicaux : pas de dégâts persistés) ────────
+  function startDuel(opp: ArenaOpponent, charId: string) {
+    const base = findChar(charId);
+    if (!base) return;
+    const player = commitHeal(base);
+    if (player.life <= 0) return;
+    const enemy = makeDuelEnemy(opp);
+    const seed = Math.floor(Math.random() * 1_000_000_000);
+    const result = runCombat({ seed, teamA: [withMoodBattle(player)], teamB: [enemy] });
+    persist(withCharUpdate(gs, charId, () => player));
+    const loc = { id: "duel", name: `Duel — ${opp.trainer}` } as MapLocation;
+    setModal({ k: "combat", ctx: { loc, result, charId, duel: opp } });
+  }
+
+  function finishDuel(winner: 0 | 1 | null) {
+    if (modal.k !== "combat" || !modal.ctx.duel) return;
+    const { result, charId, duel } = modal.ctx;
+    const pStat = result.stats.find((s) => s.side === 0)!;
+    const won = winner === 0;
+    let s = gs;
+    let goldGain = 0;
+    if (won) {
+      const day = todayKey();
+      const wins = arenaWinsToday(s, day);
+      if (wins < ARENA_MAX_REWARDED_WINS) goldGain = ARENA_WIN_GOLD;
+      s = { ...s, gold: s.gold + goldGain, duels: { day, wins: wins + 1 } };
+      const b = bumpQuest(s, "duel");
+      s = b.state;
+      b.completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
+    }
+    s = withCharUpdate(s, charId, (c) =>
+      pushHistory(c, "combat", won ? `Duel gagné vs ${duel.trainer}` : `Duel perdu vs ${duel.trainer}`)
+    );
+    persist(s);
+    setModal({ k: "duelReward", r: { won, trainer: duel.trainer, gold: goldGain, dmg: pStat.damageDealt } });
+  }
+
   function onCombatFinish(winner: 0 | 1 | null) {
     if (modal.k !== "combat") return;
+    if (modal.ctx.duel) return finishDuel(winner);
     const { loc, result, charId } = modal.ctx;
     const pStat = result.stats.find((s) => s.side === 0)!;
     const eStat = result.stats.find((s) => s.side === 1)!;
@@ -353,7 +434,13 @@ export default function GamePage() {
 
     if (usedRental && rental) rental.fightsLeft -= 1;
 
-    persist({ ...gs, team, rental, gold, potions, cleared, bossLife, bossDefeated, zoneProgress, zonesUnlocked });
+    let nextState: GameState = { ...gs, team, rental, gold, potions, cleared, bossLife, bossDefeated, zoneProgress, zonesUnlocked };
+    if (won) {
+      const b = bumpQuest(nextState, "win");
+      nextState = b.state;
+      b.completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
+    }
+    persist(nextState);
     setModal({ k: "reward", reward: { outcome: won ? "win" : outcome === "lose" ? "lose" : "draw", loc, pStat, firstClear, levelsGained } });
   }
 
@@ -370,6 +457,16 @@ export default function GamePage() {
     const rare = makeCharacter(RARE_REWARD);
     persist({ ...gs, team: [...gs.team, rare], capturedRare: true, bestiary: gs.bestiary.includes(RARE_REWARD) ? gs.bestiary : [...gs.bestiary, RARE_REWARD] });
     setModal(gs.rental && gs.rental.fightsLeft <= 0 ? { k: "ranchExtend" } : { k: "none" });
+  }
+
+  // ── Journal du jour ───────────────────────────────────────────────────────
+  function claimDailyBonus() {
+    const { state, reward } = claimDaily(gs);
+    persist(state);
+    pushToast(`🎁 Bonus du jour : +${reward.gold}💰${reward.potions ? ` +${reward.potions}🧪` : ""} — ${reward.streak} jour${reward.streak > 1 ? "s" : ""} d'affilée !`);
+  }
+  function claimQuestReward(id: string) {
+    persist(claimQuest(gs, id));
   }
 
   async function resetGame() {
@@ -400,21 +497,33 @@ export default function GamePage() {
     <div className="game-shell">
       <header className="mini-top">
         <button className="mini-logo" onClick={goHouse} aria-label="Accueil">⚔️</button>
-        <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Menu">
-          <span /><span /><span />
-        </button>
+        <div className="mini-right">
+          <span className="mini-purse">💰 {gs.gold} <span className="dot">·</span> 🧪 {gs.potions}</span>
+          <button
+            className={`journal-btn ${hasDailyClaimable(gs) ? "attention" : ""}`}
+            onClick={() => setModal({ k: "daily" })}
+            aria-label="Journal du jour"
+          >
+            📅
+            {hasDailyClaimable(gs) && <span className="notif-dot" />}
+          </button>
+          <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Menu">
+            <span /><span /><span />
+          </button>
+        </div>
       </header>
 
       {route.v === "house" && (
         <House
           team={gs.team}
-          gold={gs.gold}
-          potions={gs.potions}
           onOpenSheet={(id) => setModal({ k: "amPage", charId: id })}
           onGoForest={() => setRoute({ v: "forest" })}
           onGoShop={goShop}
+          onGoArena={goArena}
         />
       )}
+
+      {route.v === "arena" && <Arena gs={gs} onBack={goHouse} onDuel={startDuel} />}
 
       {(route.v === "forest" || route.v === "zone") && (
         <div className="hub">
@@ -532,6 +641,27 @@ export default function GamePage() {
         </div>
       )}
 
+      {modal.k === "daily" && (
+        <DailyJournal gs={gs} onClaimDaily={claimDailyBonus} onClaimQuest={claimQuestReward} onClose={() => setModal({ k: "none" })} />
+      )}
+
+      {modal.k === "duelReward" && (
+        <div className="overlay">
+          <div className="modal center">
+            <h1>{modal.r.won ? "🏆 Duel remporté !" : "🤝 Duel perdu"}</h1>
+            <p className="muted">
+              {modal.r.won
+                ? `Tu as battu l'équipe de ${modal.r.trainer}.`
+                : `L'équipe de ${modal.r.trainer} était plus forte cette fois.`}
+            </p>
+            {modal.r.won && modal.r.gold > 0 && <div className="loot-box"><p>+ 💰 {modal.r.gold} or</p></div>}
+            {modal.r.won && modal.r.gold === 0 && <p className="muted small">Récompenses du jour épuisées — victoire pour la gloire !</p>}
+            <p className="muted small">Duel amical : ton AM ressort indemne.</p>
+            <button className="primary big" onClick={() => setModal({ k: "none" })}>Continuer</button>
+          </div>
+        </div>
+      )}
+
       {modal.k === "reward" && <RewardModal reward={modal.reward} onContinue={closeReward} />}
       {modal.k === "capture" && <CaptureModal onCapture={captureRare} />}
       {modal.k === "ranchExtend" && gs.rental && (
@@ -541,6 +671,12 @@ export default function GamePage() {
       {allPacified && modal.k === "none" && (
         <div className="cleared-banner">🏆 Les trois zones sont pacifiées ! <button className="ghost sm" onClick={resetGame}>Recommencer</button></div>
       )}
+
+      <div className="toasts">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast">{t.text}</div>
+        ))}
+      </div>
 
       <BuildFooter />
     </div>

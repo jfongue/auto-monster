@@ -570,10 +570,6 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 /* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════ */
 .house { max-width: 440px; margin: 0 auto; padding: 6px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; transition: max-width 0.5s cubic-bezier(.45,.05,.35,1); }
 .house.house-open { max-width: 720px; }
-.house-purse { align-self: flex-end; font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; box-shadow: var(--shadow-sm); transition: opacity 0.3s ease; }
-.house-purse.faded { opacity: 0; pointer-events: none; }
-.house-purse .dot { color: var(--faint); }
-
 /* Scène = pièce + volet d'info, côte à côte ; le volet prend sa place en
    glissant depuis la droite quand la pièce passe en mode focus. */
 .house-stage { position: relative; width: 100%; display: flex; align-items: stretch; gap: 0; }
@@ -637,6 +633,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 }
 .house-exit-btn:hover:not(:disabled) { background: var(--ink-2); box-shadow: none; }
 .house-exit-choices { display: flex; gap: 10px; width: 100%; }
+@media (max-width: 390px) { .house-exit-choices { flex-direction: column; } }
 .exit-choice {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
   padding: 16px 10px; border-radius: 14px; text-align: center; box-shadow: none;
@@ -673,6 +670,81 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .editor-stat { width: 56px; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; text-align: center; }
 .editor-rarity { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
 .editor-kind { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
+
+/* ══ HEADER — porte-monnaie + journal du jour ═════════════════════════════ */
+.mini-right { display: flex; align-items: center; gap: 8px; }
+.mini-purse {
+  font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--line);
+  padding: 7px 12px; border-radius: 999px; box-shadow: var(--shadow-sm);
+}
+.mini-purse .dot { color: var(--faint); }
+.journal-btn {
+  position: relative; width: 38px; height: 38px; border-radius: 11px; padding: 0;
+  display: grid; place-items: center; font-size: 17px;
+  background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-sm);
+}
+.journal-btn.attention { border-color: var(--gold); }
+.notif-dot {
+  position: absolute; top: -3px; right: -3px; width: 11px; height: 11px;
+  border-radius: 50%; background: var(--red); border: 2px solid #fff;
+  animation: softPulse 1.6s ease-in-out infinite;
+}
+
+/* ══ TOASTS — retours discrets (quêtes, bonus, repos) ═════════════════════ */
+.toasts {
+  position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%); z-index: 80;
+  display: flex; flex-direction: column-reverse; gap: 8px; align-items: center;
+  width: min(420px, calc(100vw - 24px)); pointer-events: none;
+}
+.toast {
+  background: var(--ink); color: #fff; font-size: 13px; font-weight: 600;
+  padding: 11px 16px; border-radius: 13px; box-shadow: var(--shadow-lg);
+  animation: riseIn 0.35s cubic-bezier(.22,.9,.3,1) both; text-align: center;
+  max-width: 100%;
+}
+
+/* ══ JOURNAL DU JOUR — bonus + quêtes ═════════════════════════════════════ */
+.daily-modal { width: min(460px, 100%); }
+.daily-bonus {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: linear-gradient(135deg, #fff7e8, #fff); border: 1px solid #f3e0bb;
+  border-radius: 16px; padding: 14px 16px;
+}
+.daily-bonus.done { background: var(--surface-2); border-color: var(--line); }
+.daily-bonus-title { font-family: "Space Grotesk"; font-weight: 700; font-size: 15px; }
+.daily-streak { font-size: 12px; color: var(--dim); font-weight: 600; margin-top: 2px; }
+.daily-claimed-chip { font-size: 12px; font-weight: 700; color: var(--green); background: var(--green-soft); padding: 5px 12px; border-radius: 999px; }
+
+.daily-quests { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.daily-quests-title { font-family: "Space Grotesk"; font-weight: 700; font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.quest-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px;
+}
+.quest-row.done { border-color: var(--gold); background: #fffdf6; }
+.quest-row.claimed { opacity: 0.55; }
+.quest-icon { font-size: 20px; flex: none; }
+.quest-meta { flex: 1; min-width: 0; }
+.quest-label { font-weight: 600; font-size: 14px; }
+.quest-bar { height: 6px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; margin-top: 6px; }
+.quest-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--acc), var(--acc-2)); transition: width 0.4s cubic-bezier(.22,.9,.3,1); }
+.quest-right { flex: none; }
+.quest-count { font-size: 12px; font-weight: 700; color: var(--dim); }
+.quest-check { font-size: 16px; font-weight: 800; color: var(--green); }
+button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+
+/* ══ ARÈNE ════════════════════════════════════════════════════════════════ */
+.arena-hero { --zt: #e0913c; }
+.arena-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+  margin-bottom: 8px;
+}
+.arena-row:last-child { margin-bottom: 0; }
+
+@media (max-width: 480px) { .mini-purse { padding: 6px 9px; font-size: 12px; } }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }

@@ -25,18 +25,16 @@ function randBetween(min: number, max: number) {
 
 export default function House({
   team,
-  gold,
-  potions,
   onOpenSheet,
   onGoForest,
   onGoShop,
+  onGoArena,
 }: {
   team: Character[];
-  gold: number;
-  potions: number;
   onOpenSheet: (id: string) => void;
   onGoForest: () => void;
   onGoShop: () => void;
+  onGoArena: () => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [focused, setFocused] = useState(false);
@@ -95,8 +93,6 @@ export default function House({
 
   return (
     <div className={`house view ${focused ? "house-open" : ""}`}>
-      <div className={`house-purse ${focused ? "faded" : ""}`}>💰 {gold} <span className="dot">·</span> 🧪 {potions}</div>
-
       <div className="house-stage">
         <div className="house-room">
           <div className="house-floor-line" />
@@ -159,6 +155,10 @@ export default function House({
               <button className="exit-choice" onClick={onGoForest}>
                 <span className="exit-ico">🗺️</span>
                 <span className="exit-txt">Explorer le monde<span className="exit-sub">Carte du monde</span></span>
+              </button>
+              <button className="exit-choice" onClick={onGoArena}>
+                <span className="exit-ico">🏟️</span>
+                <span className="exit-txt">Arène<span className="exit-sub">Duels de dresseurs</span></span>
               </button>
               <button className="exit-choice" onClick={onGoShop}>
                 <span className="exit-ico">🏪</span>
