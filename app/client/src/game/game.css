@@ -32,14 +32,18 @@
   --r-sm: 12px;
 }
 
-/* Le jeu impose son fond gris clair au document entier : sinon le thème sombre
-   global de `index.css` (body noir #0f1115) reste visible derrière l'app, au
-   rebond de scroll et dans les zones non peintes. */
+/* Le jeu impose son fond gris clair au document entier. IMPORTANT : `index.css`
+   (thème sombre des pages login) définit aussi `--bg` sur `:root` — en build de
+   prod, sa valeur sombre (#0f1115) peut gagner la cascade. On force donc une
+   couleur LITTÉRALE (pas `var(--bg)`) sur html/body, et on **re-déclare `--bg`
+   sur `.game-shell`** pour que tout le sous-arbre du jeu hérite du gris clair. */
 html:has(.game-shell), body:has(.game-shell) {
-  background: var(--bg) !important;
+  background: #eceef1 !important;
 }
 
 .game-shell {
+  --bg: #eceef1;       /* re-scopé ici → bat le --bg sombre de :root pour le jeu */
+  --bg2: #e4e6ea;
   min-height: 100vh;
   background: var(--bg);
   color: var(--ink);
