@@ -4,26 +4,27 @@
    AutoMonster — thème CLAIR moderne + mise en scène
    ═════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Palette harmonisée : indigo (anchor) + teal (support froid) + ambre (accent chaud discret) */
-  --bg: #f2f4fb;
-  --bg2: #eaedf7;
+  /* Palette « prototype » : gris neutres + accent indigo. Fonds désaturés,
+     textes foncés pour une lisibilité franche (contraste AA+). */
+  --bg: #eceef1;       /* gris clair prototype (neutre, non bleuté) */
+  --bg2: #e4e6ea;
   --surface: #ffffff;
-  --surface-2: #f5f7fd;
-  --line: #e6e9f3;
-  --line-strong: #d6dcec;
-  --ink: #232746;
-  --ink-2: #464d70;
-  --dim: #6b7098;      /* texte secondaire — foncé pour contraste AA (~4.8:1 sur blanc) */
-  --faint: #aeb4cd;
-  --acc: #5b6ee0;      /* indigo */
-  --acc-2: #8a7bf0;    /* violet doux */
-  --acc-soft: #eef0fd;
-  --gold: #e8a13c;
-  --green: #23b18a;    /* teal-émeraude (progression) */
-  --green-soft: #e6f6f1;
-  --red: #ec6a80;      /* corail doux (danger) */
-  --sky: #5b8fe0;
-  --rare: #9a7bf0;
+  --surface-2: #f4f5f7;
+  --line: #e2e4e9;
+  --line-strong: #cfd3da;
+  --ink: #1a1c22;      /* quasi-noir — titres/valeurs, contraste max */
+  --ink-2: #383c45;    /* texte courant */
+  --dim: #565b66;      /* texte secondaire — foncé, AA large sur blanc/gris */
+  --faint: #868b96;    /* légendes discrètes (foncé pour rester lisible) */
+  --acc: #4f5bd5;      /* indigo (un peu plus foncé → texte lisible) */
+  --acc-2: #7a6ef0;    /* violet doux */
+  --acc-soft: #eceefc;
+  --gold: #c9820f;     /* ambre foncé — lisible comme texte */
+  --green: #0f9d74;    /* émeraude foncée (progression), lisible */
+  --green-soft: #e4f5ef;
+  --red: #d64560;      /* corail foncé (danger), lisible */
+  --sky: #3f7bd6;
+  --rare: #7a5cf0;
   --shadow: 0 10px 30px rgba(40, 46, 90, 0.09);
   --shadow-sm: 0 4px 14px rgba(40, 46, 90, 0.07);
   --shadow-lg: 0 24px 60px rgba(40, 46, 90, 0.16);
@@ -231,20 +232,10 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .world-sub { color: var(--dim); font-size: 14px; }
 
 .world-canvas {
-  position: relative; border-radius: 24px;
-  background:
-    radial-gradient(720px 400px at 20% 22%, #e9f5f1 0%, transparent 62%),
-    radial-gradient(720px 440px at 82% 82%, #eceffc 0%, transparent 62%),
-    linear-gradient(180deg, #ffffff, #f6f8fe);
-  border: 1px solid var(--line); box-shadow: var(--shadow);
+  position: relative; border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--shadow-sm);
   overflow: hidden; aspect-ratio: 1200 / 560; width: 100%;
-}
-.world-canvas::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background-image: radial-gradient(rgba(108,92,231,0.05) 1px, transparent 1px);
-  background-size: 26px 26px;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
-  mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
 }
 .world-paths { position: absolute; inset: 0; width: 100%; height: 100%; }
 .world-paths .wp { fill: none; stroke: var(--line-strong); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 2 16; }
@@ -257,21 +248,22 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   width: clamp(120px, 15vw, 168px);
 }
 .zone-orb {
-  position: relative; width: clamp(74px, 9vw, 96px); height: clamp(74px, 9vw, 96px);
-  border-radius: 50%; display: grid; place-items: center; font-size: clamp(30px, 4vw, 40px);
-  background: radial-gradient(circle at 38% 32%, #fff, var(--zt, #dfe6ff));
-  border: 3px solid #fff;
-  box-shadow: 0 12px 26px rgba(43,52,96,0.20), 0 0 0 4px var(--zt, #dfe6ff);
-  transition: transform 0.18s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
+  position: relative; width: clamp(70px, 9vw, 92px); height: clamp(70px, 9vw, 92px);
+  border-radius: 50%; display: grid; place-items: center; font-size: clamp(28px, 4vw, 38px);
+  background: color-mix(in srgb, var(--zt, #dfe6ff) 12%, #fff);
+  border: 2px solid color-mix(in srgb, var(--zt, #dfe6ff) 45%, var(--line-strong));
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s, border-color 0.2s;
 }
+.zone-orb .ico { color: color-mix(in srgb, var(--zt, #6c5ce7) 55%, var(--ink)); }
 /* le nœud garde son centrage — c'est l'orbe qui réagit (évite le "glissement") */
 .zone-node:hover:not(:disabled), .zone-node:active:not(:disabled), .zone-node:focus-visible { transform: translate(-50%, -50%); box-shadow: none; }
-.zone-node:hover:not(:disabled) .zone-orb { transform: scale(1.09); animation: none; box-shadow: 0 18px 34px rgba(43,52,96,0.24), 0 0 0 5px var(--zt, #dfe6ff); }
+.zone-node:hover:not(:disabled) .zone-orb { transform: scale(1.08); animation: none; border-color: var(--acc); box-shadow: var(--shadow); }
 .zone-node:active:not(:disabled) .zone-orb { transform: scale(1.03); }
 .zone-node.here .zone-orb { animation: softPulse 2.6s ease-in-out infinite; }
-.zone-node.threatened .zone-orb { box-shadow: 0 12px 26px rgba(255,93,115,0.35), 0 0 0 4px #ffd7dd; animation: softPulse 1.6s ease-in-out infinite; }
+.zone-node.threatened .zone-orb { border-color: var(--red); animation: softPulse 1.6s ease-in-out infinite; }
 .zone-node.locked { cursor: not-allowed; }
-.zone-node.locked .zone-orb { filter: grayscale(0.7) opacity(0.55); font-size: 30px; }
+.zone-node.locked .zone-orb { filter: grayscale(0.4) opacity(0.6); }
 .zone-ring { position: absolute; inset: -3px; transform: rotate(-90deg); }
 .zone-ring circle { fill: none; stroke-width: 5; }
 .zone-ring .track { stroke: rgba(255,255,255,0.6); }
@@ -472,8 +464,8 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .combat-room {
   position: relative; width: 100%;
   min-height: clamp(280px, 46vw, 460px);
-  background: radial-gradient(ellipse at 50% 120%, rgba(108,92,231,0.10), transparent 60%), linear-gradient(180deg, #f7f9ff 0%, #eef2fb 100%);
-  border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow);
+  background: linear-gradient(180deg, #ffffff 0%, var(--surface-2) 100%);
+  border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 .combat-floor-line { position: absolute; left: 0; right: 0; top: 66%; height: 1px; background: var(--line-strong); }
@@ -647,86 +639,61 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .hmenu-item.danger { margin-top: auto; color: var(--red); border-color: #ffd7dd; }
 
 /* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════ */
-.house { max-width: 440px; margin: 0 auto; padding: 6px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; transition: max-width 0.5s cubic-bezier(.45,.05,.35,1); }
-.house.house-open { max-width: 720px; }
-/* Scène = pièce + volet d'info, côte à côte ; le volet prend sa place en
-   glissant depuis la droite quand la pièce passe en mode focus. */
-.house-stage { position: relative; width: 100%; display: flex; align-items: stretch; gap: 0; }
+.house { max-width: 440px; margin: 0 auto; padding: 8px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 
 .house-room {
-  position: relative; flex: 1 1 100%; min-width: 0; aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden;
-  /* Fond uni & seamless : prolongement de la couleur de la page/house,
-     sans boîte grise ni bordure. Un léger halo lumineux donne du volume. */
-  background: transparent;
-  border: none;
-  transition: flex-basis 0.55s cubic-bezier(.45,.05,.35,1);
+  position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 20px;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm); overflow: hidden;
 }
-.house-open .house-room { flex: 0 1 56%; }
-/* Ancien "trait de sol" recyclé en ombre douce au sol, large, pour ancrer
-   le compagnon quelle que soit sa profondeur. */
-.house-floor-line {
-  position: absolute; left: 8%; right: 8%; top: auto; bottom: 10%; height: 24%;
-  background: radial-gradient(120% 100% at 50% 100%, rgba(35, 39, 70, 0.09), transparent 72%);
+/* Halo lumineux ambiant neutre (léger volume, pas de teinte). */
+.house-glow {
+  position: absolute; top: 6%; left: 50%; transform: translateX(-50%);
+  width: 64%; height: 60%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,0,0,0.035), transparent 72%);
+  filter: blur(10px); pointer-events: none;
+}
+/* Ombre douce au sol, ancre le compagnon quelle que soit sa profondeur. */
+.house-floor {
+  position: absolute; left: 8%; right: 8%; bottom: 8%; height: 22%;
+  background: radial-gradient(120% 100% at 50% 100%, rgba(20,22,30,0.07), transparent 72%);
   filter: blur(6px); pointer-events: none;
-}
-/* Ancienne "fenêtre" recyclée en halo lumineux ambiant (pas de boîte). */
-.house-window {
-  position: absolute; top: 4%; left: 50%; transform: translateX(-50%);
-  width: 66%; height: 62%; aspect-ratio: auto; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(138, 123, 240, 0.16), rgba(91, 110, 224, 0.05) 48%, transparent 72%);
-  border: none; filter: blur(10px); pointer-events: none;
 }
 .house-critter {
   position: absolute; transform: translateX(-50%);
-  width: 25%; aspect-ratio: 1; padding: 0; border: none; background: transparent; box-shadow: none;
+  width: 26%; aspect-ratio: 1; padding: 0; border: none; background: transparent; box-shadow: none;
   display: flex; align-items: flex-end; justify-content: center;
   transition: left 1.3s cubic-bezier(.45,.05,.35,1), bottom 1.3s cubic-bezier(.45,.05,.35,1);
   z-index: 2;
 }
-.house-critter-anim {
-  display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%;
-  transition: transform 0.55s cubic-bezier(.34,1.2,.4,1);
-}
-.house-critter-anim.walking { animation: houseHop 0.55s ease-in-out infinite; }
-.house-critter-anim.zoomed { transform: scale(2.1); z-index: 3; }
-/* Corps : porte respiration (idle) + rebond joyeux (câlin), séparé du flip (img)
-   et du déplacement/zoom (anim) pour éviter les conflits de transform. */
+.house-critter:hover { transform: translateX(-50%) scale(1.05); }
 .hc-body { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; transform-origin: 50% 100%; }
 .hc-body.idle { animation: houseBreath 3.4s ease-in-out infinite; }
 .hc-body.reacting { animation: houseCheer 0.52s cubic-bezier(.3,1.5,.5,1); }
-.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); transition: transform 0.3s ease; }
+.house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); }
 .house-critter.dir-r img { transform: scaleX(-1); }
 .house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); }
-@keyframes houseHop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-13px); } }
 @keyframes houseBreath { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.02,0.97); } }
 @keyframes houseCheer { 0%,100% { transform: translateY(0) scale(1,1); } 35% { transform: translateY(-14px) scale(0.94,1.08); } 65% { transform: translateY(0) scale(1.08,0.92); } }
-/* Émote flottante au-dessus du compagnon. */
 .house-emote { position: absolute; top: -6%; left: 50%; transform: translateX(-50%); font-size: 26px; pointer-events: none; z-index: 4; animation: emoteFloat 0.95s ease forwards; }
 @keyframes emoteFloat { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5); } 25% { opacity: 1; transform: translate(-50%, -8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -34px) scale(1); } }
 
-/* Volet d'info à droite : caché (largeur nulle) puis glisse au clic. */
-.house-panel {
-  flex: 0 0 0%; min-width: 0; opacity: 0; transform: translateX(14px);
-  overflow: hidden; white-space: nowrap;
-  display: flex; flex-direction: column; gap: 6px; padding: 0; align-self: center;
-  transition: flex-basis 0.55s cubic-bezier(.45,.05,.35,1), opacity 0.4s ease 0.1s, transform 0.45s ease 0.1s, padding 0.55s cubic-bezier(.45,.05,.35,1);
+.house-below { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+/* Carte d'identité cliquable (nom + niveau + PV) → ouvre la fiche. */
+.house-id {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  width: 100%; max-width: 320px; padding: 10px 14px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm);
 }
-.house-open .house-panel { flex: 0 0 40%; opacity: 1; transform: translateX(0); white-space: normal; padding-left: 16px; }
-.house-panel .team-name.big { justify-content: flex-start; }
-.house-panel .statgrid { justify-content: flex-start; }
-.house-back { align-self: flex-start; margin-bottom: 4px; }
-
-.house-below { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; transition: opacity 0.3s ease; }
-.house-below.faded { opacity: 0; pointer-events: none; }
-
-.house-caption { display: flex; align-items: center; gap: 8px; }
+.house-id:hover:not(:disabled) { border-color: var(--acc); }
+.house-id .house-id-hp { flex: 1 1 100%; }
 .house-dots { display: flex; gap: 6px; }
 .house-dot { width: 9px; height: 9px; border-radius: 50%; padding: 0; border: none; background: var(--line-strong); box-shadow: none; }
 .house-dot.on { background: var(--acc); }
 
-/* Rappel compact des quêtes du jour (clic → journal 📅) */
+/* Rappel compact des quêtes du jour (clic → journal). */
 .house-quests {
-  display: flex; gap: 12px; align-items: center; justify-content: center;
+  display: flex; gap: 10px; align-items: center; justify-content: center;
   padding: 8px 16px; border-radius: 999px; box-shadow: none;
   background: var(--surface); border: 1px solid var(--line);
   font-size: 13px; font-weight: 700; color: var(--dim);
@@ -734,14 +701,8 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-quests:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: none; }
 .house-quests .hq-item { white-space: nowrap; }
 
-.house-exit-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; margin-top: 4px; }
-.house-exit-btn {
-  font-size: 14px; width: 100%; max-width: 260px;
-  background: var(--ink); color: #fff; border: none; box-shadow: none;
-}
-.house-exit-btn:hover:not(:disabled) { background: var(--ink-2); box-shadow: none; }
 .house-exit-choices { display: flex; gap: 10px; width: 100%; }
-@media (max-width: 390px) { .house-exit-choices { flex-direction: column; } }
+@media (max-width: 390px) { .house-exit-choices { gap: 8px; } }
 .exit-choice {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
   padding: 16px 10px; border-radius: 14px; text-align: center; box-shadow: none;

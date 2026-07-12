@@ -1,24 +1,19 @@
-// House — cœur de la home page. Vue de côté d'une petite pièce où le compagnon
-// actif erre tranquillement (marche aléatoire, pauses variables, profondeur).
-// Un clic dessus déclenche un zoom smooth en place + une fiche résumée qui
-// glisse dans un volet à droite (pas de changement de page, pas de fiche
-// plein écran ici — voir .house-critter-anim.zoomed dans game.css).
-//
-// Règle du projet : le sprite reste "miniature" — le zoom au clic agrandit
-// le compagnon dans la pièce mais ne le fait jamais passer plein écran.
+// House — cœur de la home. Vue de côté d'une petite pièce où le compagnon actif
+// erre tranquillement (marche aléatoire, pauses, profondeur, émotes spontanées).
+// Un clic sur le compagnon ouvre directement sa fiche (plus de zoom en place ni
+// de volet coulissant — c'était source de bugs de layout).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { SPECIES } from "./engine/data";
-import { xpForNext } from "./engine/progression";
-import { HpBar, StatRow } from "./shared";
+import { HpBar } from "./shared";
 import { Icon } from "./icons";
 import type { Character } from "./engine/types";
 
 // Bornes de déplacement dans la pièce.
 const X_MIN = 18;
 const X_MAX = 78;
-const DEPTH_MIN = 4; // bottom %, proche (avant-plan)
-const DEPTH_MAX = 32; // bottom %, loin (près de la ligne de sol)
+const DEPTH_MIN = 6; // bottom %, proche (avant-plan)
+const DEPTH_MAX = 30; // bottom %, loin
 
 function randBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
@@ -45,14 +40,12 @@ export default function House({
   onGoArena: () => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [focused, setFocused] = useState(false);
-  const [pos, setPos] = useState({ x: 46, y: 12 });
+  const [pos, setPos] = useState({ x: 46, y: 14 });
   const [walking, setWalking] = useState(false);
   const [dir, setDir] = useState<1 | -1>(1);
   const [reacting, setReacting] = useState(false);
   const [emote, setEmote] = useState<string | null>(null);
 
-  // Petite réaction affective : rebond joyeux + émote flottante (clic = "câlin").
   const EMOTES = ["❤️", "✨", "😊", "🎵", "💜", "🌟"];
   function react(emo?: string) {
     setReacting(true);
@@ -65,13 +58,11 @@ export default function House({
   const c = team[idx];
   const sp = c ? SPECIES[c.speciesId] : null;
 
-  // Errance aléatoire : marche vers un point tiré au hasard (x + profondeur),
-  // puis pause de durée variable, en boucle. Suspendue quand on est en focus.
+  // Errance aléatoire.
   useEffect(() => {
-    if (focused || !c) return;
+    if (!c) return;
     let cancelled = false;
     let timer: number;
-
     const step = () => {
       setPos((p) => {
         const nx = randBetween(X_MIN, X_MAX);
@@ -84,26 +75,16 @@ export default function House({
       timer = window.setTimeout(() => {
         if (cancelled) return;
         setWalking(false);
-        const pauseMs = randBetween(500, 3200); // pauses plus ou moins longues
-        timer = window.setTimeout(() => {
-          if (!cancelled) step();
-        }, pauseMs);
+        timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(600, 3200));
       }, walkMs);
     };
+    timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(400, 1200));
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [c]);
 
-    timer = window.setTimeout(() => {
-      if (!cancelled) step();
-    }, randBetween(400, 1200));
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [focused, c]);
-
-  // Signes de vie spontanés : de temps en temps, une petite émote au repos.
+  // Émotes spontanées.
   useEffect(() => {
-    if (focused || !c) return;
+    if (!c) return;
     let cancelled = false;
     let timer: number;
     const loop = () => {
@@ -114,66 +95,38 @@ export default function House({
       }, randBetween(11000, 22000));
     };
     loop();
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    return () => { cancelled = true; window.clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused, c]);
+  }, [c]);
 
   if (!c || !sp) return null;
 
-  const xpNext = xpForNext(c.level);
-
-  const critterStyle = focused
-    ? { left: "50%", bottom: "18%" }
-    : { left: `${pos.x}%`, bottom: `${pos.y}%` };
-
   return (
-    <div className={`house view ${focused ? "house-open" : ""}`}>
-      <div className="house-stage">
-        <div className="house-room">
-          <div className="house-floor-line" />
-          <div className="house-window" />
-          <button
-            className={`house-critter dir-${dir > 0 ? "r" : "l"}`}
-            style={critterStyle}
-            onClick={() => { react(); if (!focused) setFocused(true); }}
-            title={focused ? `Caresser ${c.name}` : `Voir ${c.name}`}
-            aria-label={`${c.name} — voir la fiche`}
-          >
-            {emote && <span className="house-emote">{emote}</span>}
-            <div className={`house-critter-anim ${walking && !focused ? "walking" : ""} ${focused ? "zoomed" : ""}`}>
-              <span className={`hc-body ${!walking && !focused ? "idle" : ""} ${reacting ? "reacting" : ""}`}>
-                <img src={`/sprites/${sp.gfx}.png`} alt={c.name} draggable={false} />
-              </span>
-            </div>
-            <span className="house-critter-shadow" />
-          </button>
-        </div>
-
-        <div className="house-panel">
-          <button className="ghost sm house-back chip-ico" onClick={() => setFocused(false)} aria-label="Retour"><Icon name="back" size={15} /> Retour</button>
-          <div className="team-name big">
-            {c.name} <span className="lvl">N.{c.level}</span>
-            {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
-          </div>
-          <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
-          <HpBar c={c} />
-          <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
-          <div className="muted small">XP {c.xp}/{xpNext}</div>
-          <StatRow stats={c.stats} />
-          <button className="house-exit-btn" style={{ marginTop: 10, maxWidth: "none" }} onClick={() => onOpenSheet(c.id)}>
-            Fiche complète
-          </button>
-        </div>
+    <div className="house view">
+      <div className="house-room">
+        <div className="house-glow" />
+        <div className="house-floor" />
+        <button
+          className={`house-critter dir-${dir > 0 ? "r" : "l"}`}
+          style={{ left: `${pos.x}%`, bottom: `${pos.y}%` }}
+          onClick={() => { react(); onOpenSheet(c.id); }}
+          aria-label={`${c.name} — ouvrir la fiche`}
+          title={`Voir ${c.name}`}
+        >
+          {emote && <span className="house-emote">{emote}</span>}
+          <span className={`hc-body ${!walking ? "idle" : ""} ${reacting ? "reacting" : ""}`}>
+            <img src={`/sprites/${sp.gfx}.png`} alt={c.name} draggable={false} />
+          </span>
+          <span className="house-critter-shadow" />
+        </button>
       </div>
 
-      <div className={`house-below ${focused ? "faded" : ""}`}>
-        <div className="house-caption">
+      <div className="house-below">
+        <button className="house-id" onClick={() => onOpenSheet(c.id)} title="Ouvrir la fiche">
           <span className="team-name">{c.name} <span className="lvl">N.{c.level}</span></span>
           {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
-        </div>
+          <span className="house-id-hp"><HpBar c={c} /></span>
+        </button>
 
         {team.length > 1 && (
           <div className="house-dots">
@@ -189,30 +142,27 @@ export default function House({
         )}
 
         {quests.some((q) => !q.done) && (
-          <button className="house-quests" onClick={onOpenDaily} title="Journal du jour">
+          <button className="house-quests" onClick={onOpenDaily} aria-label="Journal du jour">
+            <Icon name="journal" size={14} />
             {quests.filter((q) => !q.done).map((q) => (
-              <span key={q.id} className="hq-item">
-                {q.icon} {q.progress}/{q.target}
-              </span>
+              <span key={q.id} className="hq-item">{q.icon} {q.progress}/{q.target}</span>
             ))}
           </button>
         )}
 
-        <div className="house-exit-wrap">
-          <div className="house-exit-choices">
-            <button className="exit-choice" onClick={onGoForest} title="Explorer la carte du monde">
-              <span className="exit-ico"><Icon name="map" size={24} /></span>
-              <span className="exit-txt">Explorer</span>
-            </button>
-            <button className="exit-choice" onClick={onGoArena} title="Arène — duels de dresseurs">
-              <span className="exit-ico"><Icon name="arena" size={24} /></span>
-              <span className="exit-txt">Arène</span>
-            </button>
-            <button className="exit-choice" onClick={onGoShop} title="Boutique — potions">
-              <span className="exit-ico"><Icon name="shop" size={24} /></span>
-              <span className="exit-txt">Boutique</span>
-            </button>
-          </div>
+        <div className="house-exit-choices">
+          <button className="exit-choice" onClick={onGoForest} title="Explorer la carte du monde">
+            <span className="exit-ico"><Icon name="map" size={24} /></span>
+            <span className="exit-txt">Explorer</span>
+          </button>
+          <button className="exit-choice" onClick={onGoArena} title="Arène — duels de dresseurs">
+            <span className="exit-ico"><Icon name="arena" size={24} /></span>
+            <span className="exit-txt">Arène</span>
+          </button>
+          <button className="exit-choice" onClick={onGoShop} title="Boutique — potions">
+            <span className="exit-ico"><Icon name="shop" size={24} /></span>
+            <span className="exit-txt">Boutique</span>
+          </button>
         </div>
       </div>
     </div>

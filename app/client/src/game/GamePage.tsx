@@ -698,13 +698,11 @@ export default function GamePage() {
           <div className="modal center">
             <h1>{modal.r.won ? "🏆 Duel remporté !" : "🤝 Duel perdu"}</h1>
             <p className="muted">
-              {modal.r.won
-                ? `Tu as battu l'équipe de ${modal.r.trainer}.`
-                : `L'équipe de ${modal.r.trainer} était plus forte cette fois.`}
+              {modal.r.won ? `Battu : ${modal.r.trainer}.` : `${modal.r.trainer} l'emporte.`}
             </p>
             {modal.r.won && modal.r.gold > 0 && <div className="loot-box"><p className="chip-ico"><Icon name="gold" size={16} /> +{modal.r.gold} or</p></div>}
-            {modal.r.won && modal.r.gold === 0 && <p className="muted small">Récompenses du jour épuisées — victoire pour la gloire !</p>}
-            <p className="muted small">Duel amical : ton AM ressort indemne.</p>
+            {modal.r.won && modal.r.gold === 0 && <p className="muted small">Récompenses du jour épuisées.</p>}
+            <p className="muted small">Duel amical — AM indemne.</p>
             <button className="primary big" onClick={() => setModal({ k: "none" })}>Continuer</button>
           </div>
         </div>
@@ -764,10 +762,10 @@ function makeTutorialEnemy(): Character {
 }
 
 const STAT_CARDS: { key: StatKey; icon: IconName; label: string; desc: string }[] = [
-  { key: "hp", icon: "hp", label: "Vie", desc: "Ses points de vie. À 0, il est K.O." },
-  { key: "atk", icon: "atk", label: "Force", desc: "Les dégâts qu'il inflige en frappant." },
-  { key: "def", icon: "def", label: "Armure", desc: "Réduit les dégâts qu'il subit." },
-  { key: "spd", icon: "spd", label: "Vitesse", desc: "Plus elle est haute, plus il agit souvent." },
+  { key: "hp", icon: "hp", label: "Vie", desc: "À 0, K.O." },
+  { key: "atk", icon: "atk", label: "Force", desc: "Dégâts infligés." },
+  { key: "def", icon: "def", label: "Armure", desc: "Réduit les dégâts subis." },
+  { key: "spd", icon: "spd", label: "Vitesse", desc: "Agit plus souvent." },
 ];
 
 // Onboarding en wizard : (0) choix du monstre, (1) lecture de sa fiche,
@@ -801,7 +799,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 
         {step === 0 && (
           <div className="ob-panel">
-            <p className="ob-lead">Ton monstre se bat <b>tout seul</b>. Ses stats et son talent décideront du combat — choisis bien.</p>
+            <p className="ob-lead">Ton monstre combat <b>tout seul</b>. Choisis-le bien.</p>
             <div className="starter-grid">
               {STARTERS.map((id) => {
                 const s = SPECIES[id];
@@ -846,7 +844,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
             {sp.innate && (
               <div className="ob-talentcard">
                 <span className="ob-statcard-icon">{TALENTS[sp.innate]?.icon ?? "✨"}</span>
-                <div><b>{talentName(sp.innate)}</b> — son talent inné, {TALENTS[sp.innate]?.desc?.toLowerCase() ?? "toujours actif"}. Il se déclenche <b>seul</b> en combat.</div>
+                <div><b>{talentName(sp.innate)}</b> — {TALENTS[sp.innate]?.desc ?? "toujours actif"}. Se déclenche <b>seul</b>.</div>
               </div>
             )}
             <div className="ob-actions">
@@ -858,24 +856,23 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 
         {step === 2 && fight && (
           <div className="ob-panel ob-panel-fight">
-            <p className="ob-lead">Regarde. Tu ne pilotes rien — le combat se joue automatiquement.</p>
+            <p className="ob-lead">Tu ne pilotes rien : tout est automatique.</p>
             <CombatView log={fight.log} speed={1} tutorial onFinish={() => setStep(3)} />
           </div>
         )}
 
         {step === 3 && (
           <div className="ob-panel">
-            <p className="ob-lead">C'est tout le principe : <b>la stratégie est dans la préparation</b>, pas dans l'exécution.</p>
+            <p className="ob-lead"><b>La stratégie, c'est la préparation.</b></p>
             <div className="ob-loop">
-              <div className="ob-loop-step"><span><Icon name="map" size={26} /></span>Explore &amp; enchaîne les combats</div>
+              <div className="ob-loop-step"><span><Icon name="map" size={26} /></span>Explore</div>
               <div className="ob-loop-arrow">→</div>
-              <div className="ob-loop-step"><span><Icon name="gold" size={26} /></span>Gagne or &amp; XP</div>
+              <div className="ob-loop-step"><span><Icon name="gold" size={26} /></span>Or &amp; XP</div>
               <div className="ob-loop-arrow">→</div>
-              <div className="ob-loop-step"><span><Icon name="levelup" size={26} /></span>Renforce ton équipe</div>
+              <div className="ob-loop-step"><span><Icon name="levelup" size={26} /></span>Renforce-toi</div>
             </div>
-            <p className="ob-note chip-ico">Depuis ta maison, ouvre <Icon name="map" size={15} /> <b>Explorer</b> pour ton premier combat.</p>
             <div className="ob-actions">
-              <button className="ob-btn primary big" onClick={() => onPick(pick)}>Adopter {sp.name} et commencer</button>
+              <button className="ob-btn primary big" onClick={() => onPick(pick)}>Adopter {sp.name}</button>
             </div>
           </div>
         )}
@@ -898,9 +895,6 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
 
   return (
     <div className="world">
-      <div className="world-head">
-        <div className="world-title chip-ico"><Icon name="map" size={22} /> Carte du monde</div>
-      </div>
       <div className="world-canvas">
         <svg className="world-paths" viewBox={`0 0 ${MAP_WORLD_W} ${MAP_WORLD_H}`} preserveAspectRatio="none">
           {ZONE_PATHS.map(([a, b]) => {
@@ -947,7 +941,6 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
               </span>
               <span className="zone-label">
                 <span className="zn">{z.name}</span>
-                {showRing && <div className="zpct">{Math.round(comp * 100)}% exploré</div>}
               </span>
             </button>
           );
@@ -999,8 +992,8 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
           <div className="zone-progress">
             <div className="zp-bar"><div className="zp-fill" style={{ width: `${comp * 100}%` }} /></div>
             <div className="zp-meta">
-              <span>Exploration : {Math.round(comp * 100)}%</span>
-              <span>{comp >= 0.75 ? "✦ Cimes Orageuses débloquées" : `${Math.ceil(0.75 * zone.winsToComplete - (gs.zoneProgress[zone.id] ?? 0))} victoire(s) avant la zone suivante`}</span>
+              <span>{Math.round(comp * 100)}%</span>
+              <span>{comp >= 0.75 ? "✦ Zone suivante ouverte" : `Plus que ${Math.ceil(0.75 * zone.winsToComplete - (gs.zoneProgress[zone.id] ?? 0))}`}</span>
             </div>
           </div>
         )}
@@ -1225,7 +1218,6 @@ function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) 
   return (
     <ModalShell title={<><Icon name="bestiary" size={18} /> Bestiaire — {known.size}/{all.length}</>} onClose={onClose} wide>
       <div className="bestiary">
-        <p className="bestiary-count">Espèces découvertes en combattant et en explorant.</p>
         <div className="bestiary-grid">
           {all.map((sp) => {
             const seen = known.has(sp.id);
@@ -1418,7 +1410,7 @@ function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: str
   const lastText = c.history?.find((h) => h.kind === "interact")?.text;
   return (
     <div className="interact-block">
-      <h4 className="block-title">Interagir <span className="muted small">— effet aléatoire selon son caractère</span></h4>
+      <h4 className="block-title">Interagir</h4>
       <div className="interact-grid">
         {kinds.map((k) => {
           const ready = interactReadyIn(c, k);
@@ -1465,11 +1457,11 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
               {rentedFights != null && <span className="rent-tag">loué · {rentedFights}c</span>}
             </div>
             <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
-            {p && <div className="am-trait">{p.emoji} {p.archetype} — <span className="muted">{p.blurb}</span></div>}
-            <div className="am-mood">Humeur : <strong>{moodLabel(c)}</strong> <span className="muted small">({moodOf(c)}/100)</span></div>
+            {p && <div className="am-trait">{p.emoji} {p.archetype}</div>}
+            <div className="am-mood">Humeur : <strong>{moodLabel(c)}</strong></div>
             <HpBar c={c} />
             <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
-            <div className="muted small">XP {c.xp}/{xpNext} · Capturé·e le {fmtDate(c.capturedAt)}</div>
+            <div className="muted small">XP {c.xp}/{xpNext}</div>
           </div>
         </section>
 
@@ -1489,7 +1481,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
           </div>
 
           <div className="am-col">
-            <h4 className="block-title">Descriptif de l'espèce</h4>
+            <h4 className="block-title">Espèce</h4>
             <p className="am-species-desc">{sp.desc}</p>
             <h4 className="block-title">Historique</h4>
             <div className="am-history">
@@ -1524,13 +1516,13 @@ function RewardModal({ reward, onContinue }: { reward: RewardData; onContinue: (
               <span className="chip-ico"><Icon name="star" size={15} /> +{firstClear ? loc.xp : Math.round((loc.xp ?? 0) / 2)} XP</span>
             </p>
             {levelsGained > 0 && <p className="muted chip-ico"><Icon name="levelup" size={15} /> +{levelsGained} niveau(x) — stats augmentées.</p>}
-            {!firstClear && <p className="muted small">Lieu déjà nettoyé : récompense réduite.</p>}
+            {!firstClear && <p className="muted small">Déjà nettoyé — gain réduit.</p>}
           </div>
         )}
-        {outcome === "draw" && loc.isBoss && <p className="muted">Le boss est entamé — ses PV sont conservés. Soigne-toi et retente !</p>}
-        {outcome === "draw" && !loc.isBoss && <p className="muted">Match nul. Réessaie.</p>}
-        {outcome === "lose" && <p className="muted">Ton AM a été vaincu. Petite pénalité d'or. Soigne-toi et retente.</p>}
-        <div className="stat-summary muted">Dégâts infligés : {pStat.damageDealt} · reçus : {pStat.damageTaken}</div>
+        {outcome === "draw" && loc.isBoss && <p className="muted">Boss entamé, PV conservés. Retente.</p>}
+        {outcome === "draw" && !loc.isBoss && <p className="muted">Match nul.</p>}
+        {outcome === "lose" && <p className="muted">Vaincu. Petite pénalité d'or.</p>}
+        <div className="stat-summary muted chip-ico" style={{ justifyContent: "center" }}><Icon name="atk" size={13} /> {pStat.damageDealt} <span className="dot">·</span> <Icon name="def" size={13} /> {pStat.damageTaken}</div>
         <button className="primary big" onClick={onContinue}>Continuer</button>
       </div>
     </div>

@@ -236,8 +236,8 @@ export default function CombatView({
             stopWith(
               "Combat terminé",
               a.winner === 0
-                ? "Victoire ! Tu n'as rien piloté — tout s'est joué avant le combat, dans le choix de ton monstre et de ses stats."
-                : "Le combat se joue tout seul : la stratégie est dans la préparation, pas dans l'exécution.",
+                ? "Victoire — sans rien piloter. Tout s'est joué avant, dans ta préparation."
+                : "Le combat se joue seul : la stratégie est dans la préparation.",
               () => onFinish(a.winner)
             );
           } else {
@@ -254,7 +254,7 @@ export default function CombatView({
         shownStops.current.turn = true;
         stopWith(
           "À qui le tour ?",
-          "Le combattant le plus rapide (💨 Vitesse) agit en premier, et d'autant plus souvent qu'il est rapide. Tu ne choisis rien : tout dépend des stats.",
+          "Le plus rapide agit en premier, et plus souvent. Tout dépend des stats.",
           () => schedule(play, delay)
         );
         return;
@@ -263,7 +263,7 @@ export default function CombatView({
         shownStops.current.talent = true;
         stopWith(
           "Un talent s'est déclenché !",
-          "Ce label violet, c'est le talent inné de ton monstre qui s'active tout seul. Aucune action de ta part — il fait partie de son identité.",
+          "Ce label violet, c'est son talent inné qui s'active tout seul.",
           () => schedule(play, delay)
         );
         return;

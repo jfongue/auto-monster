@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.26 — Document de référence du projet
+> Version 0.27 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,15 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.27
+- [DA — « prototype gris » + lisibilité + House refondue + onboarding/carte allégés] Deuxième vague de polish demandée par le joueur.
+  - **Palette prototype** : fond de page passé d'un lavande bleuté à un **gris neutre clair** (`--bg #eceef1`), surfaces/lignes désaturées. **Contrastes texte renforcés** : `--ink #1a1c22`, `--ink-2 #383c45`, `--dim #565b66`, `--faint #868b96` ; accents *foncés pour rester lisibles comme texte* (`--acc`, `--gold`, `--green`, `--red`). Fonds décoratifs colorés retirés : **carte du monde** (radial teal/indigo + grille pointillée → surface unie) et **salle de combat** (halo violet → dégradé gris neutre).
+  - **House — clic AM « débuggé »** : suppression du **zoom en place + volet coulissant** (animations `flex-basis`/`white-space` sources de bugs de layout). Nouvelle interaction simple : la pièce affiche le compagnon qui erre (errance + émotes conservées), **un clic ouvre directement la fiche** (`onOpenSheet`). Sous la pièce : carte d'identité cliquable (nom + niveau + PV), points de sélection d'équipe, rappel de quêtes, 3 sorties. Halo/ombre au sol neutralisés. Supprimé : `house-stage/panel/open`, `house-critter-anim/zoomed/walking`, `houseHop`, `house-back/caption/exit-btn`.
+  - **Onboarding allégé** : copie fortement raccourcie à chaque étape (leads, cartes de stats « À 0, K.O. » / « Dégâts infligés », carte de talent, boucle « Explore → Or & XP → Renforce-toi », bouton « Adopter X »). **Bulles du combat guidé** raccourcies (ordre du tour, talent, fin).
+  - **Carte du monde minimalisée** : en-tête « Carte du monde » retiré, **« % exploré » retiré** sous chaque zone (l'anneau suffit), **orbes épurés** (surface unie légèrement teintée, bord fin, ombre douce ; halos colorés retirés).
+  - **Réduction de texte continue** : méta de progression de zone (`{%}` + « Plus que N » / « ✦ Zone suivante ouverte »), modals de récompense/duel condensés (dégâts en icônes), fiche AM (`Humeur : X`, `XP x/n`, « Espèce », bloc *Interagir* sans sous-titre), bestiaire sans phrase d'intro.
+- [Tests] `tsc -b` OK, `vite build` OK (50 modules, outDir temporaire), moteur **132 ok / 0 échec** (front pur).
 
 ### 2026-07-12 — v0.26
 - [DA — refonte « moins de texte + icônes SVG », pass responsive] Vague de nettoyage transversale demandée par le joueur : **plus minimaliste, plus clean, expliquer par l'icône plutôt que par le texte**.
