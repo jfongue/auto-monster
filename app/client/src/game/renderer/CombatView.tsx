@@ -20,7 +20,7 @@ type Sprite = {
   flash: boolean;
 };
 
-type Pop = { id: number; fid: number; text: string; kind: "dmg" | "crit" | "heal" | "miss" };
+type Pop = { id: number; fid: number; text: string; kind: "dmg" | "crit" | "heal" | "miss" | "talent" };
 
 const BASE_DELAY = 240;
 
@@ -143,9 +143,14 @@ export default function CombatView({
         delay = 240;
         break;
       case "regen":
+        // Le label lisible ("+X 💚") est émis par l'action talentProc qui suit.
         setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], life: a.life } } : s));
-        addPop(a.fid, "+soin", "heal");
-        delay = 200;
+        delay = 60;
+        break;
+      case "talentProc":
+        // Label flottant expliquant l'effet du talent (crit, épines, peau de pierre, régén…).
+        addPop(a.fid, a.label, a.talent === "regen" ? "heal" : "talent");
+        delay = 220;
         break;
       case "lost":
         delay = 10;

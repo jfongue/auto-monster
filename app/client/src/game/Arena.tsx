@@ -103,13 +103,17 @@ export default function Arena({
           <div className="card-title">🛡️ Ton champion</div>
           <div className="pick-list">
             {combatants.map((c) => (
-              <div key={c.id} className={`pick-row ${c.id === pick ? "active" : ""}`} onClick={() => setPick(c.id)}>
+              <div
+                key={c.id}
+                className={`pick-row ${combatants.length > 1 && c.id === pick ? "active" : ""}`}
+                onClick={() => combatants.length > 1 && setPick(c.id)}
+              >
                 <img className="mini" src={`/sprites/${SPECIES[c.speciesId].gfx}.png`} alt={c.name} />
                 <div className="pick-meta">
                   <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span></div>
                   <HpBar c={c} />
                 </div>
-                {c.id === pick && <span className="active-tag">choisi</span>}
+                {combatants.length > 1 && c.id === pick && <span className="active-tag">choisi</span>}
               </div>
             ))}
           </div>

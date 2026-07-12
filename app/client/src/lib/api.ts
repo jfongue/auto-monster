@@ -18,7 +18,7 @@ export interface ArenaOpponent {
     speciesId: string;
     name: string;
     level: number;
-    stats: { hp: number; atk: number; def: number; spd: number; sta: number };
+    stats: { hp: number; atk: number; def: number; spd: number };
     talents: string[];
   };
 }

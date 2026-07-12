@@ -23,22 +23,28 @@ function randBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
+/** Résumé d'une quête du jour, affiché en rappel sur la House. */
+export type QuestGlance = { id: string; icon: string; label: string; progress: number; target: number; done: boolean };
+
 export default function House({
   team,
+  quests,
   onOpenSheet,
+  onOpenDaily,
   onGoForest,
   onGoShop,
   onGoArena,
 }: {
   team: Character[];
+  quests: QuestGlance[];
   onOpenSheet: (id: string) => void;
+  onOpenDaily: () => void;
   onGoForest: () => void;
   onGoShop: () => void;
   onGoArena: () => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [focused, setFocused] = useState(false);
-  const [exitOpen, setExitOpen] = useState(false);
   const [pos, setPos] = useState({ x: 46, y: 12 });
   const [walking, setWalking] = useState(false);
   const [dir, setDir] = useState<1 | -1>(1);
@@ -146,26 +152,31 @@ export default function House({
           </div>
         )}
 
-        <div className="house-exit-wrap">
-          <button className="house-exit-btn" onClick={() => setExitOpen((v) => !v)}>
-            {exitOpen ? "✕ Fermer" : "🚪 Sortir"}
+        {quests.some((q) => !q.done) && (
+          <button className="house-quests" onClick={onOpenDaily} title="Journal du jour">
+            {quests.filter((q) => !q.done).map((q) => (
+              <span key={q.id} className="hq-item">
+                {q.icon} {q.progress}/{q.target}
+              </span>
+            ))}
           </button>
-          {exitOpen && (
-            <div className="house-exit-choices stagger">
-              <button className="exit-choice" onClick={onGoForest}>
-                <span className="exit-ico">🗺️</span>
-                <span className="exit-txt">Explorer le monde<span className="exit-sub">Carte du monde</span></span>
-              </button>
-              <button className="exit-choice" onClick={onGoArena}>
-                <span className="exit-ico">🏟️</span>
-                <span className="exit-txt">Arène<span className="exit-sub">Duels de dresseurs</span></span>
-              </button>
-              <button className="exit-choice" onClick={onGoShop}>
-                <span className="exit-ico">🏪</span>
-                <span className="exit-txt">Boutique<span className="exit-sub">Potions & fournitures</span></span>
-              </button>
-            </div>
-          )}
+        )}
+
+        <div className="house-exit-wrap">
+          <div className="house-exit-choices">
+            <button className="exit-choice" onClick={onGoForest}>
+              <span className="exit-ico">🗺️</span>
+              <span className="exit-txt">Explorer<span className="exit-sub">Carte du monde</span></span>
+            </button>
+            <button className="exit-choice" onClick={onGoArena}>
+              <span className="exit-ico">🏟️</span>
+              <span className="exit-txt">Arène<span className="exit-sub">Duels de dresseurs</span></span>
+            </button>
+            <button className="exit-choice" onClick={onGoShop}>
+              <span className="exit-ico">🏪</span>
+              <span className="exit-txt">Boutique<span className="exit-sub">Potions</span></span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -14,12 +14,10 @@ import {
 export default function DailyJournal({
   gs,
   onClaimDaily,
-  onClaimQuest,
   onClose,
 }: {
   gs: GameState;
   onClaimDaily: () => void;
-  onClaimQuest: (id: string) => void;
   onClose: () => void;
 }) {
   const day = todayKey();
@@ -70,12 +68,8 @@ export default function DailyJournal({
                     </div>
                   </div>
                   <div className="quest-right">
-                    {q.claimed ? (
-                      <span className="quest-check">✓</span>
-                    ) : done ? (
-                      <button className="primary sm" onClick={() => onClaimQuest(q.id)}>
-                        +{def.gold}💰{def.potions > 0 && ` +${def.potions}🧪`}
-                      </button>
+                    {q.claimed || done ? (
+                      <span className="quest-check">✓ +{def.gold}💰{def.potions > 0 && ` +${def.potions}🧪`}</span>
                     ) : (
                       <span className="quest-count">{q.progress}/{def.target}</span>
                     )}

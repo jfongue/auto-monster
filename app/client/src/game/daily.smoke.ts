@@ -1,7 +1,7 @@
 // Tests de la boucle quotidienne (state.ts v6) : bonus journalier + streak,
 // quêtes du jour, repos hors-ligne, compteur de duels d'arène.
 // Usage : npx tsx daily.smoke.ts (depuis src/game)
-import { freshState, ensureDaily, claimDaily, canClaimDaily, bumpQuest, claimQuest, applyOfflineRest, todayKey, hasDailyClaimable, arenaWinsToday } from "./state";
+import { freshState, ensureDaily, claimDaily, canClaimDaily, bumpQuest, applyOfflineRest, todayKey, hasDailyClaimable, arenaWinsToday } from "./state";
 import { makeCharacter } from "./engine/progression";
 
 let ok = 0, ko = 0;
@@ -23,14 +23,16 @@ t("streak continue → 3 + potion", c2.reward.streak === 3 && c2.reward.potions 
 const c3 = claimDaily({ ...s, dailyDay: "2026-07-01", dailyStreak: 9 });
 t("streak cassé → 1", c3.reward.streak === 1);
 
-// quêtes
-let b = bumpQuest(s, "win"); b = bumpQuest(b.state, "win"); b = bumpQuest(b.state, "win");
+// quêtes (auto-réclamées à la complétion)
+const goldBefore = s.gold;
+let b = bumpQuest(s, "win"); b = bumpQuest(b.state, "win");
+t("quête wins pas encore finie", b.completed.length === 0 && b.state.gold === goldBefore);
+b = bumpQuest(b.state, "win");
 t("quête wins complétée", b.completed.some(d => d.id === "q_wins"));
-const before = b.state.gold;
-const claimed = claimQuest(b.state, "q_wins");
-t("récompense quête", claimed.gold === before + 30 && claimed.quests!.list.find(q=>q.id==="q_wins")!.claimed);
-t("double claim impossible", claimQuest(claimed, "q_wins").gold === claimed.gold);
-t("claim quête non finie impossible", claimQuest(b.state, "q_care").gold === before);
+t("récompense auto-créditée", b.state.gold === goldBefore + 30 && b.state.quests!.list.find(q=>q.id==="q_wins")!.claimed);
+const again = bumpQuest(b.state, "win");
+t("pas de double récompense", again.completed.length === 0 && again.state.gold === b.state.gold);
+t("quête non concernée intacte", b.state.quests!.list.find(q=>q.id==="q_care")!.claimed === false);
 
 // repos hors-ligne
 const hurt = { ...s.team[0], life: 10, mood: 30 };

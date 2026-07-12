@@ -32,8 +32,6 @@ export function buildFighter(c: Character, side: 0 | 1, fid: number, rng: Rng): 
     atk: s.atk,
     def: s.def,
     spd: s.spd,
-    maxSta: s.sta,
-    sta: s.sta,
     atkBonus: 0,
     atkMult: 1,
     dodge: 4 + Math.round(s.spd / 12), // un peu d'esquive issue de la vitesse

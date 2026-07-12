@@ -384,13 +384,29 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .xpbar { height: 6px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin: 6px 0; border: 1px solid var(--line); }
 .xpbar-fill { height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc-2)); transition: width 0.3s; }
 
-/* stats */
+/* stats — barres étiquetées + tag de rôle (v0.20) */
 .statgrid { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .statgrid > span { font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 8px; border-radius: 8px; color: var(--ink-2); font-weight: 600; }
 
+.statbars { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; }
+.stat-role { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .02em; color: var(--acc); background: var(--acc-soft); border-radius: 999px; padding: 3px 10px; margin-bottom: 2px; }
+.statbar { display: grid; grid-template-columns: 20px 1fr 30px; align-items: center; gap: 8px; }
+.statbar-ico { font-size: 13px; text-align: center; }
+.statbar-track { height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.statbar-fill { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
+.statbar-fill.s-hp { background: #e5484d; }
+.statbar-fill.s-atk { background: #f2851b; }
+.statbar-fill.s-def { background: #3e7bfa; }
+.statbar-fill.s-spd { background: #12a594; }
+.statbar-val { font-size: 12px; font-weight: 700; color: var(--ink-2); text-align: right; }
+
 .talents-line { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.talent-mini { font-size: 11px; background: var(--acc-soft); border-radius: 7px; padding: 3px 8px; color: var(--acc); font-weight: 600; }
-.talent-chip { font-size: 13px; background: var(--acc-soft); border-radius: 10px; padding: 8px 12px; color: var(--acc); margin-top: 8px; }
+.talent-mini { font-size: 11px; background: var(--acc-soft); border-radius: 7px; padding: 3px 8px; color: var(--acc); font-weight: 600; cursor: help; }
+.talent-mini.cat-offensif { background: #fde5d6; color: #b8500b; }
+.talent-mini.cat-défensif { background: #dce8ff; color: #2b5cc4; }
+.talent-mini.cat-utilitaire { background: #d6f2ec; color: #0c7565; }
+.talent-chip { font-size: 13px; background: var(--acc-soft); border-radius: 10px; padding: 8px 12px; color: var(--acc); margin-top: 8px; cursor: help; }
+.talent-chip-desc { display: block; font-size: 11px; font-weight: 500; color: var(--ink-2); margin-top: 3px; }
 
 .heal-row { display: flex; gap: 8px; margin-top: 12px; }
 .heal-row button { flex: 1; font-size: 13px; }
@@ -463,6 +479,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .pop.crit { color: #e8a800; font-size: 24px; }
 .pop.heal { color: var(--green); }
 .pop.miss { color: var(--dim); font-size: 14px; }
+.pop.talent { color: #6b46c1; font-size: 15px; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
 .arena-caption { background: rgba(255,255,255,0.92); color: var(--ink); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; box-shadow: var(--shadow-sm); }
 
 /* ══ OVERLAYS / MODALS ════════════════════════════════════════════════════ */
@@ -625,6 +642,16 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-dots { display: flex; gap: 6px; }
 .house-dot { width: 9px; height: 9px; border-radius: 50%; padding: 0; border: none; background: var(--line-strong); box-shadow: none; }
 .house-dot.on { background: var(--acc); }
+
+/* Rappel compact des quêtes du jour (clic → journal 📅) */
+.house-quests {
+  display: flex; gap: 12px; align-items: center; justify-content: center;
+  padding: 8px 16px; border-radius: 999px; box-shadow: none;
+  background: var(--surface); border: 1px solid var(--line);
+  font-size: 13px; font-weight: 700; color: var(--dim);
+}
+.house-quests:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: none; }
+.house-quests .hq-item { white-space: nowrap; }
 
 .house-exit-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; margin-top: 4px; }
 .house-exit-btn {

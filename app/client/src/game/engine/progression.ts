@@ -33,7 +33,6 @@ export function levelDelta(base: Stats): Stats {
     atk: Math.max(1, Math.round(base.atk * 0.12)),
     def: Math.max(1, Math.round(base.def * 0.1)),
     spd: Math.max(1, Math.round(base.spd * 0.05)),
-    sta: Math.max(0, Math.round(base.sta * 0.08)),
   };
 }
 
@@ -47,7 +46,6 @@ export function statsForLevel(speciesId: string, level: number): Stats {
     atk: base.atk + d.atk * k,
     def: base.def + d.def * k,
     spd: base.spd + d.spd * k,
-    sta: base.sta + d.sta * k,
   };
 }
 
@@ -83,7 +81,6 @@ function scaleStats(base: Stats, level: number): Stats {
     atk: Math.round(base.atk * (1 + k * 0.15)),
     def: Math.round(base.def * (1 + k * 0.12)),
     spd: Math.round(base.spd * (1 + k * 0.05)),
-    sta: base.sta,
   };
 }
 
@@ -184,7 +181,7 @@ export function interact(c: Character, kind: InteractKind, now = Date.now(), ran
   }
   if (kind === "coacher") {
     if (good) {
-      const keys: StatKey[] = ["atk", "def", "spd", "sta"];
+      const keys: StatKey[] = ["atk", "def", "spd"];
       const stat = keys[Math.floor(rand() * keys.length)];
       const gain = 1 + Math.round(mag * 2);
       stats = applyStats(c.stats, { [stat]: gain });
@@ -220,7 +217,7 @@ export function interact(c: Character, kind: InteractKind, now = Date.now(), ran
   }
 }
 
-const STAT_NAME: Record<StatKey, string> = { hp: "PV", atk: "ATK", def: "DEF", spd: "VIT", sta: "STA" };
+const STAT_NAME: Record<StatKey, string> = { hp: "PV", atk: "ATK", def: "DEF", spd: "VIT" };
 
 // ── Soin continu (régénération temps réel) ──────────────────────────────────
 /** PV/ms d'un AM (0 → max en HEAL_FULL_MS). */

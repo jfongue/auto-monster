@@ -57,9 +57,8 @@ import {
   interactReadyIn,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import { HpBar, StatRow } from "./shared";
-import House from "./House";
-import SpeciesEditor from "./SpeciesEditor";
+import { HpBar, StatRow, TalentList, talentTooltip } from "./shared";
+import House, { type QuestGlance } from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
 import type { ArenaOpponent } from "../lib/api";
@@ -80,7 +79,7 @@ import {
   claimDaily,
   ensureDaily,
   bumpQuest,
-  claimQuest,
+  questDef,
   hasDailyClaimable,
   applyOfflineRest,
   arenaWinsToday,
@@ -105,7 +104,6 @@ type Modal =
   | { k: "amPage"; charId: string }
   | { k: "bestiary" }
   | { k: "inventory" }
-  | { k: "speciesEditor" }
   | { k: "ranchExtend" }
   | { k: "daily" };
 
@@ -116,7 +114,6 @@ const STAT_LABELS: Record<StatKey, string> = {
   atk: "⚔️ ATK",
   def: "🛡️ DEF",
   spd: "💨 VIT",
-  sta: "⚡ STA",
 };
 
 /** Zone contenant un encounter (combat). */
@@ -130,7 +127,6 @@ export default function GamePage() {
   const [speed, setSpeed] = useState(1);
   const [route, setRoute] = useState<Route>({ v: "house" });
   const [modal, setModal] = useState<Modal>({ k: "none" });
-  const [worldFading, setWorldFading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setTick] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -251,7 +247,7 @@ export default function GamePage() {
     const res = interact(c, kind);
     const { state: bumped, completed } = bumpQuest(gs, "interact");
     persist(withCharUpdate(bumped, charId, () => res.character));
-    completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
+    completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
   }
 
   // ── Marchand / soin / ranch ─────────────────────────────────────────────
@@ -281,15 +277,11 @@ export default function GamePage() {
     setModal({ k: "none" });
   }
 
-  // ── Voyage vers une zone (fade de la carte) ──────────────────────────────
+  // ── Voyage vers une zone (entrée immédiate, sans délai artificiel) ───────
   function goToZone(zoneId: string) {
     if (!isZoneUnlocked(gs, zoneId)) return;
-    setWorldFading(true);
-    window.setTimeout(() => {
-      persist({ ...gs, playerZone: zoneId });
-      setRoute({ v: "zone", zoneId });
-      setWorldFading(false);
-    }, 480);
+    persist({ ...gs, playerZone: zoneId });
+    setRoute({ v: "zone", zoneId });
   }
   function backToForest() {
     setRoute({ v: "forest" });
@@ -354,7 +346,7 @@ export default function GamePage() {
       s = { ...s, gold: s.gold + goldGain, duels: { day, wins: wins + 1 } };
       const b = bumpQuest(s, "duel");
       s = b.state;
-      b.completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
+      b.completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
     }
     s = withCharUpdate(s, charId, (c) =>
       pushHistory(c, "combat", won ? `Duel gagné vs ${duel.trainer}` : `Duel perdu vs ${duel.trainer}`)
@@ -438,7 +430,7 @@ export default function GamePage() {
     if (won) {
       const b = bumpQuest(nextState, "win");
       nextState = b.state;
-      b.completed.forEach((d) => pushToast(`✅ Quête accomplie : ${d.label} — récompense dans 📅`));
+      b.completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
     }
     persist(nextState);
     setModal({ k: "reward", reward: { outcome: won ? "win" : outcome === "lose" ? "lose" : "draw", loc, pStat, firstClear, levelsGained } });
@@ -465,10 +457,6 @@ export default function GamePage() {
     persist(state);
     pushToast(`🎁 Bonus du jour : +${reward.gold}💰${reward.potions ? ` +${reward.potions}🧪` : ""} — ${reward.streak} jour${reward.streak > 1 ? "s" : ""} d'affilée !`);
   }
-  function claimQuestReward(id: string) {
-    persist(claimQuest(gs, id));
-  }
-
   async function resetGame() {
     try { await api.resetGameState(); } catch { /* ignore */ }
     setGs(freshState());
@@ -516,7 +504,9 @@ export default function GamePage() {
       {route.v === "house" && (
         <House
           team={gs.team}
+          quests={questGlance(gs)}
           onOpenSheet={(id) => setModal({ k: "amPage", charId: id })}
+          onOpenDaily={() => setModal({ k: "daily" })}
           onGoForest={() => setRoute({ v: "forest" })}
           onGoShop={goShop}
           onGoArena={goArena}
@@ -542,7 +532,7 @@ export default function GamePage() {
           {route.v === "forest" && (
             <>
               <button className="ghost sm zone-back" onClick={goHouse}>← Maison</button>
-              <WorldMap gs={gs} fading={worldFading} onEnter={goToZone} />
+              <WorldMap gs={gs} onEnter={goToZone} />
             </>
           )}
           {route.v === "zone" && (
@@ -572,7 +562,6 @@ export default function GamePage() {
             <div className="hmenu-purse">💰 {gs.gold} · 🧪 {gs.potions}</div>
             <button className="hmenu-item" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}>📖 Bestiaire</button>
             <button className="hmenu-item" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}>🎒 Équipe</button>
-            <button className="hmenu-item" onClick={() => { setModal({ k: "speciesEditor" }); setMenuOpen(false); }}>🧬 Éditeur d'espèces</button>
             <button
               className="hmenu-item danger"
               onClick={() => {
@@ -609,8 +598,6 @@ export default function GamePage() {
 
       {modal.k === "bestiary" && <BestiaryModal gs={gs} onClose={() => setModal({ k: "none" })} />}
 
-      {modal.k === "speciesEditor" && <SpeciesEditor onClose={() => setModal({ k: "none" })} />}
-
       {modal.k === "amPage" && (() => {
         const c = findChar(modal.charId);
         if (!c) return null;
@@ -642,7 +629,7 @@ export default function GamePage() {
       )}
 
       {modal.k === "daily" && (
-        <DailyJournal gs={gs} onClaimDaily={claimDailyBonus} onClaimQuest={claimQuestReward} onClose={() => setModal({ k: "none" })} />
+        <DailyJournal gs={gs} onClaimDaily={claimDailyBonus} onClose={() => setModal({ k: "none" })} />
       )}
 
       {modal.k === "duelReward" && (
@@ -678,25 +665,18 @@ export default function GamePage() {
         ))}
       </div>
 
-      <BuildFooter />
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FOOTER — date/heure/auteur du dernier commit sur lequel la version tourne.
-// ═══════════════════════════════════════════════════════════════════════════
-
-function BuildFooter() {
-  const label = __COMMIT_DATE__
-    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" }).format(new Date(__COMMIT_DATE__))
-    : null;
-  return (
-    <footer className="build-footer">
-      {label ? `${__COMMIT_AUTHOR__} · ${label}` : "version locale (hors git)"}
-      {__COMMIT_HASH__ && <span className="build-hash"> · {__COMMIT_HASH__}</span>}
-    </footer>
-  );
+/** Résumé des quêtes du jour pour le rappel affiché sur la House. */
+function questGlance(s: GameState): QuestGlance[] {
+  const day = todayKey();
+  const list = s.quests?.day === day ? s.quests.list : [];
+  return list.map((q) => {
+    const def = questDef(q.id);
+    return { id: q.id, icon: def.icon, label: def.label, progress: q.progress, target: def.target, done: q.claimed || q.progress >= def.target };
+  });
 }
 
 /** Applique une transformation à un Character sur un état donné (pur). */
@@ -771,7 +751,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
                       </div>
                       <h3>{sp.name}</h3>
                       <StatRow stats={c.stats} />
-                      {sp.innate && <div className="talent-chip">✨ {talentName(sp.innate)}</div>}
+                      {sp.innate && <div className="talent-chip" title={talentTooltip(sp.innate)}>{TALENTS[sp.innate]?.icon ?? "✨"} {talentName(sp.innate)}<span className="talent-chip-desc">{TALENTS[sp.innate]?.desc}</span></div>}
                     </div>
                   );
                 })}
@@ -794,7 +774,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 // CARTE DU MONDE
 // ═══════════════════════════════════════════════════════════════════════════
 
-function WorldMap({ gs, fading, onEnter }: { gs: GameState; fading: boolean; onEnter: (id: string) => void }) {
+function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => void }) {
   const here = zoneById(gs.playerZone);
   const lead = gs.team[0];
   const leadSp = lead ? SPECIES[lead.speciesId] : null;
@@ -803,7 +783,7 @@ function WorldMap({ gs, fading, onEnter }: { gs: GameState; fading: boolean; onE
   const pctY = (y: number) => (y / MAP_WORLD_H) * 100;
 
   return (
-    <div className={`world ${fading ? "fading" : ""}`}>
+    <div className="world">
       <div className="world-head">
         <div className="world-title">🗺️ Carte du monde</div>
         <div className="world-sub">Clique une zone pour t'y rendre</div>
@@ -999,23 +979,39 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
         {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[enc.id]}</div>}
       </div>
 
-      <h4 className="pick-title">Choisis ton AM</h4>
-      <div className="pick-list">
-        {combatants.map((c) => {
-          const spc = SPECIES[c.speciesId];
-          const isRent = gs.rental?.char.id === c.id;
-          return (
-            <div key={c.id} className={`pick-row ${c.id === pick ? "active" : ""}`} onClick={() => setPick(c.id)}>
-              <img className="mini" src={`/sprites/${spc.gfx}.png`} alt={c.name} />
+      {combatants.length > 1 ? (
+        <>
+          <h4 className="pick-title">Qui envoyer au combat ?</h4>
+          <div className="pick-list">
+            {combatants.map((c) => {
+              const spc = SPECIES[c.speciesId];
+              const isRent = gs.rental?.char.id === c.id;
+              return (
+                <div key={c.id} className={`pick-row ${c.id === pick ? "active" : ""}`} onClick={() => setPick(c.id)}>
+                  <img className="mini" src={`/sprites/${spc.gfx}.png`} alt={c.name} />
+                  <div className="pick-meta">
+                    <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
+                    <HpBar c={c} />
+                  </div>
+                  {c.id === pick && <span className="active-tag">choisi</span>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        chosen && (
+          <div className="pick-list">
+            <div className="pick-row">
+              <img className="mini" src={`/sprites/${SPECIES[chosen.speciesId].gfx}.png`} alt={chosen.name} />
               <div className="pick-meta">
-                <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
-                <HpBar c={c} />
+                <div className="team-name">{chosen.name} <span className="lvl">N.{chosen.level}</span></div>
+                <HpBar c={chosen} />
               </div>
-              {c.id === pick && <span className="active-tag">choisi</span>}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        )
+      )}
 
       {chosen && currentLife(chosen) < chosen.stats.hp && (
         <HealControls c={chosen} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
@@ -1157,12 +1153,7 @@ function HealControls({ c, gold, potions, onToggleHeal, onPotion, onFull }: {
 function TalentChips({ c }: { c: Character }) {
   const sp = SPECIES[c.speciesId];
   const ids = [sp.innate, ...c.talents].filter(Boolean) as string[];
-  if (ids.length === 0) return null;
-  return (
-    <div className="talents-line">
-      {ids.map((t) => <span key={t} className="talent-mini" title={TALENTS[t]?.desc}>{talentName(t)}</span>)}
-    </div>
-  );
+  return <TalentList ids={ids} />;
 }
 
 function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?: number; onSheet: () => void; onToggleHeal: () => void }) {
@@ -1372,7 +1363,7 @@ function CaptureModal({ onCapture }: { onCapture: () => void }) {
           </div>
           <h3>{sp.name} <span className="rare-tag">RARE</span></h3>
           <StatRow stats={makeCharacter(RARE_REWARD).stats} />
-          {sp.innate && <div className="talent-chip">✨ {talentName(sp.innate)}</div>}
+          {sp.innate && <div className="talent-chip" title={talentTooltip(sp.innate)}>{TALENTS[sp.innate]?.icon ?? "✨"} {talentName(sp.innate)}<span className="talent-chip-desc">{TALENTS[sp.innate]?.desc}</span></div>}
         </div>
         <button className="primary big" onClick={onCapture}>Capturer</button>
       </div>

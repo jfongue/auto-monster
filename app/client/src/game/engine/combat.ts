@@ -132,11 +132,23 @@ export function runCombat(input: CombatInput): CombatResult {
     if (res.dodged) {
       emit({ t: "dodge", fid: actor.fid, tid: target.fid });
     } else {
+      // Coup critique (Frénésie) : label au-dessus de l'attaquant.
+      if (res.crit) emit({ t: "talentProc", fid: actor.fid, talent: "frenzy", label: "FRÉNÉSIE !" });
+
       target.life = Math.max(0, target.life - res.damage);
       dealt.set(actor.fid, (dealt.get(actor.fid) ?? 0) + res.damage);
       taken.set(target.fid, (taken.get(target.fid) ?? 0) + res.damage);
       emit({ t: "damage", fid: actor.fid, tid: target.fid, life: target.life, crit: res.crit });
       emit({ t: "lost", fid: target.fid, life: target.life });
+
+      // Talents défensifs de la cible : labels lisibles au-dessus d'elle.
+      if (target.talents.includes("stoneskin")) {
+        emit({ t: "talentProc", fid: target.fid, talent: "stoneskin", label: "🪨 −15%" });
+      }
+      if (target.talents.includes("thorns")) {
+        const reflect = Math.max(1, Math.round(res.damage * 0.25));
+        emit({ t: "talentProc", fid: target.fid, talent: "thorns", label: `🌵 −${reflect}` });
+      }
 
       // épines & co peuvent avoir blessé l'attaquant
       const after: AttackInfo = { attacker: actor, target, damage: res.damage };

@@ -116,7 +116,6 @@ export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
             <span>⚔️</span>
             <span>🛡️</span>
             <span>💨</span>
-            <span>⚡</span>
             <span>Rareté</span>
             <span>Type</span>
             <span>PvE sauvage</span>
@@ -133,7 +132,7 @@ export default function SpeciesEditor({ onClose }: { onClose: () => void }) {
                   value={r.name}
                   onChange={(e) => patch(id, (row) => ({ ...row, name: e.target.value }))}
                 />
-                {(["hp", "atk", "def", "spd", "sta"] as const).map((k) => (
+                {(["hp", "atk", "def", "spd"] as const).map((k) => (
                   <input
                     key={k}
                     type="number"

@@ -1,12 +1,11 @@
 // F2 — Modèle de données 3 niveaux (GDD v0.3, sans éléments, 5 stats génériques).
 
-/** Les 5 stats de base. */
+/** Les 4 stats de base (la stamina a été retirée en v0.20 : jamais utilisée). */
 export type Stats = {
   hp: number;
   atk: number;
   def: number;
-  spd: number; // vitesse → pilote la file chronométrique (F4)
-  sta: number; // stamina → ressource des talents (F8)
+  spd: number; // vitesse → pilote la file chronométrique (F4) + esquive
 };
 
 export type StatKey = keyof Stats;
@@ -132,8 +131,6 @@ export type Fighter = {
   atk: number;
   def: number;
   spd: number;
-  maxSta: number;
-  sta: number;
   // bonus mutables par les talents/skills
   atkBonus: number; // additif au score d'attaque (F5.1)
   atkMult: number; // multiplicateur du prochain assaut (F5.2)
@@ -157,6 +154,7 @@ export type Action =
   | { t: "goto"; fid: number; tid: number }
   | { t: "return"; fid: number }
   | { t: "damage"; fid: number; tid: number; life: number; crit: boolean }
+  | { t: "talentProc"; fid: number; talent: string; label: string }
   | { t: "dodge"; fid: number; tid: number }
   | { t: "lost"; fid: number; life: number }
   | { t: "regen"; fid: number; life: number }

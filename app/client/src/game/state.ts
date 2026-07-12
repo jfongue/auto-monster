@@ -222,31 +222,31 @@ export function ensureDaily(s: GameState, day = todayKey()): GameState {
   return { ...s, quests, duels };
 }
 
-/** Avance les quêtes d'un type ; renvoie aussi celles qui viennent d'être complétées. */
+/**
+ * Avance les quêtes d'un type. Les quêtes qui se complètent sont
+ * **auto-réclamées** : la récompense (or/potions) est créditée immédiatement,
+ * sans étape de claim manuel dans le journal. Renvoie les quêtes complétées
+ * pour que l'UI affiche le feedback (toast).
+ */
 export function bumpQuest(s: GameState, kind: QuestKind, amount = 1): { state: GameState; completed: QuestDef[] } {
   const st = ensureDaily(s);
   const completed: QuestDef[] = [];
+  let gold = 0, potions = 0;
   const list = st.quests!.list.map((q) => {
     const def = questDef(q.id);
-    if (def.kind !== kind || q.claimed || q.progress >= def.target) return q;
+    if (def.kind !== kind || q.claimed) return q;
     const progress = Math.min(def.target, q.progress + amount);
-    if (progress >= def.target) completed.push(def);
+    if (progress >= def.target) {
+      completed.push(def);
+      gold += def.gold;
+      potions += def.potions;
+      return { ...q, progress, claimed: true };
+    }
     return { ...q, progress };
   });
-  return { state: { ...st, quests: { ...st.quests!, list } }, completed };
-}
-
-/** Réclame la récompense d'une quête complétée. */
-export function claimQuest(s: GameState, id: string): GameState {
-  const st = ensureDaily(s);
-  const q = st.quests!.list.find((x) => x.id === id);
-  const def = questDef(id);
-  if (!q || q.claimed || q.progress < def.target) return st;
   return {
-    ...st,
-    gold: st.gold + def.gold,
-    potions: st.potions + def.potions,
-    quests: { ...st.quests!, list: st.quests!.list.map((x) => (x.id === id ? { ...x, claimed: true } : x)) },
+    state: { ...st, gold: st.gold + gold, potions: st.potions + potions, quests: { ...st.quests!, list } },
+    completed,
   };
 }
 

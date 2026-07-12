@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.19 — Document de référence du projet
+> Version 0.21 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,20 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.21
+- [UX — boucle raccourcie] **Chemin House→combat aplati** : le sous-menu « 🚪 Sortir » est supprimé — les 3 sorties (🗺️ Explorer / 🏟️ Arène / 🏪 Boutique) sont affichées **directement** sur la House. Le **fade artificiel de 480 ms** à l'entrée d'une zone est retiré (entrée immédiate). La **pick-list « Choisis ton AM » est masquée quand l'équipe n'a qu'un seul combattant** (zone et arène : le seul AM est envoyé d'office, sa fiche PV reste visible).
+- [Quêtes — auto-claim] **Les quêtes du jour sont auto-réclamées** : à la complétion, l'or/les potions sont **crédités immédiatement** (`bumpQuest` applique la récompense et marque `claimed`), toast « ✅ … +30💰 ! ». Plus de bouton de claim dans le Journal (les quêtes finies affichent « ✓ +X💰 ») ; `claimQuest` supprimé. Le bonus quotidien, lui, reste à réclamer (rituel volontaire).
+- [Quêtes — visibilité] **Rappel des quêtes sur la House** : pilule compacte (`house-quests`) sous le compagnon montrant la progression des quêtes non finies (« ⚔️ 2/3 · 💞 1/3 ») ; clic → ouvre le Journal 📅. Disparaît quand tout est fait.
+- [Nettoyage — client joueur] **Éditeur d'espèces retiré de l'UI** (entrée du menu ☰ + modal supprimés ; `SpeciesEditor.tsx` et l'API `species_overrides` restent en place, outil de dev à réexposer si besoin). **`BuildFooter` (hash git/auteur/date) supprimé** du client.
+- [Tests] `daily.smoke.ts` adapté à l'auto-claim (16 checks ok). Moteur : 105 ok / 0 échec. `tsc -b` + `vite build` OK.
+
+### 2026-07-12 — v0.20
+- [Stats] **Passage de 5 à 4 stats** : la **stamina (`sta`) est retirée** partout (type `Stats`, `data.ts`, `progression`, `fighter`, `Fighter` runtime, Éditeur d'espèces, fiches). Elle était **jamais lue en combat** (stat morte) — F8 « énergie » abandonné sous cette forme. Les 4 stats restantes (❤️ Vie, ⚔️ Force, 🛡️ Armure, 💨 Vitesse) ont chacune un effet visible.
+- [Combat — lisibilité] **Nouvelle action `talentProc` dans l'ActionLog** émise par le moteur quand un talent se déclenche : **Frénésie** (« FRÉNÉSIE ! » au crit), **Peau de pierre** (« 🪨 −15% »), **Épines** (« 🌵 −X » sur la cible), **Régén** (« +X 💚 »). Le renderer (`CombatView`) pop un **label flottant violet** au-dessus du combattant → l'effet est enfin relié à sa cause à l'écran. Rétro-compatible (le renderer ignore l'inconnu).
+- [Fiche/UX] **`StatRow` refondu en barres étiquetées + tag de rôle** (💨 Rapide / ⚔️ Cogneur / 🛡️ Tank / ⚖️ Polyvalent) déduit des stats. **Talents affichés avec icône + infobulle** homogène (icône · catégorie — effet) partout : liste de la fiche (`TalentList`), chip du talent inné (avec ligne d'effet visible), pastilles colorées par catégorie (offensif/défensif/utilitaire).
+- [Talents] `TalentDef` enrichi : `icon` + `desc` clarifiée (phrase d'effet lisible). Helpers `talentIcon`, `talentTooltip`, `CATEGORY_LABEL`.
+- [Tests] Moteur : 105 ok / 0 échec (inchangé). `tsc -b` OK, `vite build` OK (bundle émis).
 
 ### 2026-07-12 — v0.19
 - [Boucle quotidienne] **Nouveau pilier « revenir tous les jours »** (state v6) : **bonus quotidien** à la connexion (or croissant avec le **streak** de jours consécutifs, +1 potion tous les 3 jours), **3 quêtes du jour** (gagner 3 combats, 3 interactions, gagner 1 duel d'arène) avec récompenses à réclamer, reset au changement de jour. Nouveau **Journal du jour** (modal 📅, s'ouvre seul la 1re fois de la journée, pastille rouge quand quelque chose est réclamable).
@@ -134,8 +148,8 @@
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4). **v0.17 :** grande salle façon House élargie, combattants face à face (position de repos fixe + sprite ennemi retourné), assaut = déplacement vers l'adversaire → impact (bulle dégâts/esquive) → retour. |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster) ; variations non implémentées |
-| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` **et `kind` (Auto Monster / Monstre)** éditables par espèce + **Éditeur d'espèces** (menu ☰) persisté globalement (`species_overrides`) |
-| Carte / exploration (« Explorer le monde ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), accessible via **Sortir → Explorer le monde** depuis la House ; anneaux de complétion, déblocage à 75%, fade à l'arrivée. **v0.17 :** avatar joueur = mini sprite de l'AM en tête d'équipe (plus d'emoji 🧍) |
+| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` et `kind` éditables par espèce (`species_overrides`). **v0.21 :** l'**Éditeur d'espèces est retiré de l'UI joueur** (composant + API conservés, outil de dev) |
+| Carte / exploration (« Explorer le monde ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), accessible via le bouton **🗺️ Explorer** de la House (v0.21 : plus de sous-menu « Sortir », entrée de zone immédiate sans fade) ; anneaux de complétion, déblocage à 75%. **v0.17 :** avatar joueur = mini sprite de l'AM en tête d'équipe (plus d'emoji 🧍) |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
 | Rencontres sauvages (zone) | Oui (§5) | ✅ **v0.17 :** plus de choix d'ennemi — la rencontre non nettoyée est présentée automatiquement, ennemi centré, sans ligne de butin ; choix de l'AM à envoyer conservé |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
@@ -145,13 +159,14 @@
 | Onboarding | Oui (§7) | ✅ **Dialogue Disco Elysium** (mentor Sylve) + choix du 1er AM |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
+| Stats & talents lisibles (v0.20) | Oui | ✅ **4 stats** (stamina retirée) ; fiche en **barres + tag de rôle** ; talents avec **icône + infobulle** ; **labels flottants de talent en combat** (`talentProc`) |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
 | Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
 | Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues |
 | Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile (breakpoints 900/600/360) |
-| Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour, testé (`daily.smoke.ts`) |
+| Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour. **v0.21 :** quêtes **auto-réclamées** à la complétion (toast avec récompense) + **rappel de progression sur la House** (pilule → 📅). Testé (`daily.smoke.ts`, 16 checks) |
 | Repos hors-ligne (PV/humeur temps réel) | Oui (v0.19) | ✅ `applyOfflineRest` (PV max en ~6 h, humeur → 60), toast de retour |
 | PvP | Oui (§6) | 🟡 **Arène de duels asynchrones** (`Arena.tsx` + `GET /api/arena/opponents`) : duel amical vs le meilleur AM d'un autre joueur (ou bot Nova), 3 victoires récompensées/jour. Pas encore de PvP synchrone/classé ni de liste d'amis |
 | UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` ; header avec bourse permanente + Journal 📅 ; toasts de feedback |
@@ -225,13 +240,13 @@ Plus de deck ni de file de cartes. Un monstre agit via :
 | Feature | Statut | Décision |
 |---------|--------|----------|
 | **F1 — Moteur déterministe** | ✅ Retenu | Socle. RNG seedé (`mulberry32`), `runCombat` headless, zéro DOM. Garantit replays PvP et tests reproductibles. |
-| **F2 — Modèle de données** | ✅ Retenu (simplifié) | Principe 3 niveaux conservé : `SpeciesDef` (bestiaire statique) → `Character` (monstre possédé, persisté, plat) → `Fighter` (runtime, dérivé à l'init, jeté en fin de combat). **Sans système d'éléments** : 5 stats génériques (HP / attaque / défense / vitesse / stamina) au lieu des vecteurs élémentaires. Détail du modèle auto monster : voir §4. |
+| **F2 — Modèle de données** | ✅ Retenu (simplifié) | Principe 3 niveaux conservé : `SpeciesDef` (bestiaire statique) → `Character` (monstre possédé, persisté, plat) → `Fighter` (runtime, dérivé à l'init, jeté en fin de combat). **Sans système d'éléments** : 4 stats génériques (HP / attaque / défense / vitesse — stamina retirée en v0.20) au lieu des vecteurs élémentaires. Détail du modèle auto monster : voir §4. |
 | **F3 — Système d'éléments** | ❌ Abandonné | Pas de forces/faiblesses élémentaires. Dégâts basés uniquement sur les stats génériques. |
 | **F4 — Tour chronométrique** | ✅ Retenu | File temporelle : agit le `Fighter` au `time` minimum, puis `time += base × timeMultiplier` (dérivé de la vitesse). Pas de multiplicateurs par élément (F3 abandonné). Garde-fous anti-combat-infini (limite de tours). |
 | **F5 — Résolution des dégâts** | ✅ Retenu (complet) | Fonction pure `resolveAttack(attacker, target, attack, rng)` : score attaque vs défense, aléa borné (~±30%), planchers, esquive, immunités. Inclut le point d'accroche `hooks.defenses` (callbacks défensifs : bouclier, renvoi, réduction…) pour l'extensibilité via F6. Sans calcul élémentaire. |
 | **F6 — Skills par hooks** | ✅ Retenu | Une skill = une fonction qui mute le `Fighter` ou enregistre un hook (`events` probabilistes au tour, `attacks` spéciales, `defenses`, `afterAttack`, `onKill`, `onLost`). Triés par `priority`, tirés par `proba` (RNG seedé). Ajouter une skill = 1 fichier, sans toucher à la boucle. Champ `elt` du SkillDef retiré (pas d'éléments). |
 | **F7 — Statuts & altérations** | ✅ Retenu | `StatusInfo` avec `duration`, `onApply/onTick/onRemove`. Poison, bouclier, buff/debuff, intangible… Effets périodiques au fil du temps, retrait auto à expiration. Émet `status`/`noStatus` dans le log. |
-| **F8 — Système d'énergie** | ✅ Retenu (stat) | Devient la **stamina**, l'une des 5 stats de base (§4.1). Ressource consommée par les talents/skills coûteux. |
+| **F8 — Système d'énergie** | ❌ Abandonné (v0.20) | La **stamina** n'était jamais lue en combat → retirée. On passe à **4 stats** (§4.1). Une jauge d'énergie visible pilotant une « spéciale » pourra être réintroduite plus tard comme mécanique à part entière. |
 | **F9 — Journal d'actions (ActionLog)** | ✅ Retenu | Unique sortie du moteur : liste ordonnée et sérialisable (JSON) d'actions (union discriminée exhaustive). Pont moteur→renderer, transport réseau, sauvegarde et replays PvP. |
 | **F10 — Playback animé** | ✅ Retenu | Le renderer dépile l'ActionLog action par action (`playNext`), séquence stricte. Permet pause / lecture pas-à-pas / contrôle de vitesse. |
 | **F11 — Sprites & animations** | ⏳ Plus tard | États d'anim nommés, idle vivant, assets par clé `gfx`. Reporté : démarrer en placeholders, formaliser plus tard. |
@@ -273,7 +288,7 @@ Définition statique partagée par tous les monstres d'une même famille.
 |-------|-------------|
 | **nom** | Identité de l'espèce. |
 | **élément inné** | Talent **signature** inné, partagé par toute l'espèce, qui définit son *playstyle* général. ⚠️ Ce n'est **pas** un type de dégât : aucune force/faiblesse élémentaire (cohérent avec F3 abandonné). C'est un talent de base toujours présent. |
-| **stats de base** | 5 stats : **HP**, **attaque**, **défense**, **vitesse**, **stamina**. |
+| **stats de base** | **4 stats** (v0.20) : **HP/Vie**, **attaque/Force**, **défense/Armure**, **vitesse**. La stamina a été retirée (jamais utilisée en combat). |
 | **palette de talents** | Pool de talents que les membres de l'espèce peuvent **apprendre en évoluant** (pioché aux paliers de niveau, voir 4.3). |
 
 **Stamina** = ressource consommée par les talents/skills (matérialise F8 — l'énergie devient une **stat de base** plutôt qu'un système séparé). La vitesse pilote toujours la file de tour chronométrique (F4).
@@ -305,7 +320,7 @@ Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs nive
 |-----------|--------|
 | **Offensif** | Lié à la **phase d'offense** (attaques, procs au moment de frapper). |
 | **Défensif** | Lié à la **phase de défense** (boucliers, renvoi, réduction…). |
-| **Utilitaire** | **Tout le reste** (buffs, invocations, soutien, économie de stamina…). |
+| **Utilitaire** | **Tout le reste** (buffs, invocations, soutien, vitesse…). |
 
 ### 4.5 Acquisition & composition
 
