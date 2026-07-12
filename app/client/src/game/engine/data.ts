@@ -1,6 +1,6 @@
 // Données statiques du jeu : espèces (auto monsters + bestioles), map, loot.
 
-import type { SpeciesDef, Stats, InteractKind, Personality } from "./types";
+import type { SpeciesDef, Stats, InteractKind, Personality, Character, BranchDef } from "./types";
 
 const st = (hp: number, atk: number, def: number, spd: number): Stats => ({
   hp,
@@ -22,8 +22,30 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "regen",
     talentPool: ["regen", "stoneskin", "swift", "thorns"],
     tint: "#aaa4a0",
-    desc: "Boule de duvet cornue, mi-chouette mi-mouton, adore somnoler. Douce et increvable, elle récupère vite entre deux combats.",
+    desc: "Boule de duvet cornue, mi-chouette mi-mouton, adore somnoler. Douce et increvable, elle récupère vite entre deux combats. Style : survie — elle s'accroche et régénère.",
     wildEncounterable: false,
+    branches: [
+      {
+        id: "rempart",
+        name: "Rempart",
+        icon: "🪨",
+        desc: "Le mur : encaisse et régénère jusqu'à épuiser l'adversaire.",
+        tiers: [
+          { level: 3, talent: "stoneskin" },
+          { level: 6, talent: "secondwind" },
+        ],
+      },
+      {
+        id: "draineur",
+        name: "Draineur",
+        icon: "🩸",
+        desc: "Le vampire : chaque coup lui rend des PV, il s'auto-alimente.",
+        tiers: [
+          { level: 3, talent: "ponction" },
+          { level: 6, talent: "sangsue" },
+        ],
+      },
+    ],
   },
   fungoot: {
     id: "fungoot",
@@ -36,8 +58,30 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "thorns",
     talentPool: ["thorns", "stoneskin", "regen", "ember"],
     tint: "#b29075",
-    desc: "Champignon tacheté renfrogné, pousse en cercles dans la mousse humide. Rancunier : il rend chaque coup reçu avec intérêt.",
+    desc: "Champignon tacheté renfrogné, pousse en cercles dans la mousse humide. Rancunier : il rend chaque coup reçu avec intérêt. Style : poison — l'usure lente.",
     wildEncounterable: false,
+    branches: [
+      {
+        id: "spores",
+        name: "Spores défensives",
+        icon: "🛡️",
+        desc: "Défensif : punit qui le frappe en l'empoisonnant, puis tient.",
+        tiers: [
+          { level: 3, talent: "spores" },
+          { level: 6, talent: "stoneskin" },
+        ],
+      },
+      {
+        id: "virulence",
+        name: "Virulence",
+        icon: "☠️",
+        desc: "Offensif : empoisonne la cible puis la frappe plus fort.",
+        tiers: [
+          { level: 3, talent: "inoculation" },
+          { level: 6, talent: "virulence" },
+        ],
+      },
+    ],
   },
   emberpup: {
     id: "emberpup",
@@ -50,8 +94,30 @@ export const SPECIES: Record<string, SpeciesDef> = {
     innate: "ember",
     talentPool: ["ember", "frenzy", "swift", "stoneskin"],
     tint: "#bb6d40",
-    desc: "Lionceau à crinière de braise, plus joueur qu'agressif malgré ses flammes. Vif et mordant en combat.",
+    desc: "Lionceau à crinière de braise, plus joueur qu'agressif malgré ses flammes. Vif et mordant en combat. Style : agressif — il frappe fort et vite.",
     wildEncounterable: false,
+    branches: [
+      {
+        id: "frenesie",
+        name: "Frénésie",
+        icon: "⚡",
+        desc: "Critiques : chaque coup fatal le rend plus fort, il monte en puissance.",
+        tiers: [
+          { level: 3, talent: "frenzy" },
+          { level: 6, talent: "fournaise" },
+        ],
+      },
+      {
+        id: "brasier",
+        name: "Brasier",
+        icon: "🔥",
+        desc: "Brûlure : enflamme la cible puis l'achève sur les flammes.",
+        tiers: [
+          { level: 3, talent: "embrasement" },
+          { level: 6, talent: "pyromane" },
+        ],
+      },
+    ],
   },
 
   // ── Auto monster rare (capture après le boss) ────────────────────────────
@@ -63,11 +129,33 @@ export const SPECIES: Record<string, SpeciesDef> = {
     gfx: "haloux",
     size: 105,
     baseStats: st(70, 22, 15, 48),
-    innate: "swift",
+    innate: "evasion",
     talentPool: ["swift", "regen", "ember", "stoneskin", "thorns", "frenzy"],
     tint: "#d7c093",
-    desc: "Oiselet angélique à l'auréole dorée, rare porte-bonheur des voyageurs. Se lie à qui a prouvé sa valeur face à Gravelmaw.",
+    desc: "Oiselet angélique à l'auréole dorée, rare porte-bonheur des voyageurs. Insaisissable, il danse entre les coups. Style : esquive.",
     wildEncounterable: false,
+    branches: [
+      {
+        id: "riposte",
+        name: "Riposte",
+        icon: "⚔️",
+        desc: "Contre : chaque esquive devient une contre-attaque cinglante.",
+        tiers: [
+          { level: 3, talent: "riposte" },
+          { level: 6, talent: "contreParfait" },
+        ],
+      },
+      {
+        id: "elan",
+        name: "Élan",
+        icon: "🌀",
+        desc: "Snowball : chaque esquive le rend plus fort et plus insaisissable.",
+        tiers: [
+          { level: 3, talent: "elan" },
+          { level: 6, talent: "danse" },
+        ],
+      },
+    ],
   },
 
   // ── Boss : bestiole massive et coriace (combats longs → égalités) ─────────
@@ -152,6 +240,34 @@ export function applySpeciesOverrides(overrides: Record<string, Partial<SpeciesD
 
 export const STARTERS = ["poofowl", "fungoot", "emberpup"] as const;
 export const RARE_REWARD = "haloux";
+
+// ── Branches de spécialisation (GDD 4.2/4.3) ─────────────────────────────────
+/** Niveau auquel le joueur choisit sa branche (irréversible). */
+export const BRANCH_CHOICE_LEVEL = 3;
+
+/** Les branches d'une espèce (vide si aucune). */
+export const branchesOf = (speciesId: string): BranchDef[] => SPECIES[speciesId]?.branches ?? [];
+
+/** Une branche par id, pour une espèce. */
+export const branchDef = (speciesId: string, branchId: string | null | undefined): BranchDef | undefined =>
+  branchId ? branchesOf(speciesId).find((b) => b.id === branchId) : undefined;
+
+/**
+ * Talents ACTIFS d'un Character : ceux de sa branche choisie dont le palier de
+ * niveau est atteint. (L'inné est ajouté séparément par buildFighter.)
+ * Rétro-compat : les `talents` manuellement posés (éditeur/ranch) sont conservés.
+ */
+export function activeTalents(c: Character): string[] {
+  const out = [...(c.talents ?? [])];
+  const b = branchDef(c.speciesId, c.branch);
+  if (b) for (const tier of b.tiers) if (c.level >= tier.level) out.push(tier.talent);
+  return out;
+}
+
+/** Le Character a-t-il des branches ET n'en a pas encore choisi une, alors qu'il a le niveau ? */
+export function needsBranchChoice(c: Character): boolean {
+  return c.level >= BRANCH_CHOICE_LEVEL && !c.branch && branchesOf(c.speciesId).length > 0;
+}
 
 // ── Carte : grande toile, lieux de types variés, déplacement par nœuds ──────
 /** Type d'un lieu sur la carte. */

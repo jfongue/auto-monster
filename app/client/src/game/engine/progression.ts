@@ -12,6 +12,7 @@ import {
   MOOD_MIN,
   MOOD_MAX,
   INTERACT_COOLDOWN_MS,
+  branchDef,
 } from "./data";
 
 let uid = 0;
@@ -145,6 +146,13 @@ export function withMoodBattle(c: Character): Character {
     ...c,
     stats: { ...c.stats, atk: Math.max(1, Math.round(c.stats.atk * f)), spd: Math.max(1, Math.round(c.stats.spd * f)) },
   };
+}
+
+/** Choisit (irréversiblement) une branche de spécialisation ; journalise. */
+export function chooseBranch(c: Character, branchId: string, now = Date.now()): Character {
+  const b = branchDef(c.speciesId, branchId);
+  const next = { ...c, branch: branchId };
+  return pushHistory(next, "levelup", `Spécialisation choisie : ${b?.icon ?? ""} ${b?.name ?? branchId}`, now);
 }
 
 /** Ajoute une entrée d'historique (cap à 40 entrées). */

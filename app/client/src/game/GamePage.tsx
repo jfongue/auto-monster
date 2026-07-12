@@ -32,6 +32,11 @@ import {
   zoneById,
   encounterById,
   applySpeciesOverrides,
+  branchesOf,
+  branchDef,
+  activeTalents,
+  needsBranchChoice,
+  BRANCH_CHOICE_LEVEL,
   type MapLocation,
   type Npc,
   type Zone,
@@ -55,6 +60,7 @@ import {
   pushHistory,
   interact,
   interactReadyIn,
+  chooseBranch,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
 import { HpBar, StatRow, TalentList, talentTooltip, roleOf } from "./shared";
@@ -102,6 +108,7 @@ type Modal =
   | { k: "capture" }
   | { k: "chat"; npcId: string; zoneId: string }
   | { k: "amPage"; charId: string }
+  | { k: "branch"; charId: string }
   | { k: "bestiary" }
   | { k: "inventory" }
   | { k: "ranchExtend" }
@@ -440,9 +447,22 @@ export default function GamePage() {
     if (modal.k !== "reward") return;
     const r = modal.reward;
     const wonBoss = r.loc.isBoss && r.outcome === "win" && r.firstClear;
+    const pendingBranch = gs.team.find(needsBranchChoice);
     if (wonBoss && !gs.capturedRare) setModal({ k: "capture" });
+    else if (pendingBranch) setModal({ k: "branch", charId: pendingBranch.id });
     else if (gs.rental && gs.rental.fightsLeft <= 0) setModal({ k: "ranchExtend" });
     else setModal({ k: "none" });
+  }
+
+  /** Applique le choix de branche d'un AM (au palier ou depuis sa fiche). */
+  function pickBranch(charId: string, branchId: string) {
+    const team = gs.team.map((c) => (c.id === charId ? chooseBranch(c, branchId) : c));
+    const next: GameState = { ...gs, team };
+    persist(next);
+    const c = team.find((x) => x.id === charId);
+    const b = c ? branchDef(c.speciesId, branchId) : undefined;
+    if (b) pushToast(`${b.icon} ${c!.name} se spécialise : ${b.name} !`);
+    setModal({ k: "none" });
   }
 
   function captureRare() {
@@ -608,8 +628,15 @@ export default function GamePage() {
             rentedFights={isRent ? gs.rental!.fightsLeft : undefined}
             onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid}
             onInteract={doInteract} onClose={() => setModal({ k: "none" })}
+            onChooseBranch={() => setModal({ k: "branch", charId: c.id })}
           />
         );
+      })()}
+
+      {modal.k === "branch" && (() => {
+        const c = findChar(modal.charId);
+        if (!c) return null;
+        return <BranchModal c={c} onPick={(bid) => pickBranch(c.id, bid)} />;
       })()}
 
       {modal.k === "combat" && (
@@ -1205,8 +1232,73 @@ function HealControls({ c, gold, potions, onToggleHeal, onPotion, onFull }: {
 
 function TalentChips({ c }: { c: Character }) {
   const sp = SPECIES[c.speciesId];
-  const ids = [sp.innate, ...c.talents].filter(Boolean) as string[];
-  return <TalentList ids={ids} />;
+  const ids = [sp.innate, ...activeTalents(c)].filter(Boolean) as string[];
+  // dédoublonne (l'inné peut réapparaître dans une branche)
+  return <TalentList ids={[...new Set(ids)]} />;
+}
+
+/** Bloc « Spécialisation » de la fiche : branche choisie, ou invitation à choisir. */
+function BranchBlock({ c, onChoose }: { c: Character; onChoose: () => void }) {
+  const branches = branchesOf(c.speciesId);
+  if (branches.length === 0) return null;
+  const chosen = branchDef(c.speciesId, c.branch);
+  return (
+    <div className="branch-block">
+      <h4 className="block-title">Spécialisation</h4>
+      {chosen ? (
+        <div className="branch-current">
+          <div className="branch-head"><span className="branch-ico">{chosen.icon}</span> <b>{chosen.name}</b></div>
+          <p className="muted small">{chosen.desc}</p>
+          <div className="branch-tiers">
+            {chosen.tiers.map((t) => {
+              const unlocked = c.level >= t.level;
+              const td = TALENTS[t.talent];
+              return (
+                <span key={t.talent} className={`branch-tier ${unlocked ? "on" : "off"}`} title={talentTooltip(t.talent)}>
+                  {unlocked ? "✓" : `N.${t.level}`} {td?.icon} {td?.name}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : c.level >= BRANCH_CHOICE_LEVEL ? (
+        <button className="primary sm" onClick={onChoose}>⚡ Choisir une spécialisation</button>
+      ) : (
+        <p className="muted small">Choix de spécialisation débloqué au niveau {BRANCH_CHOICE_LEVEL} (2 voies au choix).</p>
+      )}
+    </div>
+  );
+}
+
+/** Modal de choix de branche : présente les 2 voies et leurs talents. */
+function BranchModal({ c, onPick }: { c: Character; onPick: (branchId: string) => void }) {
+  const branches = branchesOf(c.speciesId);
+  return (
+    <div className="overlay">
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+        <h3>⚡ {c.name} se spécialise</h3>
+        <p className="muted">Choisis sa voie — <b>irréversible</b>. Chaque voie débloque ses talents en montant de niveau.</p>
+        <div className="branch-choices">
+          {branches.map((b) => (
+            <button key={b.id} className="branch-choice" onClick={() => onPick(b.id)}>
+              <div className="branch-head"><span className="branch-ico">{b.icon}</span> <b>{b.name}</b></div>
+              <p className="branch-desc">{b.desc}</p>
+              <div className="branch-tiers">
+                {b.tiers.map((t) => {
+                  const td = TALENTS[t.talent];
+                  return (
+                    <span key={t.talent} className="branch-tier" title={talentTooltip(t.talent)}>
+                      N.{t.level} · {td?.icon} {td?.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?: number; onSheet: () => void; onToggleHeal: () => void }) {
@@ -1309,10 +1401,10 @@ function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: str
   );
 }
 
-function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose }: {
+function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose, onChooseBranch }: {
   c: Character; gold: number; potions: number; rentedFights?: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onInteract: (id: string, k: InteractKind) => void; onClose: () => void;
+  onInteract: (id: string, k: InteractKind) => void; onClose: () => void; onChooseBranch: () => void;
 }) {
   const sp = SPECIES[c.speciesId];
   const xpNext = xpForNext(c.level);
@@ -1354,6 +1446,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
               ))}
             </div>
             <TalentChips c={c} />
+            <BranchBlock c={c} onChoose={onChooseBranch} />
             <h4 className="block-title">Soins</h4>
             <HealControls c={c} gold={gold} potions={potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
             <InteractButtons c={c} onInteract={onInteract} />

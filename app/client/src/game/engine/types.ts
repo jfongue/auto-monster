@@ -13,6 +13,27 @@ export type StatKey = keyof Stats;
 /** Rareté d'un auto monster / d'une bestiole. */
 export type Rarity = "common" | "rare" | "boss";
 
+// ── Altérations d'état (F7) : dégâts sur la durée (poison, brûlure…) ──────────
+export type StatusKind = "poison" | "burn";
+/** Une altération active sur un Fighter : dégâts par tick, tours restants. */
+export type StatusEntry = { kind: StatusKind; dmg: number; turns: number; icon: string };
+
+/**
+ * Une branche de spécialisation d'un auto monster (GDD 4.2/4.3).
+ * Le joueur en choisit UNE à `BRANCH_CHOICE_LEVEL` ; ses talents se débloquent
+ * ensuite par paliers de niveau. Deux branches par espèce = deux playstyles.
+ */
+export type BranchTier = { level: number; talent: string };
+export type BranchDef = {
+  id: string;
+  name: string;
+  icon: string;
+  /** Résumé du style de jeu de la branche (une phrase). */
+  desc: string;
+  /** Talents débloqués aux paliers (triés par niveau croissant). */
+  tiers: BranchTier[];
+};
+
 /**
  * F2 niveau 1 — Définition d'espèce (data statique).
  * Partagée par tous les exemplaires d'une même famille.
@@ -28,8 +49,10 @@ export type SpeciesDef = {
   baseStats: Stats;
   /** Talent signature inné, toujours présent (GDD 4.1). Id de talent. */
   innate: string | null;
-  /** Palette de talents apprenables aux paliers (GDD 4.3). */
+  /** Palette de talents apprenables aux paliers (GDD 4.3, legacy/éditeur). */
   talentPool: string[];
+  /** Deux branches de spécialisation (GDD 4.2). Absent = pas de branches. */
+  branches?: BranchDef[];
   tint: string; // couleur placeholder/aura
   /** Descriptif de l'espèce (lore affiché sur la fiche). */
   desc: string;
@@ -73,6 +96,8 @@ export type Character = {
   stats: Stats;
   /** talents acquis (ids), max 3 hors inné (GDD 4.3) */
   talents: string[];
+  /** branche de spécialisation choisie (id) ; null/absent = pas encore choisie */
+  branch?: string | null;
   /** timestamp (ms) du début d'un soin progressif en cours ; null = pas de soin */
   healStart?: number | null;
   // ── Identité individuelle (AM possédés ; absent pour les ennemis) ──
@@ -105,6 +130,8 @@ export type FighterHooks = {
   afterAttack: ((info: AttackInfo) => void)[];
   /** proc au début du tour du combattant (régén, buff…) F6 events */
   onTurn: TurnHook[];
+  /** quand ce combattant ESQUIVE une attaque (riposte, élan…) */
+  onDodge: ((self: Fighter, attacker: Fighter, mgr: CombatManager) => void)[];
 };
 
 /** Interface minimale exposée aux talents pendant le combat (F6). */
@@ -141,6 +168,20 @@ export type Fighter = {
   // capacités / talents
   talents: string[];
   hooks: FighterHooks;
+  // ── état de branches / altérations (réglé par les talents à l'init) ──
+  statuses: StatusEntry[]; // altérations actives sur ce combattant (poison, brûlure)
+  critChance: number; // % de coup critique (0 = jamais) — Frénésie, etc.
+  critMult: number; // multiplicateur d'un critique
+  lifesteal: number; // 0..1 : fraction des dégâts infligés récupérée en PV (Ponction)
+  ampVsStatus: Partial<Record<StatusKind, number>>; // ×dégâts contre une cible affligée (Pyromane/Virulence)
+  onHitStatus: StatusEntry | null; // altération infligée à la cible quand on la frappe (Embrasement/Inoculation)
+  poisonOnHurt: StatusEntry | null; // altération infligée à l'attaquant quand on est touché (Spores)
+  rageOnCrit: number; // +Force (fraction de l'atk de base) gagnée à chaque critique (Fournaise)
+  regenLowMult: number; // multiplicateur de régén sous 40% PV (Second souffle)
+  riposte: boolean; // contre-attaque à l'esquive (Riposte)
+  riposteCrit: boolean; // les ripostes sont des critiques (Contre parfait)
+  dodgeAtkGain: number; // +Force (fraction) gagnée à chaque esquive (Élan)
+  dodgeSnowball: boolean; // chaque esquive augmente aussi esquive + vitesse (Danse du vent)
 };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -156,6 +197,8 @@ export type Action =
   | { t: "damage"; fid: number; tid: number; life: number; crit: boolean }
   | { t: "talentProc"; fid: number; talent: string; label: string }
   | { t: "dodge"; fid: number; tid: number }
+  | { t: "status"; fid: number; kind: StatusKind; label: string }
+  | { t: "statusTick"; fid: number; kind: StatusKind; life: number; dmg: number }
   | { t: "lost"; fid: number; life: number }
   | { t: "regen"; fid: number; life: number }
   | { t: "dead"; fid: number }

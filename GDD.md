@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.23 — Document de référence du projet
+> Version 0.24 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,17 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.24
+- [Auto Monsters — refonte identités & branches] **Chaque AM jouable a désormais un playstyle clair + 2 branches de spécialisation cohérentes**, choisies par le joueur à un palier (`BRANCH_CHOICE_LEVEL = 3`, irréversible), dont les talents se débloquent par niveaux (core au niv 3, upgrade au niv 6). Pas de changement de forme (décision : branches = ensembles de talents uniquement).
+  - **Emberpup** 🔥 (agressif) → **Frénésie** (critiques → *Fournaise* : chaque crit augmente durablement la Force) | **Brasier** (*Embrasement* : brûlure DoT → *Pyromane* : +35% dégâts sur cible en feu).
+  - **Fungoot** 🍄 (poison) → **Spores défensives** (*Spores* : empoisonne l'attaquant quand touché → *Peau de pierre*) | **Virulence** (*Inoculation* : empoisonne la cible → *Virulence* : +35% dégâts sur cible empoisonnée).
+  - **Poofowl** 🐑 (survie) → **Rempart** (*Peau de pierre* → *Second souffle* : régén ×2 sous 40% PV) | **Draineur** (*Ponction* : vol de vie 30% → *Sangsue* : 55%).
+  - **Haloux** 🕊️ (esquive, inné passé de `swift` à **`evasion`** +16% esquive) → **Riposte** (contre à l'esquive → *Contre parfait* : ripostes critiques) | **Élan** (esquive → +Force stacking → *Danse du vent* : esquive → +esquive/+vitesse).
+- [Moteur — F7 statuts implémenté] **Altérations sur la durée** (`poison`/`burn`) : `StatusEntry` sur le `Fighter`, dégâts appliqués au **début du tour de la victime** (actions `status` + `statusTick`), retrait auto à expiration, mortelles. Généralisation du **critique** (`critChance`/`critMult` au lieu du hard-code Frénésie), **amplification vs statut** (`ampVsStatus`), **vol de vie** (`lifesteal`), **rage au crit** (`rageOnCrit`), **régén conditionnelle** (`regenLowMult`), **riposte/élan à l'esquive** (`onDodge`, flags `riposte`/`riposteCrit`/`dodgeAtkGain`/`dodgeSnowball`). Déterminisme préservé (même seed → même log).
+- [Data/Modèle] `SpeciesDef.branches?` (type `BranchDef` : id/nom/icône/desc + `tiers` niveau→talent) ; `Character.branch` ; helpers `branchesOf`/`branchDef`/`activeTalents`/`needsBranchChoice` (data) et `chooseBranch` (progression). 14 talents (dont 12 nouveaux : evasion, fournaise, embrasement, pyromane, spores, inoculation, virulence, secondwind, ponction, sangsue, riposte, contreParfait, elan, danse).
+- [UI] **Modal de choix de branche** (au palier via l'écran de récompense, ou depuis la fiche AM), **bloc « Spécialisation »** sur la fiche (voie choisie + talents débloqués/verrouillés par palier), rendu `status`/`statusTick` dans `CombatView` (pop rouge `-X ☠️/🔥`, labels de branche).
+- [Tests] `engine.test.ts` : **+27 checks** (branches, déblocage par niveau, statuts poison/brûlure en combat, riposte/élan/vol de vie, amplification, déterminisme). **132 ok / 0 échec** (105 → 132). `tsc -b` OK, `vite build` OK (bundle émis).
 
 ### 2026-07-12 — v0.23
 - [Onboarding — refonte] **Abandon du dialogue Disco Elysium (mentor Sylve)** au profit d'un **wizard plein écran en 4 étapes** avec barre de progression (pastilles), une action/concept par écran : **(1) Choisis ton monstre** (3 starters, tag de rôle + barres de stats + talent inné, phrase-clé « ton monstre se bat tout seul »), **(2) Sa fiche** (zoom sur le choix, 4 cartouches ❤️⚔️🛡️💨 avec valeur + explication, encart talent inné « se déclenche seul »), **(3) Ton premier combat** (combat guidé réel contre un ennemi débilité, seed fixe, vitesse ×1), **(4) Ta maison** (rappel du pilier « stratégie = préparation » + schéma de boucle Explorer→Or/XP→Renforcer, puis adoption).
@@ -158,7 +169,9 @@
 |--------|---------|------------------------|
 | Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
 | Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4). **v0.17 :** grande salle façon House élargie, combattants face à face (position de repos fixe + sprite ennemi retourné), assaut = déplacement vers l'adversaire → impact (bulle dégâts/esquive) → retour. |
-| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster) ; variations non implémentées |
+| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster). **v0.24 : chaque AM jouable a une identité + 2 branches de spécialisation** (talents débloqués par palier) ; variations régionales/spéciales toujours non implémentées |
+| Branches de spécialisation | Oui (§4.2/4.3, v0.24) | ✅ `SpeciesDef.branches` sur les 4 AM ; choix joueur irréversible au niv 3 (`BRANCH_CHOICE_LEVEL`), talents core (niv 3) + upgrade (niv 6) ; modal de choix + bloc fiche ; `activeTalents`/`needsBranchChoice`/`chooseBranch` |
+| Statuts & altérations (F7) | Oui (§3.3 F7, v0.24) | ✅ **Poison & Brûlure** (DoT) implémentés : ticks au début du tour de la victime, actions `status`/`statusTick`, retrait auto ; amplification de dégâts vs cible affligée |
 | Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` et `kind` éditables par espèce (`species_overrides`). **v0.21 :** l'**Éditeur d'espèces est retiré de l'UI joueur** (composant + API conservés, outil de dev) |
 | Carte / exploration (« Explorer le monde ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), accessible via le bouton **🗺️ Explorer** de la House (v0.21 : plus de sous-menu « Sortir », entrée de zone immédiate sans fade) ; anneaux de complétion, déblocage à 75%. **v0.17 :** avatar joueur = mini sprite de l'AM en tête d'équipe (plus d'emoji 🧍) |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
@@ -169,7 +182,7 @@
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
 | Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (`CombatView tutorial`, pauses + bulles) → hub/boucle → adoption. Remplace le dialogue Disco Elysium |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
-| Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix) ; talents innés seuls |
+| Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix). **v0.24 : talent inné + branche choisie** (dont les talents se débloquent par palier de niveau) |
 | Stats & talents lisibles (v0.20) | Oui | ✅ **4 stats** (stamina retirée) ; fiche en **barres + tag de rôle** ; talents avec **icône + infobulle** ; **labels flottants de talent en combat** (`talentProc`) |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |

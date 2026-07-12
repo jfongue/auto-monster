@@ -167,10 +167,26 @@ export default function CombatView({
         delay = 60;
         break;
       case "talentProc":
-        // Label flottant expliquant l'effet du talent (crit, épines, peau de pierre, régén…).
-        addPop(a.fid, a.label, a.talent === "regen" ? "heal" : "talent");
+        // Label flottant expliquant l'effet du talent (crit, épines, poison, riposte…).
+        addPop(a.fid, a.label, a.talent === "regen" || a.talent === "ponction" ? "heal" : "talent");
         delay = 220;
         break;
+      case "status":
+        // Une altération vient d'être posée (Poison ☠️ / Brûlure 🔥).
+        addPop(a.fid, a.label, "talent");
+        delay = 240;
+        break;
+      case "statusTick": {
+        // Dégâts périodiques d'une altération : mise à jour PV + pop rouge.
+        setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], life: a.life, flash: true } } : s));
+        addPop(a.fid, `-${a.dmg} ${a.kind === "poison" ? "☠️" : "🔥"}`, "dmg");
+        window.setTimeout(
+          () => setSprites((s) => (s[a.fid] ? { ...s, [a.fid]: { ...s[a.fid], flash: false } } : s)),
+          160
+        );
+        delay = 260;
+        break;
+      }
       case "lost":
         delay = 10;
         break;
@@ -265,6 +281,7 @@ function findPrevLife(log: Action[], i: number, tid: number): number {
     const a = log[k];
     if (a.t === "damage" && a.tid === tid) return a.life;
     if (a.t === "regen" && a.fid === tid) return a.life;
+    if (a.t === "statusTick" && a.fid === tid) return a.life;
     if (a.t === "add" && a.fid === tid) return a.life;
   }
   return 0;

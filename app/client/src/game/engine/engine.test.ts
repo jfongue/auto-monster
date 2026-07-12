@@ -1,7 +1,9 @@
 // Tests headless du moteur (F19). Exécuter : npx tsx engine.test.ts
 import { runCombat } from "./combat";
-import { makeCharacter, makeEnemy, addXp, xpForNext, currentLife, startHeal, interact, interactReadyIn, withMoodBattle } from "./progression";
-import { COMBAT_LOCATIONS } from "./data";
+import { makeCharacter, makeLeveledCharacter, makeEnemy, addXp, xpForNext, currentLife, startHeal, interact, interactReadyIn, withMoodBattle, chooseBranch } from "./progression";
+import { COMBAT_LOCATIONS, activeTalents, needsBranchChoice, branchesOf, BRANCH_CHOICE_LEVEL } from "./data";
+import { buildFighter } from "./fighter";
+import { makeRng } from "./rng";
 import type { Character } from "./types";
 
 let pass = 0;
@@ -115,6 +117,75 @@ console.log("Caractère & interactions (par individu)");
   // mood bas → malus de combat (atk réduite)
   const grumpy = { ...makeCharacter("emberpup"), mood: 0 };
   check("humeur basse → atk de combat réduite", withMoodBattle(grumpy).stats.atk < grumpy.stats.atk);
+}
+
+console.log("Branches — déblocage par niveau & choix");
+{
+  // Chaque AM jouable a bien 2 branches.
+  for (const id of ["poofowl", "fungoot", "emberpup", "haloux"]) {
+    check(`${id} a 2 branches`, branchesOf(id).length === 2, `n=${branchesOf(id).length}`);
+  }
+  // Avant le palier : pas de choix requis, aucun talent de branche.
+  const low = makeLeveledCharacter("emberpup", 2);
+  check("niv<palier → pas de choix requis", !needsBranchChoice(low));
+  check("niv<palier → aucun talent de branche", activeTalents(low).length === 0);
+  // Au palier sans choix : choix requis.
+  const mid = makeLeveledCharacter("emberpup", BRANCH_CHOICE_LEVEL);
+  check("niv=palier sans branche → choix requis", needsBranchChoice(mid));
+  // Choix + déblocage progressif.
+  const chosen3 = chooseBranch(makeLeveledCharacter("emberpup", 3), "brasier");
+  check("branche choisie enregistrée", chosen3.branch === "brasier");
+  check("niv3 → 1 talent de branche (core)", activeTalents(chosen3).includes("embrasement") && activeTalents(chosen3).length === 1);
+  const chosen6 = chooseBranch(makeLeveledCharacter("emberpup", 6), "brasier");
+  check("niv6 → 2 talents (core+upgrade)", activeTalents(chosen6).includes("embrasement") && activeTalents(chosen6).includes("pyromane"));
+  // Deux branches distinctes → talents distincts.
+  const frenz = chooseBranch(makeLeveledCharacter("emberpup", 6), "frenesie");
+  check("branche Frénésie ≠ talents de Brasier", frenz.talents.length === 0 && activeTalents(frenz).includes("frenzy") && !activeTalents(frenz).includes("embrasement"));
+}
+
+console.log("Combat — statuts (poison/brûlure) & mécaniques de branche");
+{
+  const rng = makeRng(1);
+  // Brasier (Embrasement) : le Fighter applique une altération à la frappe.
+  const brasier = buildFighter(chooseBranch(makeLeveledCharacter("emberpup", 6), "brasier"), 0, 0, rng);
+  check("Embrasement → onHitStatus=burn", brasier.onHitStatus?.kind === "burn");
+  check("Pyromane → ampVsStatus.burn>1", (brasier.ampVsStatus.burn ?? 0) > 1);
+  // Virulence (Fungoot) : poison à la frappe + amplification.
+  const viru = buildFighter(chooseBranch(makeLeveledCharacter("fungoot", 6), "virulence"), 0, 1, rng);
+  check("Inoculation → onHitStatus=poison", viru.onHitStatus?.kind === "poison");
+  check("Virulence → ampVsStatus.poison>1", (viru.ampVsStatus.poison ?? 0) > 1);
+  // Spores défensives : empoisonne l'attaquant quand touché.
+  const spores = buildFighter(chooseBranch(makeLeveledCharacter("fungoot", 3), "spores"), 0, 2, rng);
+  check("Spores → poisonOnHurt=poison", spores.poisonOnHurt?.kind === "poison");
+  // Draineur (Poofowl) : vol de vie.
+  const drain = buildFighter(chooseBranch(makeLeveledCharacter("poofowl", 6), "draineur"), 0, 3, rng);
+  check("Ponction+Sangsue → lifesteal=0.55", Math.abs(drain.lifesteal - 0.55) < 1e-9);
+  // Haloux Riposte : flags de contre.
+  const rip = buildFighter(chooseBranch(makeLeveledCharacter("haloux", 6), "riposte"), 0, 4, rng);
+  check("Riposte → riposte=true", rip.riposte === true);
+  check("Contre parfait → riposteCrit=true", rip.riposteCrit === true);
+  // Élan : gain d'atk à l'esquive.
+  const elan = buildFighter(chooseBranch(makeLeveledCharacter("haloux", 6), "elan"), 0, 5, rng);
+  check("Élan → dodgeAtkGain>0", elan.dodgeAtkGain > 0);
+  check("Danse du vent → dodgeSnowball=true", elan.dodgeSnowball === true);
+
+  // Combat réel : une brûlure produit des ticks de dégâts dans le log.
+  const burner = chooseBranch(makeLeveledCharacter("emberpup", 6), "brasier");
+  let sawTick = false, sawStatus = false;
+  for (let seed = 0; seed < 30 && !sawTick; seed++) {
+    const r = runCombat({ seed, teamA: [burner], teamB: [makeEnemy(COMBAT_LOCATIONS[2])] });
+    if (r.log.some((a) => a.t === "status")) sawStatus = true;
+    if (r.log.some((a) => a.t === "statusTick")) sawTick = true;
+    check("log toujours terminé par finish", r.log[r.log.length - 1].t === "finish", `seed ${seed}`);
+    for (const s of r.stats) check(`PV jamais négatifs (${s.name})`, s.lifeLeft >= 0, `seed ${seed}`);
+  }
+  check("une altération est posée en combat (status)", sawStatus);
+  check("des dégâts de brûlure sont infligés (statusTick)", sawTick);
+
+  // Déterminisme préservé avec les nouvelles mécaniques.
+  const r1 = runCombat({ seed: 42, teamA: [burner], teamB: [makeEnemy(COMBAT_LOCATIONS[1])] });
+  const r2 = runCombat({ seed: 42, teamA: [burner], teamB: [makeEnemy(COMBAT_LOCATIONS[1])] });
+  check("branches : même seed → log identique", JSON.stringify(r1.log) === JSON.stringify(r2.log));
 }
 
 console.log(`\nRésultat : ${pass} ok, ${fail} échec(s)`);

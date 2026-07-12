@@ -634,7 +634,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-critter-anim.walking { animation: houseHop 0.55s ease-in-out infinite; }
 .house-critter-anim.zoomed { transform: scale(2.1); z-index: 3; }
 .house-critter img { max-width: 82%; max-height: 82%; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.14)); transform: scaleX(1); transition: transform 0.3s ease; }
-.house-critter.dir-l img { transform: scaleX(-1); }
+.house-critter.dir-r img { transform: scaleX(-1); }
 .house-critter-shadow { position: absolute; bottom: 2px; width: 58%; height: 9px; border-radius: 50%; background: rgba(20,22,30,0.13); filter: blur(2px); }
 @keyframes houseHop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-13px); } }
 
@@ -791,3 +791,19 @@ button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
+
+/* ── Branches de spécialisation (fiche AM + modal de choix) ───────────────── */
+.branch-block { margin-top: 14px; }
+.branch-current { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }
+.branch-head { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.branch-ico { font-size: 18px; }
+.branch-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.branch-tier { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
+.branch-tier.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.branch-tier.off { opacity: 0.55; }
+.branch-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 560px) { .branch-choices { grid-template-columns: 1fr; } }
+.branch-choice { text-align: left; padding: 14px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; transition: border-color .15s, transform .15s; }
+.branch-choice:hover { border-color: var(--accent); transform: translateY(-2px); }
+.branch-choice .branch-head { font-size: 16px; }
+.branch-desc { margin: 6px 0 0; color: var(--dim); font-size: 13px; }

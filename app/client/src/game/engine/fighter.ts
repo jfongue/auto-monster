@@ -1,7 +1,7 @@
 // F2 — buildFighter : Character (plat) → Fighter (runtime), sans effet de bord.
 
 import type { Character, Fighter } from "./types";
-import { SPECIES } from "./data";
+import { SPECIES, activeTalents } from "./data";
 import { TALENTS } from "./talents";
 import type { Rng } from "./rng";
 
@@ -39,11 +39,25 @@ export function buildFighter(c: Character, side: 0 | 1, fid: number, rng: Rng): 
     time: rng.float(TIMEBASE) * TIMECOEF,
     timeMultiplier,
     talents: [],
-    hooks: { defenses: [], afterAttack: [], onTurn: [] },
+    hooks: { defenses: [], afterAttack: [], onTurn: [], onDodge: [] },
+    // état de branches / altérations (réglé par les talents ci-dessous)
+    statuses: [],
+    critChance: 0,
+    critMult: 1.6,
+    lifesteal: 0,
+    ampVsStatus: {},
+    onHitStatus: null,
+    poisonOnHurt: null,
+    rageOnCrit: 0,
+    regenLowMult: 1,
+    riposte: false,
+    riposteCrit: false,
+    dodgeAtkGain: 0,
+    dodgeSnowball: false,
   };
 
-  // Talent inné (toujours présent) puis talents acquis.
-  const all = [sp?.innate, ...c.talents].filter(Boolean) as string[];
+  // Talent inné (toujours présent) puis talents de branche débloqués par niveau.
+  const all = [sp?.innate, ...activeTalents(c)].filter(Boolean) as string[];
   for (const tid of all) {
     if (f.talents.includes(tid)) continue;
     f.talents.push(tid);
