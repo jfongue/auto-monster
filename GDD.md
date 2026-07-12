@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.24 — Document de référence du projet
+> Version 0.25 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,9 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.25
+- [DA — fond global `.game-shell`] **Simplification du fond de page principal** : suppression des deux radial-gradients colorés (indigo/teal) superposés au linear-gradient, remplacés par un **gris uni** (`var(--bg)`, `#f2f4fb`). Jugé « immonde » par le joueur ; le fond de page est désormais plat, sans halo décoratif.
 
 ### 2026-07-12 — v0.24
 - [Auto Monsters — refonte identités & branches] **Chaque AM jouable a désormais un playstyle clair + 2 branches de spécialisation cohérentes**, choisies par le joueur à un palier (`BRANCH_CHOICE_LEVEL = 3`, irréversible), dont les talents se débloquent par niveaux (core au niv 3, upgrade au niv 6). Pas de changement de forme (décision : branches = ensembles de talents uniquement).
