@@ -108,6 +108,16 @@ button.ghost:hover:not(:disabled) { background: var(--surface); box-shadow: var(
 button.sm { padding: 7px 12px; font-size: 13px; }
 button.danger { color: var(--red); border-color: #ffd7dd; }
 
+/* ── icônes SVG (currentColor, alignées au texte) ────────────────────────── */
+.ico { display: inline-block; vertical-align: -0.15em; flex: none; }
+.chip-ico { display: inline-flex; align-items: center; gap: 6px; }
+.ico-hp { color: #e5484d; }
+.ico-atk { color: #f2851b; }
+.ico-def { color: #3e7bfa; }
+.ico-spd { color: #12a594; }
+.ico-gold { color: var(--gold); }
+.ico-potion { color: var(--green); }
+
 .muted { color: var(--dim); }
 .small { font-size: 12px; }
 .center { text-align: center; }
@@ -291,7 +301,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   background: linear-gradient(135deg, color-mix(in srgb, var(--zt, #6c5ce7) 20%, #fff), #fff);
   border: 1px solid var(--line); box-shadow: var(--shadow); padding: clamp(16px, 3vw, 26px);
 }
-.zone-hero .zh-icon { font-size: 42px; }
+.zone-hero .zh-icon { font-size: 42px; color: color-mix(in srgb, var(--zt, #6c5ce7) 65%, var(--ink)); display: flex; }
 .zone-hero .zone-name { font-size: clamp(20px, 3.4vw, 28px); font-weight: 700; margin: 4px 0 2px; }
 .zone-hero .zh-sub { color: var(--dim); }
 .zone-hero .zh-state { display: inline-block; margin-top: 10px; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
@@ -392,6 +402,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 @keyframes healpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.25); } }
 .hp-num { font-size: 11px; color: var(--dim); }
 .hp-num.sm { font-size: 10px; }
+.hp-heal-ico { color: var(--green); vertical-align: -0.1em; margin-left: 2px; }
 .xpbar { height: 6px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin: 6px 0; border: 1px solid var(--line); }
 .xpbar-fill { height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc-2)); transition: width 0.3s; }
 
@@ -451,8 +462,9 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 
 /* ══ COMBAT — grande salle façon Home, les deux camps se font face ══════════ */
 .combat-wrap { max-width: 1200px; margin: 0 auto; width: 100%; padding: 16px; animation: viewIn 0.4s cubic-bezier(.22,.9,.3,1) both; }
-.combat-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: 700; }
-.speedctl { display: flex; gap: 6px; }
+.combat-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 700; flex-wrap: wrap; }
+.combat-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.speedctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .speedctl button { padding: 6px 12px; font-size: 12px; }
 .speedctl button.on { background: linear-gradient(135deg, var(--acc), var(--acc-2)); color: #fff; border-color: transparent; }
 
@@ -735,15 +747,15 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   padding: 16px 10px; border-radius: 14px; text-align: center; box-shadow: none;
   background: var(--surface); border: 1px solid var(--line);
 }
-.exit-choice:hover:not(:disabled) { box-shadow: none; border-color: var(--line-strong); }
-.exit-choice .exit-ico { font-size: 22px; filter: grayscale(1) opacity(0.75); }
-.exit-choice .exit-txt { font-weight: 700; display: flex; flex-direction: column; }
-.exit-choice .exit-sub { font-size: 11px; font-weight: 500; color: var(--dim); margin-top: 2px; }
+.exit-choice:hover:not(:disabled) { box-shadow: none; border-color: var(--acc); }
+.exit-choice:hover:not(:disabled) .exit-ico { color: var(--acc); }
+.exit-choice .exit-ico { color: var(--ink-2); display: grid; place-items: center; transition: color 0.18s; }
+.exit-choice .exit-txt { font-weight: 700; font-size: 14px; }
 
 /* ══ BOUTIQUE (page dédiée minimale) ══════════════════════════════════════ */
 .boutique-screen { max-width: 420px; }
 .boutique-card { text-align: center; }
-.boutique-icon { font-size: 46px; margin: 10px 0; }
+.boutique-icon { color: var(--green); margin: 12px 0; display: grid; place-items: center; }
 
 /* ══ ÉDITEUR D'ESPÈCES ════════════════════════════════════════════════════ */
 .editor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
@@ -773,8 +785,10 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap;
   background: var(--surface); border: 1px solid var(--line);
   padding: 7px 12px; border-radius: 999px; box-shadow: var(--shadow-sm);
+  display: inline-flex; align-items: center; gap: 10px;
 }
-.mini-purse .dot { color: var(--faint); }
+.mini-purse .purse-item { display: inline-flex; align-items: center; gap: 4px; }
+.mini-purse .dot, .hmenu-purse .dot { color: var(--faint); }
 .journal-btn {
   position: relative; width: 38px; height: 38px; border-radius: 11px; padding: 0;
   display: grid; place-items: center; font-size: 17px;
@@ -861,3 +875,54 @@ button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
 .branch-choice:hover { border-color: var(--acc); transform: translateY(-2px); }
 .branch-choice .branch-head { font-size: 16px; }
 .branch-desc { margin: 6px 0 0; color: var(--dim); font-size: 13px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ICÔNES SVG — ajustements chrome + REVUE RESPONSIVE (desktop ↔ mobile)
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Tags compacts avec icône : gap resserré pour rester lisibles en petit. */
+.zone-badge.chip-ico { gap: 4px; }
+.boss-tag.chip-ico, .rare-tag.chip-ico { gap: 3px; }
+.zh-state.chip-ico { gap: 6px; }
+/* Le rôle (RoleTag) : l'icône garde sa couleur d'axe (hp/atk/def/spd). */
+.stat-role .ico { vertical-align: -0.12em; }
+.ob-role.chip-ico { display: inline-flex; align-items: center; gap: 5px; }
+/* Récap loot : items or/potion/xp alignés, retour à la ligne propre. */
+.loot-line { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; align-items: center; }
+.boutique-card .chip-ico { display: inline-flex; }
+
+/* ── Carte du monde : plus d'air en mobile pour éviter les chevauchements ── */
+@media (max-width: 680px) {
+  .world-canvas { aspect-ratio: 1200 / 760; }
+  .zone-node { width: clamp(88px, 30vw, 130px); gap: 6px; }
+  .zone-orb { width: 62px; height: 62px; font-size: 26px; border-width: 2px; }
+  .zone-label .zn { font-size: 12px; padding: 2px 8px; }
+  .zone-label .zpct { font-size: 10px; }
+  .zone-badge { font-size: 10px; padding: 2px 6px; top: -4px; right: 4px; }
+  .player-pin { width: 26px; height: 26px; }
+}
+
+/* ── Combat : salle un peu plus compacte sur petits écrans ─────────────── */
+@media (max-width: 560px) {
+  .combat-wrap { padding: 10px; }
+  .combat-room { min-height: clamp(240px, 60vw, 340px); border-radius: 18px; }
+  .arena-caption { font-size: 12px; padding: 6px 12px; }
+}
+
+/* ── Header : jamais de débordement, la bourse peut se réduire ─────────── */
+@media (max-width: 420px) {
+  .mini-top { padding-left: 12px; padding-right: 12px; }
+  .mini-right { gap: 6px; }
+  .mini-purse { gap: 7px; padding: 6px 10px; }
+  .journal-btn, .hamburger-btn, .mini-logo { width: 34px; height: 34px; }
+}
+
+/* ── Fiche AM & heal-row : les 3 boutons de soin tiennent sur une ligne ── */
+.heal-row { flex-wrap: wrap; }
+.heal-row button { min-width: 0; }
+@media (max-width: 360px) {
+  .heal-row button { flex: 1 1 100%; }
+}
+
+/* ── Boutons pleine largeur avec icône : centrage garanti ──────────────── */
+button.primary.big.chip-ico { display: inline-flex; align-items: center; }

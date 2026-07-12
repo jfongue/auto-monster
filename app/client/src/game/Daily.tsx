@@ -10,6 +10,7 @@ import {
   questDef,
   todayKey,
 } from "./state";
+import { Icon } from "./icons";
 
 export default function DailyJournal({
   gs,
@@ -31,8 +32,8 @@ export default function DailyJournal({
     <div className="overlay" onClick={onClose}>
       <div className="modal daily-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>📅 Aujourd'hui</h3>
-          <button className="ghost sm" onClick={onClose}>✕</button>
+          <h3 className="chip-ico"><Icon name="journal" size={18} /> Aujourd'hui</h3>
+          <button className="ghost sm" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>
         </div>
         <div className="modal-body">
           <div className={`daily-bonus ${claimable ? "" : "done"}`}>
@@ -45,8 +46,8 @@ export default function DailyJournal({
               </div>
             </div>
             {claimable ? (
-              <button className="primary" onClick={onClaimDaily}>
-                +{reward.gold}💰{reward.potions > 0 && ` +${reward.potions}🧪`}
+              <button className="primary chip-ico" onClick={onClaimDaily}>
+                <Icon name="gold" size={14} /> +{reward.gold}{reward.potions > 0 && <><Icon name="potion" size={14} /> +{reward.potions}</>}
               </button>
             ) : (
               <span className="daily-claimed-chip">à demain !</span>
@@ -69,7 +70,7 @@ export default function DailyJournal({
                   </div>
                   <div className="quest-right">
                     {q.claimed || done ? (
-                      <span className="quest-check">✓ +{def.gold}💰{def.potions > 0 && ` +${def.potions}🧪`}</span>
+                      <span className="quest-check chip-ico"><Icon name="check" size={14} /> +{def.gold}<Icon name="gold" size={12} />{def.potions > 0 && <>+{def.potions}<Icon name="potion" size={12} /></>}</span>
                     ) : (
                       <span className="quest-count">{q.progress}/{def.target}</span>
                     )}

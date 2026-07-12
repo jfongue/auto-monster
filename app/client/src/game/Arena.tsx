@@ -7,6 +7,7 @@ import { api, type ArenaOpponent } from "../lib/api";
 import { SPECIES, STARTERS } from "./engine/data";
 import { currentLife, statsForLevel } from "./engine/progression";
 import { HpBar } from "./shared";
+import { Icon } from "./icons";
 import type { Character } from "./engine/types";
 import { GameState, ARENA_MAX_REWARDED_WINS, ARENA_WIN_GOLD, arenaWinsToday } from "./state";
 
@@ -64,22 +65,22 @@ export default function Arena({
 
   return (
     <div className="hub arena view">
-      <button className="ghost sm zone-back" onClick={onBack}>← Maison</button>
+      <button className="ghost sm zone-back chip-ico" onClick={onBack}><Icon name="back" size={15} /> Maison</button>
 
       <div className="zone-hero arena-hero">
-        <div className="zh-icon">🏟️</div>
+        <div className="zh-icon"><Icon name="arena" size={40} /></div>
         <div className="zone-name">Arène des Dresseurs</div>
-        <div className="zh-sub">Défie les équipes des autres joueurs — duels amicaux, sans risque.</div>
-        <span className="zh-state exploration">
+        <div className="zh-sub">Duels amicaux, sans risque.</div>
+        <span className="zh-state exploration chip-ico">
           {rewardedLeft > 0
-            ? `${rewardedLeft} victoire${rewardedLeft > 1 ? "s" : ""} récompensée${rewardedLeft > 1 ? "s" : ""} aujourd'hui (+${ARENA_WIN_GOLD}💰)`
-            : "Récompenses du jour épuisées — reviens demain !"}
+            ? <><Icon name="gold" size={13} /> {rewardedLeft} victoire{rewardedLeft > 1 ? "s" : ""} récompensée{rewardedLeft > 1 ? "s" : ""} (+{ARENA_WIN_GOLD})</>
+            : "Récompenses du jour épuisées — à demain !"}
         </span>
       </div>
 
       <div className="zone-cols">
         <div className="card">
-          <div className="card-title">🥊 Adversaires</div>
+          <div className="card-title chip-ico"><Icon name="arena" size={16} /> Adversaires</div>
           {opponents === null && <p className="muted small">Recherche de dresseurs…</p>}
           {opponents?.map((o) => {
             const sp = SPECIES[o.lead.speciesId];
@@ -100,7 +101,7 @@ export default function Arena({
         </div>
 
         <div className="card">
-          <div className="card-title">🛡️ Ton champion</div>
+          <div className="card-title chip-ico"><Icon name="def" size={16} /> Ton champion</div>
           <div className="pick-list">
             {combatants.map((c) => (
               <div
@@ -117,8 +118,8 @@ export default function Arena({
               </div>
             ))}
           </div>
-          {ko && <p className="warn">Ton champion est K.O. — soigne-le d'abord.</p>}
-          <p className="hint" style={{ marginBottom: 0 }}>Les duels n'abîment pas ton AM : ses PV sont restaurés après le combat.</p>
+          {ko && <p className="warn chip-ico"><Icon name="warn" size={14} /> Champion K.O. — soigne-le d'abord.</p>}
+          <p className="hint" style={{ marginBottom: 0 }}>Duel sans risque : PV restaurés après le combat.</p>
         </div>
       </div>
     </div>

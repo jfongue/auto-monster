@@ -63,7 +63,8 @@ import {
   chooseBranch,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import { HpBar, StatRow, TalentList, talentTooltip, roleOf } from "./shared";
+import { HpBar, StatRow, TalentList, talentTooltip, RoleTag } from "./shared";
+import { Icon, type IconName } from "./icons";
 import House, { type QuestGlance } from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
@@ -116,11 +117,11 @@ type Modal =
 
 type Toast = { id: number; text: string };
 
-const STAT_LABELS: Record<StatKey, string> = {
-  hp: "❤️ PV",
-  atk: "⚔️ ATK",
-  def: "🛡️ DEF",
-  spd: "💨 VIT",
+const STAT_LABELS: Record<StatKey, { icon: IconName; label: string }> = {
+  hp: { icon: "hp", label: "Vie" },
+  atk: { icon: "atk", label: "Force" },
+  def: { icon: "def", label: "Armure" },
+  spd: { icon: "spd", label: "Vitesse" },
 };
 
 /** Zone contenant un encounter (combat). */
@@ -526,15 +527,18 @@ export default function GamePage() {
   return (
     <div className="game-shell">
       <header className="mini-top">
-        <button className="mini-logo" onClick={goHouse} aria-label="Accueil">⚔️</button>
+        <button className="mini-logo" onClick={goHouse} aria-label="Accueil"><Icon name="home" size={20} /></button>
         <div className="mini-right">
-          <span className="mini-purse">💰 {gs.gold} <span className="dot">·</span> 🧪 {gs.potions}</span>
+          <span className="mini-purse">
+            <span className="purse-item"><Icon name="gold" size={15} /> {gs.gold}</span>
+            <span className="purse-item"><Icon name="potion" size={15} /> {gs.potions}</span>
+          </span>
           <button
             className={`journal-btn ${hasDailyClaimable(gs) ? "attention" : ""}`}
             onClick={() => setModal({ k: "daily" })}
             aria-label="Journal du jour"
           >
-            📅
+            <Icon name="journal" size={18} />
             {hasDailyClaimable(gs) && <span className="notif-dot" />}
           </button>
           <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Menu">
@@ -560,7 +564,7 @@ export default function GamePage() {
       {(route.v === "forest" || route.v === "zone") && (
         <div className="hub">
           <div className="team-strip">
-            <div className="team-strip-title">🛡️ TON ÉQUIPE <span className="team-strip-sub">clique un compagnon pour sa fiche</span></div>
+            <div className="team-strip-title chip-ico"><Icon name="team" size={15} /> ÉQUIPE</div>
             <div className="team-strip-grid stagger">
               {gs.team.map((c) => (
                 <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
@@ -573,7 +577,7 @@ export default function GamePage() {
 
           {route.v === "forest" && (
             <>
-              <button className="ghost sm zone-back" onClick={goHouse}>← Maison</button>
+              <button className="ghost sm zone-back chip-ico" onClick={goHouse}><Icon name="back" size={15} /> Maison</button>
               <WorldMap gs={gs} onEnter={goToZone} />
             </>
           )}
@@ -599,13 +603,13 @@ export default function GamePage() {
       {menuOpen && (
         <div className="hmenu-overlay" onClick={() => setMenuOpen(false)}>
           <div className="hmenu-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu">✕</button>
+            <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu"><Icon name="close" size={16} /></button>
             <div className="hmenu-user">{user?.displayName || user?.username || "Dresseur"}</div>
-            <div className="hmenu-purse">💰 {gs.gold} · 🧪 {gs.potions}</div>
-            <button className="hmenu-item" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}>📖 Bestiaire</button>
-            <button className="hmenu-item" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}>🎒 Équipe</button>
+            <div className="hmenu-purse chip-ico"><Icon name="gold" size={14} /> {gs.gold} <span className="dot">·</span> <Icon name="potion" size={14} /> {gs.potions}</div>
+            <button className="hmenu-item chip-ico" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}><Icon name="bestiary" size={18} /> Bestiaire</button>
+            <button className="hmenu-item chip-ico" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}><Icon name="team" size={18} /> Équipe</button>
             <button
-              className="hmenu-item danger"
+              className="hmenu-item danger chip-ico"
               onClick={() => {
                 if (window.confirm("Réinitialiser ton compte ? Toute la progression (équipe, or, zones) sera perdue et tu referas l'onboarding depuis le début.")) {
                   resetGame();
@@ -613,9 +617,9 @@ export default function GamePage() {
                 }
               }}
             >
-              ♻️ Réinitialiser le compte
+              <Icon name="reset" size={18} /> Réinitialiser le compte
             </button>
-            <button className="hmenu-item danger" onClick={() => logout()}>⏻ Déconnexion</button>
+            <button className="hmenu-item danger chip-ico" onClick={() => logout()}><Icon name="power" size={18} /> Déconnexion</button>
           </div>
         </div>
       )}
@@ -671,11 +675,12 @@ export default function GamePage() {
                   <button key={sp} className={speed === sp ? "on" : ""} onClick={() => setSpeed(sp)}>×{sp}</button>
                 ))}
                 <button
-                  className="ghost sm combat-flee"
+                  className="ghost sm combat-flee chip-ico"
                   aria-label="Abandonner le combat"
+                  title="Abandonner (aucun gain ni perte)"
                   onClick={() => { if (window.confirm("Abandonner ce combat ? Aucun gain ni perte.")) setModal({ k: "none" }); }}
                 >
-                  Abandonner
+                  <Icon name="flee" size={15} /> Abandonner
                 </button>
               </div>
             </div>
@@ -697,7 +702,7 @@ export default function GamePage() {
                 ? `Tu as battu l'équipe de ${modal.r.trainer}.`
                 : `L'équipe de ${modal.r.trainer} était plus forte cette fois.`}
             </p>
-            {modal.r.won && modal.r.gold > 0 && <div className="loot-box"><p>+ 💰 {modal.r.gold} or</p></div>}
+            {modal.r.won && modal.r.gold > 0 && <div className="loot-box"><p className="chip-ico"><Icon name="gold" size={16} /> +{modal.r.gold} or</p></div>}
             {modal.r.won && modal.r.gold === 0 && <p className="muted small">Récompenses du jour épuisées — victoire pour la gloire !</p>}
             <p className="muted small">Duel amical : ton AM ressort indemne.</p>
             <button className="primary big" onClick={() => setModal({ k: "none" })}>Continuer</button>
@@ -758,11 +763,11 @@ function makeTutorialEnemy(): Character {
   };
 }
 
-const STAT_CARDS: { key: StatKey; icon: string; label: string; desc: string }[] = [
-  { key: "hp", icon: "❤️", label: "Vie", desc: "Ses points de vie. À 0, il est K.O." },
-  { key: "atk", icon: "⚔️", label: "Force", desc: "Les dégâts qu'il inflige en frappant." },
-  { key: "def", icon: "🛡️", label: "Armure", desc: "Réduit les dégâts qu'il subit." },
-  { key: "spd", icon: "💨", label: "Vitesse", desc: "Plus elle est haute, plus il agit souvent." },
+const STAT_CARDS: { key: StatKey; icon: IconName; label: string; desc: string }[] = [
+  { key: "hp", icon: "hp", label: "Vie", desc: "Ses points de vie. À 0, il est K.O." },
+  { key: "atk", icon: "atk", label: "Force", desc: "Les dégâts qu'il inflige en frappant." },
+  { key: "def", icon: "def", label: "Armure", desc: "Réduit les dégâts qu'il subit." },
+  { key: "spd", icon: "spd", label: "Vitesse", desc: "Plus elle est haute, plus il agit souvent." },
 ];
 
 // Onboarding en wizard : (0) choix du monstre, (1) lecture de sa fiche,
@@ -827,13 +832,13 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
               </div>
               <div className="ob-hero-id">
                 <h3>{sp.name}</h3>
-                <div className="ob-role">{roleOf(hero.stats)}</div>
+                <RoleTag stats={hero.stats} className="ob-role" />
               </div>
             </div>
             <div className="ob-statcards">
               {STAT_CARDS.map((sc) => (
                 <div key={sc.key} className="ob-statcard">
-                  <div className="ob-statcard-top"><span className="ob-statcard-icon">{sc.icon}</span><b>{sc.label}</b><span className="ob-statcard-val">{hero.stats[sc.key]}</span></div>
+                  <div className="ob-statcard-top"><span className="ob-statcard-icon"><Icon name={sc.icon} size={18} /></span><b>{sc.label}</b><span className="ob-statcard-val">{hero.stats[sc.key]}</span></div>
                   <div className="ob-statcard-desc">{sc.desc}</div>
                 </div>
               ))}
@@ -862,13 +867,13 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
           <div className="ob-panel">
             <p className="ob-lead">C'est tout le principe : <b>la stratégie est dans la préparation</b>, pas dans l'exécution.</p>
             <div className="ob-loop">
-              <div className="ob-loop-step"><span>🗺️</span>Explore &amp; enchaîne les combats</div>
+              <div className="ob-loop-step"><span><Icon name="map" size={26} /></span>Explore &amp; enchaîne les combats</div>
               <div className="ob-loop-arrow">→</div>
-              <div className="ob-loop-step"><span>💰</span>Gagne or &amp; XP</div>
+              <div className="ob-loop-step"><span><Icon name="gold" size={26} /></span>Gagne or &amp; XP</div>
               <div className="ob-loop-arrow">→</div>
-              <div className="ob-loop-step"><span>💪</span>Renforce ton équipe</div>
+              <div className="ob-loop-step"><span><Icon name="levelup" size={26} /></span>Renforce ton équipe</div>
             </div>
-            <p className="ob-note">Depuis ta maison, ouvre 🗺️ <b>Explorer</b> pour ton premier vrai combat.</p>
+            <p className="ob-note chip-ico">Depuis ta maison, ouvre <Icon name="map" size={15} /> <b>Explorer</b> pour ton premier combat.</p>
             <div className="ob-actions">
               <button className="ob-btn primary big" onClick={() => onPick(pick)}>Adopter {sp.name} et commencer</button>
             </div>
@@ -894,8 +899,7 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
   return (
     <div className="world">
       <div className="world-head">
-        <div className="world-title">🗺️ Carte du monde</div>
-        <div className="world-sub">Clique une zone pour t'y rendre</div>
+        <div className="world-title chip-ico"><Icon name="map" size={22} /> Carte du monde</div>
       </div>
       <div className="world-canvas">
         <svg className="world-paths" viewBox={`0 0 ${MAP_WORLD_W} ${MAP_WORLD_H}`} preserveAspectRatio="none">
@@ -916,11 +920,11 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
           const threatened = mood === "threatened";
           const cls = ["zone-node", here ? "here" : "", threatened ? "threatened" : "", unlocked ? "" : "locked"].join(" ");
           const showRing = z.winsToComplete > 0 && !z.boss;
-          const badge =
-            !unlocked ? { c: "lock", t: "🔒 Verrouillé" }
-            : threatened ? { c: "threat", t: "⚠ Menace" }
-            : mood === "peaceful" && z.baseMood !== "peaceful" ? { c: "calm", t: "✓ Pacifiée" }
-            : comp >= 0.75 && z.unlocks ? { c: "new", t: "✦ Zone suivante ouverte" }
+          const badge: { c: string; t: ReactNode } | null =
+            !unlocked ? { c: "lock", t: <><Icon name="lock" size={12} /> Verrouillé</> }
+            : threatened ? { c: "threat", t: <><Icon name="warn" size={12} /> Menace</> }
+            : mood === "peaceful" && z.baseMood !== "peaceful" ? { c: "calm", t: <><Icon name="check" size={12} /> Pacifiée</> }
+            : comp >= 0.75 && z.unlocks ? { c: "new", t: "✦ Suivante ouverte" }
             : null;
           return (
             <button
@@ -931,7 +935,7 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
               disabled={!unlocked}
               title={z.name}
             >
-              {badge && <span className={`zone-badge ${badge.c}`}>{badge.t}</span>}
+              {badge && <span className={`zone-badge chip-ico ${badge.c}`}>{badge.t}</span>}
               <span className="zone-orb">
                 {showRing && (
                   <svg className="zone-ring" viewBox="0 0 100 100" width="100%" height="100%">
@@ -939,7 +943,7 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
                     <circle className="prog" cx="50" cy="50" r={R} strokeDasharray={C} strokeDashoffset={C * (1 - comp)} />
                   </svg>
                 )}
-                {unlocked ? z.icon : "🔒"}
+                {unlocked ? z.icon : <Icon name="lock" size={30} />}
               </span>
               <span className="zone-label">
                 <span className="zn">{z.name}</span>
@@ -976,17 +980,20 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
   const comp = zoneCompletion(gs, zone.id);
   const npcs = mood === "peaceful" ? zone.npcs : (zone.wildNpcs ?? []);
   const hasCombat = zone.encounters.length > 0 && !(zone.boss && isZonePacified(gs, zone.id));
-  const moodLabelTxt = mood === "threatened" ? "⚠ Zone menacée" : mood === "exploration" ? "🧭 Exploration" : "☮ Zone paisible";
+  const moodLabelTxt: ReactNode =
+    mood === "threatened" ? <><Icon name="warn" size={13} /> Zone menacée</>
+    : mood === "exploration" ? <><Icon name="map" size={13} /> Exploration</>
+    : <><Icon name="check" size={13} /> Zone paisible</>;
 
   return (
     <div className="zone-view">
-      <button className="ghost sm zone-back" onClick={onBack}>← Carte du monde</button>
+      <button className="ghost sm zone-back chip-ico" onClick={onBack}><Icon name="back" size={15} /> Carte du monde</button>
 
       <div className="zone-hero" style={{ ["--zt" as any]: zone.tint }}>
         <div className="zh-icon">{zone.icon}</div>
         <div className="zone-name">{zone.name}</div>
         <div className="zh-sub">{zone.subtitle}</div>
-        <span className={`zh-state ${mood}`}>{moodLabelTxt}</span>
+        <span className={`zh-state chip-ico ${mood}`}>{moodLabelTxt}</span>
 
         {zone.winsToComplete > 0 && !zone.boss && (
           <div className="zone-progress">
@@ -1004,13 +1011,13 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
           <ZoneCombat gs={gs} zone={zone} onFight={onFight} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
         ) : (
           <div className="card">
-            <div className="card-title">☮ Havre de paix</div>
-            <p className="muted">Aucun combat ici — profite du calme, discute et prépare la suite.</p>
+            <div className="card-title chip-ico"><Icon name="check" size={16} /> Havre de paix</div>
+            <p className="muted small">Aucun combat ici — profite du calme.</p>
           </div>
         )}
 
         <div className="card">
-          <div className="card-title">🧑‍🤝‍🧑 Personnages</div>
+          <div className="card-title chip-ico"><Icon name="chat" size={16} /> Personnages</div>
           {npcs.length === 0 && <p className="muted small">Personne à qui parler pour l'instant.</p>}
           <div className="npc-strip">
             {npcs.map((n) => (
@@ -1039,14 +1046,14 @@ function BoutiqueScreen({ gold, potions, onBuy, onBack }: {
 }) {
   return (
     <div className="screen boutique-screen view">
-      <button className="ghost sm zone-back" onClick={onBack}>← Maison</button>
+      <button className="ghost sm zone-back chip-ico" onClick={onBack}><Icon name="back" size={15} /> Maison</button>
       <div className="card boutique-card">
-        <div className="card-title" style={{ justifyContent: "center" }}>🏪 Boutique</div>
-        <p className="muted">Perle vend des potions de soin (+50% PV).</p>
-        <div className="boutique-icon">🧪</div>
-        <p className="muted small">Tu as {potions} potion(s) · 💰 {gold}</p>
-        <button className="primary big" disabled={gold < POTION_PRICE} onClick={onBuy} style={{ width: "100%" }}>
-          Acheter une potion — {POTION_PRICE}💰
+        <div className="card-title chip-ico" style={{ justifyContent: "center" }}><Icon name="shop" size={18} /> Boutique</div>
+        <div className="boutique-icon"><Icon name="potion" size={46} /></div>
+        <p className="muted small">Potion de soin — +50% PV</p>
+        <p className="muted small chip-ico" style={{ justifyContent: "center" }}><Icon name="potion" size={13} /> {potions} <span className="dot">·</span> <Icon name="gold" size={13} /> {gold}</p>
+        <button className="primary big chip-ico" disabled={gold < POTION_PRICE} onClick={onBuy} style={{ width: "100%", justifyContent: "center" }}>
+          Acheter — {POTION_PRICE} <Icon name="gold" size={15} />
         </button>
       </div>
     </div>
@@ -1077,15 +1084,15 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
 
   return (
     <div className="card">
-      <div className="card-title">⚔️ {zone.boss ? "Affrontement" : "Rencontres sauvages"}</div>
+      <div className="card-title chip-ico"><Icon name={zone.boss ? "boss" : "atk"} size={16} /> {zone.boss ? "Affrontement" : "Rencontres sauvages"}</div>
 
       <div className="enemy-preview centered">
         <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
         <div className="enemy-name">
           {sp.name} <span className="lvl">N.{enc.enemyLevel}</span>
-          {enc.isBoss && <span className="boss-tag">BOSS</span>}
+          {enc.isBoss && <span className="boss-tag chip-ico"><Icon name="boss" size={11} /> BOSS</span>}
         </div>
-        {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip">PV restants du boss : {gs.bossLife[enc.id]}</div>}
+        {enc.isBoss && gs.bossLife[enc.id] != null && <div className="boss-chip chip-ico"><Icon name="hp" size={12} /> Boss : {gs.bossLife[enc.id]} PV</div>}
       </div>
 
       {combatants.length > 1 ? (
@@ -1125,9 +1132,9 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
       {chosen && currentLife(chosen) < chosen.stats.hp && (
         <HealControls c={chosen} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
       )}
-      {enc.isBoss && <p className="hint">⚠️ Coriace. S'il s'éternise → égalité, mais les PV du boss sont conservés.</p>}
-      {ko ? <p className="warn">Cet AM est K.O. — soigne-le ou choisis-en un autre.</p> : (
-        <button className="primary big" style={{ width: "100%", marginTop: 12 }} onClick={() => onFight(enc, pick)}>⚔️ Combattre</button>
+      {enc.isBoss && <p className="hint chip-ico"><Icon name="warn" size={14} /> Coriace : s'il s'éternise, égalité (PV conservés).</p>}
+      {ko ? <p className="warn chip-ico"><Icon name="warn" size={14} /> AM K.O. — soigne-le ou choisis-en un autre.</p> : (
+        <button className="primary big chip-ico" style={{ width: "100%", marginTop: 12, justifyContent: "center" }} onClick={() => onFight(enc, pick)}><Icon name="atk" size={16} /> Combattre</button>
       )}
     </div>
   );
@@ -1145,7 +1152,7 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
     <div className="de-overlay" onClick={onClose}>
       <div className="de-panel" onClick={(e) => e.stopPropagation()}>
         <div className="de-side" style={{ ["--pt" as any]: npc.tint + "44" }}>
-          <button className="ghost sm de-close" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="ghost sm de-close" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>
           <div className="de-emoji">{npc.emoji}</div>
           <div className="de-name">{npc.name}</div>
           <div className="de-title">{npc.title}</div>
@@ -1154,10 +1161,10 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
           {npc.role === "merchant" && (
             <div className="de-actions">
               <button className="de-action" disabled={gs.gold < POTION_PRICE} onClick={onBuy}>
-                <span>🧪 Acheter une potion <span className="muted small">(+50% PV)</span></span>
-                <span className="de-a-price">{POTION_PRICE}💰</span>
+                <span className="chip-ico"><Icon name="potion" size={16} /> Acheter une potion <span className="muted small">(+50% PV)</span></span>
+                <span className="de-a-price chip-ico">{POTION_PRICE} <Icon name="gold" size={14} /></span>
               </button>
-              <p className="muted small">Tu as {gs.potions} potion(s) · 💰 {gs.gold}</p>
+              <p className="muted small chip-ico"><Icon name="potion" size={13} /> {gs.potions} <span className="dot">·</span> <Icon name="gold" size={13} /> {gs.gold}</p>
             </div>
           )}
 
@@ -1169,8 +1176,8 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
                 ))}
               </div>
               <button className="de-action" disabled={gs.gold < HEAL_CENTER_COST || !gs.team.some((c) => currentLife(c) < c.stats.hp)} onClick={onHealAll}>
-                <span>⛲ Soigner toute l'équipe</span>
-                <span className="de-a-price">{HEAL_CENTER_COST}💰</span>
+                <span className="chip-ico"><Icon name="heal" size={16} /> Soigner toute l'équipe</span>
+                <span className="de-a-price chip-ico">{HEAL_CENTER_COST} <Icon name="gold" size={14} /></span>
               </button>
             </div>
           )}
@@ -1186,15 +1193,15 @@ function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
                       <HpBar c={gs.rental.char} />
                     </div>
                   </div>
-                  <button className="de-action" onClick={onReturn}><span>↩ Rendre le monstre</span></button>
+                  <button className="de-action" onClick={onReturn}><span className="chip-ico"><Icon name="return" size={16} /> Rendre le monstre</span></button>
                 </>
               ) : (
                 RANCH_OFFERS.map((o, i) => {
                   const sp = SPECIES[o.speciesId];
                   return (
                     <button key={o.speciesId} className="de-action" disabled={gs.gold < o.price} onClick={() => onRent(i)}>
-                      <span>🐴 {sp.name} <span className="muted small">N.{o.level} · {o.fights} combats</span></span>
-                      <span className="de-a-price">{o.price}💰</span>
+                      <span>{sp.name} <span className="muted small">N.{o.level} · {o.fights} combats</span></span>
+                      <span className="de-a-price chip-ico">{o.price} <Icon name="gold" size={14} /></span>
                     </button>
                   );
                 })
@@ -1216,9 +1223,9 @@ function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) 
   const known = new Set([...gs.bestiary, ...owned]);
   const all = Object.values(SPECIES);
   return (
-    <ModalShell title={`📖 Bestiaire — ${known.size}/${all.length}`} onClose={onClose} wide>
+    <ModalShell title={<><Icon name="bestiary" size={18} /> Bestiaire — {known.size}/{all.length}</>} onClose={onClose} wide>
       <div className="bestiary">
-        <p className="bestiary-count">Espèces découvertes en combattant et en explorant le monde.</p>
+        <p className="bestiary-count">Espèces découvertes en combattant et en explorant.</p>
         <div className="bestiary-grid">
           {all.map((sp) => {
             const seen = known.has(sp.id);
@@ -1252,9 +1259,9 @@ function HealControls({ c, gold, potions, onToggleHeal, onPotion, onFull }: {
   const eta = healing ? Math.ceil(healEtaMs(c) / 1000) : 0;
   return (
     <div className="heal-row">
-      <button disabled={full} onClick={() => onToggleHeal(c.id)}>{healing ? `⏸️ Stopper (${eta}s)` : "💚 Soin progressif"}</button>
-      <button disabled={potions <= 0 || full} onClick={() => onPotion(c.id)}>🧪 Potion ({potions})</button>
-      <button disabled={gold < FULL_HEAL_COST || full} onClick={() => onFull(c.id)}>💰 Soin complet ({FULL_HEAL_COST})</button>
+      <button className="chip-ico" disabled={full} onClick={() => onToggleHeal(c.id)} title={healing ? "Stopper le soin" : "Soin progressif gratuit"}>{healing ? <><Icon name="pause" size={14} /> {eta}s</> : <><Icon name="heal" size={14} /> Soin</>}</button>
+      <button className="chip-ico" disabled={potions <= 0 || full} onClick={() => onPotion(c.id)} title="Utiliser une potion (+50% PV)"><Icon name="potion" size={14} /> {potions}</button>
+      <button className="chip-ico" disabled={gold < FULL_HEAL_COST || full} onClick={() => onFull(c.id)} title={`Soin complet — ${FULL_HEAL_COST} or`}><Icon name="gold" size={14} /> {FULL_HEAL_COST}</button>
     </div>
   );
 }
@@ -1343,8 +1350,8 @@ function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?:
         </div>
         <HpBar c={c} />
       </div>
-      <button className="ghost sm heal-quick" onClick={(e) => { e.stopPropagation(); onToggleHeal(); }} disabled={isFull(c)}>
-        {isHealing(c) ? "⏸️" : "💚"}
+      <button className="ghost sm heal-quick" onClick={(e) => { e.stopPropagation(); onToggleHeal(); }} disabled={isFull(c)} aria-label={isHealing(c) ? "Stopper le soin" : "Soigner"}>
+        <Icon name={isHealing(c) ? "pause" : "heal"} size={15} />
       </button>
     </div>
   );
@@ -1354,11 +1361,11 @@ function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?:
 // Modals
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ModalShell({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+function ModalShell({ title, onClose, children, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
     <div className="overlay" onClick={onClose}>
       <div className={`modal ${wide ? "wide" : ""}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h3>{title}</h3><button className="ghost sm" onClick={onClose} aria-label="Fermer">✕</button></div>
+        <div className="modal-head"><h3 className="chip-ico">{title}</h3><button className="ghost sm" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button></div>
         <div className="modal-body">{children}</div>
       </div>
     </div>
@@ -1372,8 +1379,8 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
 }) {
   const list = [...gs.team, ...(gs.rental ? [gs.rental.char] : [])];
   return (
-    <ModalShell title="🎒 Ton équipe" onClose={onClose} wide>
-      <p className="muted">Soigne tes Auto Monsters. Pour les entraîner, ouvre leur fiche. (💰 {gs.gold})</p>
+    <ModalShell title={<><Icon name="team" size={18} /> Ton équipe</>} onClose={onClose} wide>
+      <p className="muted small chip-ico">Ouvre une fiche pour entraîner. <span className="dot">·</span> <Icon name="gold" size={13} /> {gs.gold}</p>
       {list.map((c) => {
         const sp = SPECIES[c.speciesId];
         const isRent = gs.rental?.char.id === c.id;
@@ -1441,7 +1448,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
   return (
     <div className="am-page">
       <header className="am-page-top">
-        <button className="ghost sm" onClick={onClose}>← Retour</button>
+        <button className="ghost sm chip-ico" onClick={onClose}><Icon name="back" size={15} /> Retour</button>
         <div className="am-page-title">{c.name}</div>
         <span />
       </header>
@@ -1471,7 +1478,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
             <h4 className="block-title">Caractéristiques</h4>
             <div className="sheet-stats">
               {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-                <div key={k} className="sheet-stat"><span>{STAT_LABELS[k]}</span><strong>{c.stats[k]}</strong></div>
+                <div key={k} className="sheet-stat"><span className="chip-ico"><Icon name={STAT_LABELS[k].icon} size={15} /> {STAT_LABELS[k].label}</span><strong>{c.stats[k]}</strong></div>
               ))}
             </div>
             <TalentChips c={c} />
@@ -1511,8 +1518,12 @@ function RewardModal({ reward, onContinue }: { reward: RewardData; onContinue: (
         <h1>{title}</h1>
         {outcome === "win" && (
           <div className="loot-box">
-            <p>+ 💰 {firstClear ? loc.gold : Math.round((loc.gold ?? 0) / 2)} or{firstClear && ` · 🧪 ${loc.potions} potion(s)`}{` · ⭐ ${firstClear ? loc.xp : Math.round((loc.xp ?? 0) / 2)} XP`}</p>
-            {levelsGained > 0 && <p className="muted">🆙 +{levelsGained} niveau(x) — stats augmentées automatiquement.</p>}
+            <p className="loot-line">
+              <span className="chip-ico"><Icon name="gold" size={15} /> +{firstClear ? loc.gold : Math.round((loc.gold ?? 0) / 2)}</span>
+              {firstClear && !!loc.potions && <span className="chip-ico"><Icon name="potion" size={15} /> +{loc.potions}</span>}
+              <span className="chip-ico"><Icon name="star" size={15} /> +{firstClear ? loc.xp : Math.round((loc.xp ?? 0) / 2)} XP</span>
+            </p>
+            {levelsGained > 0 && <p className="muted chip-ico"><Icon name="levelup" size={15} /> +{levelsGained} niveau(x) — stats augmentées.</p>}
             {!firstClear && <p className="muted small">Lieu déjà nettoyé : récompense réduite.</p>}
           </div>
         )}
@@ -1552,9 +1563,9 @@ function RanchExtendModal({ species, gold, onExtend, onReturn }: { species: stri
       <div className="modal center">
         <h1>🐴 Fin de contrat</h1>
         <p className="muted">{species} a terminé ses combats loués. Boris propose de prolonger le contrat.</p>
-        <div className="loot-box"><p>Prolonger : +{RANCH_EXTEND.fights} combats — {RANCH_EXTEND.price}💰</p></div>
+        <div className="loot-box"><p className="chip-ico">Prolonger : +{RANCH_EXTEND.fights} combats — {RANCH_EXTEND.price} <Icon name="gold" size={15} /></p></div>
         <div className="heal-row">
-          <button className="primary" disabled={gold < RANCH_EXTEND.price} onClick={onExtend}>Prolonger ({RANCH_EXTEND.price}💰)</button>
+          <button className="primary chip-ico" disabled={gold < RANCH_EXTEND.price} onClick={onExtend}>Prolonger ({RANCH_EXTEND.price} <Icon name="gold" size={14} />)</button>
           <button className="ghost" onClick={onReturn}>Rendre le monstre</button>
         </div>
       </div>

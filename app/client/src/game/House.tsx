@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { SPECIES } from "./engine/data";
 import { xpForNext } from "./engine/progression";
 import { HpBar, StatRow } from "./shared";
+import { Icon } from "./icons";
 import type { Character } from "./engine/types";
 
 // Bornes de déplacement dans la pièce.
@@ -152,7 +153,7 @@ export default function House({
         </div>
 
         <div className="house-panel">
-          <button className="ghost sm house-back" onClick={() => setFocused(false)}>← Retour</button>
+          <button className="ghost sm house-back chip-ico" onClick={() => setFocused(false)} aria-label="Retour"><Icon name="back" size={15} /> Retour</button>
           <div className="team-name big">
             {c.name} <span className="lvl">N.{c.level}</span>
             {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
@@ -163,7 +164,7 @@ export default function House({
           <div className="muted small">XP {c.xp}/{xpNext}</div>
           <StatRow stats={c.stats} />
           <button className="house-exit-btn" style={{ marginTop: 10, maxWidth: "none" }} onClick={() => onOpenSheet(c.id)}>
-            Voir la fiche complète
+            Fiche complète
           </button>
         </div>
       </div>
@@ -199,17 +200,17 @@ export default function House({
 
         <div className="house-exit-wrap">
           <div className="house-exit-choices">
-            <button className="exit-choice" onClick={onGoForest}>
-              <span className="exit-ico">🗺️</span>
-              <span className="exit-txt">Explorer<span className="exit-sub">Carte du monde</span></span>
+            <button className="exit-choice" onClick={onGoForest} title="Explorer la carte du monde">
+              <span className="exit-ico"><Icon name="map" size={24} /></span>
+              <span className="exit-txt">Explorer</span>
             </button>
-            <button className="exit-choice" onClick={onGoArena}>
-              <span className="exit-ico">🏟️</span>
-              <span className="exit-txt">Arène<span className="exit-sub">Duels de dresseurs</span></span>
+            <button className="exit-choice" onClick={onGoArena} title="Arène — duels de dresseurs">
+              <span className="exit-ico"><Icon name="arena" size={24} /></span>
+              <span className="exit-txt">Arène</span>
             </button>
-            <button className="exit-choice" onClick={onGoShop}>
-              <span className="exit-ico">🏪</span>
-              <span className="exit-txt">Boutique<span className="exit-sub">Potions</span></span>
+            <button className="exit-choice" onClick={onGoShop} title="Boutique — potions">
+              <span className="exit-ico"><Icon name="shop" size={24} /></span>
+              <span className="exit-txt">Boutique</span>
             </button>
           </div>
         </div>

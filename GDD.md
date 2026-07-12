@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.25 — Document de référence du projet
+> Version 0.26 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,14 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-12 — v0.26
+- [DA — refonte « moins de texte + icônes SVG », pass responsive] Vague de nettoyage transversale demandée par le joueur : **plus minimaliste, plus clean, expliquer par l'icône plutôt que par le texte**.
+  - **Système d'icônes SVG** : nouveau `game/icons.tsx` — composant `<Icon name=… />`, set de ~35 icônes *line* mono-trait (`currentColor`, viewBox 24, stroke arrondi) : hp/atk/def/spd, gold/potion, map/arena/shop/journal/bestiary/team, heal/pause/play/flee, back/close/menu/power/reset, lock/warn/star/levelup/boss/check/gift, plus/return/chat/home. Les axes de stats portent leur couleur (`--ico-hp` rouge, atk orange, def bleu, spd teal ; or/potion). **Décision** : remplacer uniquement les emojis *chrome* (stats, monnaie, navigation, actions, en-têtes, tags système). Les emojis de **contenu** sont conservés (émotes de la House, PNJ, personnalité, icônes de zones sur la carte, pops de statut ☠️/🔥 en combat, titres expressifs de modals 🎉/💀/🏆, micro-copy des toasts).
+  - **Réduction de texte** : suppression des sous-titres/hints explicatifs redondants — `team-strip-sub` (« clique un compagnon… »), `world-sub` (« clique une zone… »), `exit-sub` des 3 sorties de la House (Explorer/Arène/Boutique désormais icône + label seul), prose du havre de paix, hints raccourcis (boss, K.O., arène). Libellés de boutons de soin compactés (icône + valeur, détail en `title`).
+  - **`roleOf`** renvoie désormais `{ icon, label }` ; nouveau `RoleTag` (icône d'axe + libellé) remplace la chaîne emoji « 💨 Rapide ».
+  - **Responsive (desktop ↔ mobile)** : carte du monde plus aérée sous 680px (canvas plus haut, orbes/labels réduits → plus de chevauchement des 3 zones) ; en-tête sans débordement < 420px (bourse et boutons réduits) ; en-tête de combat qui *wrap* (nom tronqué, contrôles de vitesse repliables) ; salle de combat plus compacte < 560px ; `heal-row` sur une ligne, pleine largeur < 360px.
+- [Tests] `tsc -b` OK, `vite build` OK (50 modules, vérifié via outDir temporaire — `dist/` monté non inscriptible), moteur **132 ok / 0 échec** (front pur, moteur non touché).
 
 ### 2026-07-12 — v0.25
 - [DA — fond global `.game-shell`] **Simplification du fond de page principal** : suppression des deux radial-gradients colorés (indigo/teal) superposés au linear-gradient, remplacés par un **gris uni** (`var(--bg)`, `#f2f4fb`). Jugé « immonde » par le joueur ; le fond de page est désormais plat, sans halo décoratif.
@@ -199,8 +207,8 @@
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
 | Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
-| Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues |
-| Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile (breakpoints 900/600/360) |
+| Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues. **v0.26 :** pass minimaliste — **icônes SVG line** (`game/icons.tsx`, `<Icon>`) à la place des emojis *chrome*, texte explicatif superflu retiré (emojis de contenu conservés) |
+| Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile. **v0.26 :** carte du monde aérée < 680px, header sans débordement < 420px, en-tête de combat repliable, `heal-row` pleine largeur < 360px (breakpoints 900/680/560/420/360) |
 | Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour. **v0.21 :** quêtes **auto-réclamées** à la complétion (toast avec récompense) + **rappel de progression sur la House** (pilule → 📅). Testé (`daily.smoke.ts`, 16 checks) |
 | Repos hors-ligne (PV/humeur temps réel) | Oui (v0.19) | ✅ `applyOfflineRest` (PV max en ~6 h, humeur → 60), toast de retour |
 | PvP | Oui (§6) | 🟡 **Arène de duels asynchrones** (`Arena.tsx` + `GET /api/arena/opponents`) : duel amical vs le meilleur AM d'un autre joueur (ou bot Nova), 3 victoires récompensées/jour. Pas encore de PvP synchrone/classé ni de liste d'amis |
