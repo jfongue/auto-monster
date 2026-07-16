@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoMonster — Tâches</title>
+<style>
+  :root{
+    --bg:#0f1218; --panel:#171c26; --panel2:#1e2531; --line:#2a3342;
+    --txt:#e6ebf2; --muted:#8a97a8; --accent:#6ea8fe; --accent2:#7ee0a0;
+    --warn:#f6c453; --danger:#f27a7a; --chip:#232c3a;
+    --p-haute:#f27a7a; --p-moyenne:#f6c453; --p-basse:#6ea8fe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#141924,#0f1218);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;letter-spacing:.5px}
+  header h1 small{color:var(--muted);font-weight:400}
+  .grow{flex:1}
+  .btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:var(--accent);color:#fff}
+  .btn.primary{background:var(--accent);color:#0a0f16;border-color:var(--accent);font-weight:600}
+  .btn.ghost{background:transparent}
+  .search{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;color:var(--txt);min-width:200px}
+  .wrap{padding:18px 20px 60px;max-width:1500px;margin:0 auto}
+  .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:1100px){.cols{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.cols{grid-template-columns:1fr}}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;min-height:120px}
+  .col h2{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:4px 6px 10px;display:flex;justify-content:space-between}
+  .col h2 .count{background:var(--chip);border-radius:20px;padding:1px 9px;color:var(--txt)}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:9px;cursor:pointer;border-left:3px solid var(--line)}
+  .card:hover{border-color:var(--accent)}
+  .card.pri-haute{border-left-color:var(--p-haute)}
+  .card.pri-moyenne{border-left-color:var(--p-moyenne)}
+  .card.pri-basse{border-left-color:var(--p-basse)}
+  .card .id{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+  .card .t{font-weight:600;margin:2px 0 6px}
+  .bar{height:5px;background:#0d1119;border-radius:4px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--accent2);width:0}
+  .meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+  .chip{font-size:11px;background:var(--chip);border-radius:6px;padding:2px 7px;color:var(--muted)}
+  .chip.pri-haute{color:var(--p-haute)} .chip.pri-moyenne{color:var(--p-moyenne)} .chip.pri-basse{color:var(--p-basse)}
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(5,8,12,.7);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:30px 16px;overflow:auto}
+  .ov.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:100%;max-width:720px;padding:20px}
+  .modal .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .modal input,.modal textarea,.modal select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font:inherit;width:100%}
+  .modal label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);display:block;margin:12px 0 4px}
+  .modal textarea{min-height:70px;resize:vertical}
+  .modal h3{margin:0;font-size:18px}
+  .modal .idtag{font-family:ui-monospace,monospace;color:var(--accent);font-size:13px}
+  .steps{margin:0;padding:0;list-style:none}
+  .steps li{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .steps li input[type=checkbox]{width:auto;margin-top:4px}
+  .steps li .x{color:var(--danger);cursor:pointer;background:none;border:none;font-size:15px}
+  .steps li span[contenteditable]{flex:1;padding:3px 4px;border-radius:5px}
+  .steps li span[contenteditable]:focus{outline:1px solid var(--accent);background:var(--panel2)}
+  .done span{text-decoration:line-through;color:var(--muted)}
+  .cta{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .hint{color:var(--muted);font-size:12px}
+  .launch{background:var(--accent2);color:#08130c;font-weight:700}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent2);color:#08130c;padding:10px 18px;border-radius:10px;font-weight:600;opacity:0;transition:.25s;z-index:100}
+  .toast.on{opacity:1}
+  code{background:#0d1119;padding:1px 6px;border-radius:5px;color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐲 AutoMonster <small>· Tâches</small></h1>
+  <input class="search" id="q" placeholder="Rechercher…">
+  <div class="grow"></div>
+  <button class="btn primary" onclick="openNew()">+ Nouvelle tâche</button>
+  <button class="btn" onclick="exportHtml()">⬇ Exporter</button>
+  <button class="btn ghost" onclick="resetLocal()" title="Revenir aux données du fichier">↺</button>
+</header>
+
+<div class="wrap">
+  <div class="cols" id="board"></div>
+  <p class="hint" style="margin-top:22px">
+    Flux : dis <code>plannifie …</code> à Claude pour ajouter/préciser une tâche, puis
+    <code>lance tâche T00X</code> pour qu'il l'exécute en itérant avec tests jusqu'au « done ».
+    Après édition ici, clique <b>Exporter</b> et enregistre le fichier dans le projet pour que Claude voie tes changements.
+  </p>
+</div>
+
+<!-- MODAL -->
+<div class="ov" id="ov" onclick="if(event.target===this)close_()">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="application/json" id="tasks-data">
+{
+  "meta": { "version": 1, "updated": "2026-07-16" },
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "Exemple — équilibrage du kit Emberpup",
+      "status": "backlog",
+      "priority": "moyenne",
+      "created": "2026-07-16",
+      "objectives": "Rendre le combo ramp d'Emberpup viable sans le rendre oppressant. Cible : win-rate ~50% en autoSim contre les 3 NME, avec une fenêtre de punition claire quand le combo casse.",
+      "plan": [
+        { "step": "Mesurer le win-rate actuel via autoSim (100 combats / NME)", "done": false },
+        { "step": "Ajuster les multiplicateurs de combo ×1→×4", "done": false },
+        { "step": "Ajouter/vérifier la pénalité quand le joueur encaisse", "done": false },
+        { "step": "Re-run autoSim + live.test.ts (doit rester vert)", "done": false }
+      ],
+      "expected": "win-rate 45-55% sur les 3 NME ; tous les tests moteur passent ; entrée ajoutée au GDD.",
+      "results": "",
+      "log": []
+    }
+  ]
+}
+</script>
+
+<script>
+const STATUSES = [
+  {k:"backlog",    label:"À planifier"},
+  {k:"planned",    label:"Planifié"},
+  {k:"in_progress",label:"En cours"},
+  {k:"done",       label:"Terminé"}
+];
+const PRIOS = ["haute","moyenne","basse"];
+const LS_KEY = "automonster-taches-v1";
+
+function seed(){ return JSON.parse(document.getElementById("tasks-data").textContent); }
+function load(){
+  const local = localStorage.getItem(LS_KEY);
+  if(local){ try{ return JSON.parse(local); }catch(e){} }
+  return seed();
+}
+let DATA = load();
+function save(){ DATA.meta.updated = new Date().toISOString().slice(0,10); localStorage.setItem(LS_KEY, JSON.stringify(DATA)); render(); }
+
+function nextId(){
+  let n = 0;
+  DATA.tasks.forEach(t=>{ const m=/^T(\d+)$/.exec(t.id); if(m) n=Math.max(n,+m[1]); });
+  return "T"+String(n+1).padStart(3,"0");
+}
+function progress(t){ if(!t.plan||!t.plan.length) return 0; return Math.round(100*t.plan.filter(s=>s.done).length/t.plan.length); }
+
+let filter = "";
+document.getElementById("q").addEventListener("input", e=>{ filter=e.target.value.toLowerCase(); render(); });
+
+function render(){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  STATUSES.forEach(st=>{
+    const col = document.createElement("div"); col.className="col";
+    const list = DATA.tasks.filter(t=>t.status===st.k &&
+      (!filter || (t.title+" "+t.id+" "+(t.objectives||"")).toLowerCase().includes(filter)));
+    col.innerHTML = `<h2>${st.label}<span class="count">${list.length}</span></h2>`;
+    list.forEach(t=>{
+      const c = document.createElement("div");
+      c.className = "card pri-"+t.priority;
+      c.onclick = ()=>openTask(t.id);
+      c.innerHTML = `<div class="id">${t.id}</div>
+        <div class="t">${esc(t.title)}</div>
+        <div class="bar"><i style="width:${progress(t)}%"></i></div>
+        <div class="meta">
+          <span class="chip pri-${t.priority}">● ${t.priority}</span>
+          <span class="chip">${t.plan?t.plan.length:0} étapes · ${progress(t)}%</span>
+        </div>`;
+      col.appendChild(c);
+    });
+    board.appendChild(col);
+  });
+}
+function esc(s){ return (s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); }
+
+function openTask(id){
+  const t = DATA.tasks.find(x=>x.id===id);
+  const m = document.getElementById("modal");
+  m.innerHTML = `
+    <div class="row"><span class="idtag">${t.id}</span>
+      <select id="f-status" onchange="upd('${id}','status',this.value)">
+        ${STATUSES.map(s=>`<option value="${s.k}" ${s.k===t.status?"selected":""}>${s.label}</option>`).join("")}
+      </select>
+      <select id="f-prio" onchange="upd('${id}','priority',this.value)">
+        ${PRIOS.map(p=>`<option value="${p}" ${p===t.priority?"selected":""}>Priorité : ${p}</option>`).join("")}
+      </select>
+    </div>
+    <label>Titre</label>
+    <input id="f-title" value="${esc(t.title)}" onchange="upd('${id}','title',this.value)">
+    <label>Objectifs (le plus précis possible)</label>
+    <textarea id="f-obj" onchange="upd('${id}','objectives',this.value)">${esc(t.objectives)}</textarea>
+    <label>Plan d'exécution</label>
+    <ul class="steps" id="steps"></ul>
+    <button class="btn ghost" onclick="addStep('${id}')">+ étape</button>
+    <label>Résultats attendus / critères de « done »</label>
+    <textarea id="f-exp" onchange="upd('${id}','expected',this.value)">${esc(t.expected)}</textarea>
+    <label>Résultats obtenus (rempli par Claude)</label>
+    <textarea id="f-res" onchange="upd('${id}','results',this.value)">${esc(t.results||"")}</textarea>
+    <div class="cta">
+      <button class="btn launch" onclick="copyLaunch('${id}')">▶ Copier « lance tâche ${id} »</button>
+      <button class="btn" onclick="close_()">Fermer</button>
+      <div class="grow"></div>
+      <button class="btn ghost" style="color:var(--danger)" onclick="del('${id}')">Supprimer</button>
+    </div>`;
+  renderSteps(id);
+  document.getElementById("ov").classList.add("on");
+}
+function renderSteps(id){
+  const t = DATA.tasks.find(x=>x.id===id);
+  const ul = document.getElementById("steps"); ul.innerHTML="";
+  (t.plan||[]).forEach((s,i)=>{
+    const li=document.createElement("li"); li.className=s.done?"done":"";
+    li.innerHTML=`<input type="checkbox" ${s.done?"checked":""}>
+      <span contenteditable>${esc(s.step)}</span>
+      <button class="x">✕</button>`;
+    li.querySelector("input").onchange=e=>{ s.done=e.target.checked; save(); renderSteps(id); };
+    li.querySelector("span").onblur=e=>{ s.step=e.target.innerText; save(); };
+    li.querySelector(".x").onclick=()=>{ t.plan.splice(i,1); save(); renderSteps(id); };
+    ul.appendChild(li);
+  });
+}
+function addStep(id){ const t=DATA.tasks.find(x=>x.id===id); (t.plan=t.plan||[]).push({step:"Nouvelle étape",done:false}); save(); renderSteps(id); }
+function upd(id,k,v){ const t=DATA.tasks.find(x=>x.id===id); t[k]=v; save(); }
+function del(id){ if(!confirm("Supprimer "+id+" ?"))return; DATA.tasks=DATA.tasks.filter(x=>x.id!==id); save(); close_(); }
+function close_(){ document.getElementById("ov").classList.remove("on"); }
+
+function openNew(){
+  const id=nextId();
+  DATA.tasks.push({id,title:"Nouvelle tâche",status:"backlog",priority:"moyenne",
+    created:new Date().toISOString().slice(0,10),objectives:"",plan:[],expected:"",results:"",log:[]});
+  save(); openTask(id);
+}
+function copyLaunch(id){
+  navigator.clipboard.writeText("lance tâche "+id).then(()=>toast("Copié : lance tâche "+id));
+}
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1600); }
+
+function exportHtml(){
+  // réinjecte les données courantes dans le bloc JSON et télécharge un taches.html à jour
+  const html = document.documentElement.outerHTML.replace(
+    /(<script type="application\/json" id="tasks-data">)[\s\S]*?(<\/script>)/,
+    `$1\n${JSON.stringify(DATA,null,2)}\n$2`);
+  const blob=new Blob(["<!doctype html>\n"+html],{type:"text/html"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="taches.html"; a.click();
+  toast("taches.html exporté — enregistre-le dans le projet");
+}
+function resetLocal(){ if(confirm("Recharger les données du fichier (perd les édits locaux non exportés) ?")){ localStorage.removeItem(LS_KEY); DATA=seed(); render(); } }
+
+render();
+</script>
+</body>
+</html>

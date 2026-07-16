@@ -1,5 +1,36 @@
 # Instructions projet — AutoMonster
 
+## Gestion des tâches — `taches.html`
+
+`taches.html` est le tableau de bord des améliorations (source des tâches). Les tâches y sont
+stockées dans le bloc `<script type="application/json" id="tasks-data">`. Chaque tâche a :
+`id` (T00X), `title`, `status` (backlog/planned/in_progress/done), `priority`, `objectives`,
+`plan` (liste d'étapes `{step,done}`), `expected` (critères de « done »), `results`, `log`.
+
+### Commande « plannifie X »
+Quand l'utilisateur dit **« plannifie … »** :
+1. Poser les questions nécessaires pour cadrer précisément : objectif, critères de « done »
+   mesurables, périmètre, contraintes.
+2. Rédiger avec lui les `objectives` et un `plan` d'étapes concret, plus les `expected`.
+3. Ajouter la tâche (nouvel `id` T00X, `status:"planned"`) dans le bloc JSON de `taches.html`
+   en éditant directement le fichier. Confirmer l'id créé.
+
+### Commande « lance tâche T00X » (ou « lance tâche … »)
+Quand l'utilisateur dit **« lance tâche … »** :
+1. Lire `taches.html`, retrouver la tâche par id/titre, passer son `status` à `in_progress`.
+2. Exécuter le plan **en itérant** : implémenter une étape, lancer les tests
+   (`engine.test.ts`, build tsc/vite selon le périmètre), corriger, recommencer — jusqu'à ce
+   que **tous les `expected` soient satisfaits et les tests verts**. Cocher les étapes (`done:true`)
+   au fur et à mesure dans le JSON.
+3. Remplir `results` (ce qui a été fait, chiffres/tests) et ajouter une entrée à `log`.
+4. Passer `status` à `done` une fois les critères remplis.
+5. Appliquer la règle GDD ci-dessous (journal + version) si la session a changé quelque chose.
+6. Ne jamais marquer « done » si un test échoue ou si un `expected` n'est pas atteint.
+
+Après toute modif du JSON par Claude, prévenir l'utilisateur de recharger `taches.html`
+(bouton ↺). Après édition manuelle dans le dashboard, l'utilisateur exporte et réenregistre
+le fichier pour que Claude voie ses changements.
+
 ## Règle permanente : tenir le GDD à jour
 
 `GDD.md` est la source de vérité du projet. **À chaque discussion, incrément, amélioration ou développement**, il doit être mis à jour systématiquement, sans qu'on ait à le demander.

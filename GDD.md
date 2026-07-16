@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.42 — Document de référence du projet
+> Version 0.43 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,15 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-16 — v0.43
+- [Bestiaire] **Reclassement planche 4** (`sprites/planche 4.png`, 9 espèces, ordre de lecture 3×3).
+  Numéros 3, 5, 7, 8 restent des **NME** (`kind: "bestiole"`) : `meteorb`, `beetlorn`, `waxwick`,
+  `spinepuff`. Les 5 autres deviennent des **AM jouables** (`kind: "automonster"`,
+  `wildEncounterable: false`) : `snailorn` (1), `axolotine` (2), `bellwisp` (4), `thicket` (6),
+  `bannertail` (9). Roster jouable : **4 → 9 AM**. Ces 5 nouveaux AM n'ont pas encore d'inné /
+  palette de talents / branches ni de kit LIVE dédié → repli auto sur le kit Poofowl (jouables mais
+  génériques). Build + tsc + tests verts (engine 132/0, live 30/0).
 
 ### 2026-07-15 — v0.42
 - [Combat LIVE — **INTÉGRÉ AU JEU** : le proto devient le combat réel de l'app, partout]
@@ -439,7 +448,7 @@
 | **Combat LIVE (v0.42)** | Oui (§3) | ✅ **Combat réel du jeu, partout** : `engine/live.ts` (moteur data-driven pur + `autoSim` headless, 30/30) + `renderer/LiveCombat.tsx`/`liveEngine.ts`/`live-combat.css`. Interactif temps réel (ticks 2 s, énergie, garde/parade, décharge, clash, garde tardive, contre-attaque). **4 kits AM distincts** (Poofowl garde • Emberpup combo • Fungoot poison • Haloux esquive) et **3 NME** (Sprigling rythme • Cobbleback tank/slam • Murkwisp feinte ; boss = alias Cobbleback). |
 | Moteur de combat déterministe / ActionLog | Oui (§3.1, legacy) | ✅ `engine/combat.ts` (déterministe, testé 132/132) — **plus branché à l'UI** depuis v0.42, conservé pour tests/daily |
 | Renderer replay (legacy) | Oui (§9) | 🟡 `CombatView.tsx` (rejoue l'ActionLog, ×1/2/4) — **orphelin depuis v0.42** (remplacé par LiveCombat), conservé au cas où |
-| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster). **v0.24 : chaque AM jouable a une identité + 2 branches de spécialisation** (talents débloqués par palier) ; variations régionales/spéciales toujours non implémentées |
+| Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches). **9 AM jouables** (v0.43 : +5 de planche 4 — snailorn, axolotine, bellwisp, thicket, bannertail). **4 AM historiques ont une identité + 2 branches** (talents par palier) ; **les 5 nouveaux AM n'ont pas encore d'inné/talents/branches ni kit LIVE dédié** (repli kit Poofowl) ; variations régionales/spéciales toujours non implémentées |
 | Branches de spécialisation | Oui (§4.2/4.3, v0.24) | ✅ `SpeciesDef.branches` sur les 4 AM ; choix joueur irréversible au niv 3 (`BRANCH_CHOICE_LEVEL`), talents core (niv 3) + upgrade (niv 6) ; modal de choix + bloc fiche ; `activeTalents`/`needsBranchChoice`/`chooseBranch` |
 | Statuts & altérations (F7) | Oui (§3.3 F7, v0.24) | ✅ **Poison & Brûlure** (DoT) implémentés : ticks au début du tour de la victime, actions `status`/`statusTick`, retrait auto ; amplification de dégâts vs cible affligée |
 | Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` et `kind` éditables par espèce (`species_overrides`). **v0.21 :** l'**Éditeur d'espèces est retiré de l'UI joueur** (composant + API conservés, outil de dev) |
