@@ -11,7 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
-import CombatView from "./renderer/CombatView";
+import LiveCombat from "./renderer/LiveCombat";
+import type { LiveResult } from "./engine/live";
 import {
   SPECIES,
   STARTERS,
@@ -41,7 +42,6 @@ import {
   type Npc,
   type Zone,
 } from "./engine/data";
-import { runCombat } from "./engine/combat";
 import {
   makeCharacter,
   makeLeveledCharacter,
@@ -69,7 +69,7 @@ import House, { type QuestGlance } from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
 import type { ArenaOpponent } from "../lib/api";
-import type { Character, CombatResult, StatKey, InteractKind } from "./engine/types";
+import type { Character, StatKey, InteractKind } from "./engine/types";
 import {
   freshState,
   migrate,
@@ -95,7 +95,7 @@ import {
 } from "./state";
 import "./game.css";
 
-type CombatCtx = { loc: MapLocation; result: CombatResult; charId: string; duel?: ArenaOpponent };
+type CombatCtx = { loc: MapLocation; player: Character; enemy: Character; seed: number; charId: string; duel?: ArenaOpponent };
 type Outcome = "win" | "lose" | "draw";
 type RewardData = { outcome: Outcome; loc: MapLocation; pStat: any; firstClear: boolean; levelsGained: number };
 type DuelRewardData = { won: boolean; trainer: string; gold: number; dmg: number };
@@ -336,16 +336,10 @@ export default function GamePage() {
     const enemy = makeEnemy(loc);
     if (loc.isBoss && gs.bossLife[loc.id] != null) enemy.life = gs.bossLife[loc.id];
     const seed = Math.floor(Math.random() * 1_000_000_000);
-    const result = runCombat({
-      seed,
-      teamA: [withMoodBattle(player)],
-      teamB: [enemy],
-      rules: loc.maxTurns ? { maxTurns: loc.maxTurns } : undefined,
-    });
     // rencontre → bestiaire + commit du soin en cours
     const withBest = loc.enemySpecies ? recordBestiary(gs, loc.enemySpecies) : gs;
     persist(withCharUpdate(withBest, charId, () => player));
-    setModal({ k: "combat", ctx: { loc, result, charId } });
+    setModal({ k: "combat", ctx: { loc, player: withMoodBattle(player), enemy, seed, charId } });
   }
 
   // ── Duels d'arène (asynchrones, amicaux : pas de dégâts persistés) ────────
@@ -356,17 +350,15 @@ export default function GamePage() {
     if (player.life <= 0) return;
     const enemy = makeDuelEnemy(opp);
     const seed = Math.floor(Math.random() * 1_000_000_000);
-    const result = runCombat({ seed, teamA: [withMoodBattle(player)], teamB: [enemy] });
     persist(withCharUpdate(gs, charId, () => player));
     const loc = { id: "duel", name: `Duel — ${opp.trainer}` } as MapLocation;
-    setModal({ k: "combat", ctx: { loc, result, charId, duel: opp } });
+    setModal({ k: "combat", ctx: { loc, player: withMoodBattle(player), enemy, seed, charId, duel: opp } });
   }
 
-  function finishDuel(winner: 0 | 1 | null) {
+  function finishDuel(res: LiveResult) {
     if (modal.k !== "combat" || !modal.ctx.duel) return;
-    const { result, charId, duel } = modal.ctx;
-    const pStat = result.stats.find((s) => s.side === 0)!;
-    const won = winner === 0;
+    const { charId, duel } = modal.ctx;
+    const won = res.winner === 0;
     let s = gs;
     let goldGain = 0;
     if (won) {
@@ -382,15 +374,17 @@ export default function GamePage() {
       pushHistory(c, "combat", won ? `Duel gagné vs ${duel.trainer}` : `Duel perdu vs ${duel.trainer}`)
     );
     persist(s);
-    setModal({ k: "duelReward", r: { won, trainer: duel.trainer, gold: goldGain, dmg: pStat.damageDealt } });
+    setModal({ k: "duelReward", r: { won, trainer: duel.trainer, gold: goldGain, dmg: res.pDamageDealt } });
   }
 
-  function onCombatFinish(winner: 0 | 1 | null) {
+  function onCombatFinish(res: LiveResult) {
     if (modal.k !== "combat") return;
-    if (modal.ctx.duel) return finishDuel(winner);
-    const { loc, result, charId } = modal.ctx;
-    const pStat = result.stats.find((s) => s.side === 0)!;
-    const eStat = result.stats.find((s) => s.side === 1)!;
+    if (modal.ctx.duel) return finishDuel(res);
+    const { loc, charId } = modal.ctx;
+    const winner = res.winner;
+    const startLife = modal.ctx.player.life > 0 ? modal.ctx.player.life : modal.ctx.player.stats.hp;
+    const pStat = { lifeLeft: res.pLifeLeft, damageDealt: res.pDamageDealt, damageTaken: Math.max(0, Math.round(startLife - res.pLifeLeft)) };
+    const eStat = { lifeLeft: res.eLifeLeft };
     const outcome: Outcome = winner === 0 ? "win" : winner === 1 ? "lose" : "draw";
 
     let team = gs.team.map((c) => ({ ...c }));
@@ -684,7 +678,13 @@ export default function GamePage() {
                 </button>
               </div>
             </div>
-            <CombatView log={modal.ctx.result.log} speed={speed} onFinish={onCombatFinish} />
+            <LiveCombat
+              player={modal.ctx.player}
+              enemy={modal.ctx.enemy}
+              seed={modal.ctx.seed}
+              speed={speed}
+              onFinish={onCombatFinish}
+            />
           </div>
         </div>
       )}
@@ -773,13 +773,12 @@ const STAT_CARDS: { key: StatKey; icon: IconName; label: string; desc: string }[
 function Onboarding({ onPick }: { onPick: (id: string) => void }) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const [pick, setPick] = useState<string>(STARTERS[0]);
-  const [fight, setFight] = useState<CombatResult | null>(null);
+  const [fight, setFight] = useState<{ player: Character; enemy: Character } | null>(null);
   const sp = SPECIES[pick];
   const hero = makeCharacter(pick);
 
   function beginFight() {
-    const res = runCombat({ seed: 424242, teamA: [makeCharacter(pick)], teamB: [makeTutorialEnemy()] });
-    setFight(res);
+    setFight({ player: makeCharacter(pick), enemy: makeTutorialEnemy() });
     setStep(2);
   }
 
@@ -799,7 +798,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 
         {step === 0 && (
           <div className="ob-panel">
-            <p className="ob-lead">Ton monstre combat <b>tout seul</b>. Choisis-le bien.</p>
+            <p className="ob-lead">Tu <b>pilotes</b> ton monstre en combat live. Chaque monstre se joue différemment — choisis ton style.</p>
             <div className="starter-grid">
               {STARTERS.map((id) => {
                 const s = SPECIES[id];
@@ -856,8 +855,8 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
 
         {step === 2 && fight && (
           <div className="ob-panel ob-panel-fight">
-            <p className="ob-lead">Tu ne pilotes rien : tout est automatique.</p>
-            <CombatView log={fight.log} speed={1} tutorial onFinish={() => setStep(3)} />
+            <p className="ob-lead">Combat <b>LIVE</b> : choisis une action à chaque tick, pare au bon moment.</p>
+            <LiveCombat player={fight.player} enemy={fight.enemy} seed={424242} speed={1} tutorial onFinish={() => setStep(3)} />
           </div>
         )}
 

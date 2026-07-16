@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.27 — Document de référence du projet
+> Version 0.42 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -11,7 +11,248 @@
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
 
-### 2026-07-12 — v0.27
+### 2026-07-15 — v0.42
+- [Combat LIVE — **INTÉGRÉ AU JEU** : le proto devient le combat réel de l'app, partout]
+  - **Pivot de design majeur assumé** : l'ancien combat (replay automatique d'un `ActionLog`
+    pré-calculé, « le combat se joue seul ») est remplacé PARTOUT par le **combat LIVE interactif**
+    du proto (`combat-live-proto.html`). Le joueur pilote son AM en temps réel (ticks 2 s,
+    énergie, garde/parade, décharge, clash, garde tardive, contre-attaque). Le tuto d'onboarding
+    est réécrit en conséquence (« tu pilotes », plus « tout est automatique »).
+  - **Nouveau moteur data-driven** `engine/live.ts` (pur, testé) : formule de dégâts dérivée des
+    stats (`hitDmg(power, atk, def)` → scale avec le niveau), kits par AM, comportements par NME,
+    et un **simulateur headless** `autoSim` pour les tests. 30/30 checks (`live.test.ts`).
+  - **Un kit de gameplay V1 DISTINCT par AM jouable** (feeling volontairement différent) :
+    - **Poofowl** — *garde & parade* : Coup / Garde (2 boucliers) / Décharge. Pare → réserve →
+      décharge. Le contre-puncheur (kit de référence du proto).
+    - **Emberpup** — *combo ramp* : Griffe / Brasier (brûlure) / Curée. Combo ×1→×4 qui monte,
+      **aucune garde**, se casse si on encaisse. Tout en agression, fragile.
+    - **Fungoot** — *poison* : Crachat (poison empilable) / Spores (défense qui empoisonne
+      l'attaquant) / Frappe. L'usure lente, punit qui le touche.
+    - **Haloux** — *esquive & riposte* : Frappe / Esquive (parade parfaite → riposte immédiate) /
+      Riposte (décharge). Glass cannon au timing.
+  - **3 NME possibles, comportements radicalement différents** (réduction demandée) :
+    - **Sprigling** — rythme lisible (petit, petit, GROS coup), apprends la cadence.
+    - **Cobbleback** — tortue : se protège puis **charge un slam massif** (exposée pendant la
+      charge → frappe-la), **punit l'avidité/la passivité**.
+    - **Murkwisp** — **feinte** : télégraphie un gros coup puis l'annule ~40% du temps, punit la
+      garde panique. Le boss `gravelmaw` réutilise le comportement Cobbleback (alias).
+    - La carte n'utilise plus que ces 3 espèces (Squawklet retiré des combats : `windy`→Murkwisp).
+  - **Renderer** `renderer/LiveCombat.tsx` + `renderer/liveEngine.ts` (+ `live-combat.css` scopée
+    `.live-combat`, keyframes préfixées `lc_`) : port fidèle du proto (DOM, télégraphe, juice,
+    fenêtres d'input), généralisé aux 4 kits et 3 comportements, monté dans React via refs.
+  - **Câblage GamePage** : `CombatCtx` porte désormais `player`/`enemy`/`seed` (plus de `result`
+    pré-calculé) ; `onCombatFinish`/`finishDuel` consomment un `LiveResult`
+    (`winner`, `pLifeLeft`, `eLifeLeft`, `pDamageDealt`) issu du combat joué en direct. Les
+    récompenses/PV persistés/vie de boss en découlent. `CombatView.tsx` (replay) orphelin, conservé.
+  - Vérif : `tsc -b` OK, `vite build` OK (51 modules), moteur live 30/30, moteur déterministe
+    132/132. Rendu navigateur non capturé (chromium absent du sandbox), validation logique + build.
+
+### 2026-07-15 — v0.41
+- [Combat LIVE — proto v2.12 : confort mobile, bouton Charger, boucliers de garde, barre non linéaire]
+  - **Confort mobile** : `touch-action:manipulation` + `-webkit-tap-highlight-color:transparent`
+    + `user-select:none` sur les boutons (spam sans délai ni surbrillance grise), hover neutralisé
+    sur écran tactile (`@media (hover:none)`).
+  - **4e bouton « Charger »** : action par défaut désormais **matérialisée** par un bouton dédié,
+    plus petit, en rangée sous les 3 actions (`.chargewrap`/`.act.wait.chargebtn`), **sélectionné
+    par défaut** (`queued='wait'` à chaque tick). Raccourci clavier `4`.
+  - **Re-clic = plus d'annulation** : `queue()` fixe simplement `queued=id` (spam autorisé).
+    Revenir à Charger = cliquer sur le bouton Charger.
+  - **Garde = 2 boucliers** (remplace le badge « N tours ») : 2 icônes bouclier (clip-path).
+    Chaque tick, un bouclier disparaît (`vanish`, montée + fondu). À l'**activation** (parade d'un
+    coup), les restants **sautent** (`bvanish`, pop + fondu) et la garde est consommée
+    (`guardConsumed`). Sélectionner une attaque fait **sauter** les boucliers (`shieldJump`) pour
+    signaler qu'ils vont tomber.
+  - **Champ de protection persistant** (`#fieldP`, halo pulsé) affiché tant que `P.guard.hold>0`
+    — ne disparaît plus après 700 ms.
+  - **Barre de tick non linéaire** : `linear` → `cubic-bezier(.2,.55,.35,1)` (décélère vers la
+    fin pour les actions de dernière minute), **même durée totale** (`TICK_MS`).
+  - Vérif : `node --check` du script OK, 0 référence `.turns` résiduelle. Rendu navigateur non
+    capturé (chromium absent du sandbox), validation logique manuelle.
+  - **Arène fluide** : hauteur fixe 330 px → `aspect-ratio` (23/9, 2.6/1 ≥900 px, 16/11 ≤560 px)
+    avec `min/max-height`. Fighters, nameplate, paddings, sprites et tailles de FX passés en
+    `clamp()`. Breakpoints mobile (≤560/≤380 px) pour boutons, header, overlay.
+  - **FX ancrés sur la position RÉELLE des sprites** : nouvelle fonction `layout()` mesure le
+    centre des créatures et pose `--line-y` (clash/spark/onde) et `--float-y` (floaters) —
+    recalcul au load/resize/start. Fin des % arbitraires (63–66 %) qui plaçaient les effets
+    au-dessus des monstres.
+  - **Floaters ré-ancrés** : partent du haut du sprite (`bottom:var(--float-y)`) au lieu du haut
+    de la colonne (bug « -20 » en haut à gauche corrigé).
+  - **Portée d'attaque dynamique** : `CONTACT/CONTACT_BIG` fixes (300/340) → fonction `contact(side)`
+    calculée depuis l'écart réel entre combattants → l'attaquant atteint toujours l'adversaire
+    quelle que soit la largeur. `shield-fx`/`shadow` recentrés sur le sprite.
+  - Vérif : `node --check` du script OK, CSS équilibré (245/245). Rendu live non re-testé en
+    navigateur (file:// bloqué par l'outil), validation géométrique manuelle.
+
+### 2026-07-15 — v0.39
+- [Combat LIVE — proto v2.10 : correctifs feedback]
+  - **FX de clash abaissés** au niveau des créatures (spark 64 %, anneau 63 %, onde 66 % —
+    étaient ~44/48 %, trop haut).
+  - **Badge de durée sur la garde** : à la sélection affiche « 🛡 2 tours », puis « 🛡 1 tour »
+    tant que la garde reste active (halo bouclier persistant sur le bouton).
+  - **Feedback de charge de la décharge rétabli** : régression de la v2.9 (dépendance à
+    `@property`/transition CSS). Remplacé par une **montée d'anneau pilotée en JS** (`addStored`
+    anime `--p` via requestAnimationFrame, easeInOut 550 ms) + pulse du bouton (`.charging`) +
+    libellé « +N décharge ». `renderButtons` n'écrase plus `--p` pendant l'animation.
+  - **Floaters lisibles** : centrés + `white-space:nowrap` ; libellés texte (PARADE, +N
+    décharge…) en pastille sombre (`.floater.txt`) → plus de texte coupé/mal placé.
+  - Vérif jsdom : jauge 0→40 progressive, badge garde 2→1, aucun bug.
+
+### 2026-07-15 — v0.38
+- [Combat LIVE — proto v2.9 : fenêtre de garde élargie, FX de gains, éco parade]
+  - **Fenêtre de garde tardive élargie** : reste ouverte pendant **tout le déplacement de
+    l'ennemi** (windup + approche entière), fermeture juste avant la frappe (`raceLate(appr)`).
+  - **Parade parfaite = +1 énergie net** (au lieu du remboursement complexe) : `lateAbsorb`
+    ne déduit plus de coût, la régen de fin de résolution donne le +1.
+  - **FX de gain d'énergie** : `renderFighter` réutilise les pips ; les crans **nouvellement
+    gagnés** passent en **vert** avec un pop (`.pip.gain`) + floater « +N ⚡ » (`energyGainFx`),
+    déclenché à la régen de fin de résolution (charge / parade parfaite).
+  - **Jauge de décharge progressive + FX** : anneau `--p` rendu **animable** via `@property`
+    (transition .55 s) — les boutons/pips ne sont plus reconstruits à chaque render mais mis
+    à jour en place. À la défense, `addStored` fait monter la jauge progressivement + **pulse**
+    du bouton (`.charging`) + floater « +N décharge ».
+  - **Coût de la décharge repositionné** : pastille centrée en haut du bouton (au lieu du coin,
+    qui chevauchait l'anneau), avec liseré couleur burst.
+  - Vérif jsdom : parade en cours de déplacement (0 dégât, réserve +9 → jauge 30 %, énergie
+    +1 net), FX crans verts à la charge (1 cran `.gain`), aucun bug.
+
+### 2026-07-15 — v0.37
+- [Combat LIVE — proto v2.8 : garde tardive « triche », fade menu, grosses attaques exagérées]
+  - **Garde tardive (« triche »)** : quand l'ennemi frappe **et que le joueur n'a pas
+    attaqué**, il peut encore lever la garde **jusqu'à la moitié du mouvement d'approche**
+    de l'ennemi. Fenêtre ouverte pendant windup + 1re moitié de l'approche (`openLateGuard`/
+    `raceLate`/`triggerLateGuard`). Réussite = **parade parfaite** (`lateAbsorb` : 0 dégât,
+    réserve +150 %, coût de garde −2 énergie, FX bouclier + « PARADE ! » + anneau). Passé le
+    délai, la fenêtre se ferme (`closeLateGuard`) et le coup part.
+  - **Fade-out du menu** : `.btns.locked` (opacité .28 + grayscale + pointer-events none)
+    dès qu'on ne peut plus changer d'action ; le menu **reste visible pendant la fenêtre de
+    garde tardive** (seule la Garde reste active et mise en avant).
+  - **Grosses attaques exagérées + FX** : `strikeLand` sépare gros/petit. Big = charge,
+    windup marqué, **grand arc** (apex 122), **traînée de vitesse** (`.dashP/.dashE`),
+    et impact spectaculaire `bigImpact` (flash blanc → éclat orienté vers le perdant, spark,
+    **onde de choc** `#shock` positionnée, anneau, gros shake, floater 💥). Petites attaques
+    gardent un impact sobre → contraste net de puissance.
+  - Vérif jsdom : parade tardive (hp intacte, réserve +9, énergie −2), coup encaissé sans
+    garde (60→40), menu locked correct (input/fenêtre = visible, sinon estompé), gros FX sans erreur.
+
+### 2026-07-15 — v0.36
+- [Combat LIVE — proto v2.7 : boutons refaits, arcs, repos -1]
+  - **Boutons refondus** : passage à **3 boutons** (Coup / Garde / Décharge) — le bouton
+    « Charger » est retiré (ne rien faire = charger par défaut, inchangé côté résolution).
+    Nouveau style : accent de couleur par type (`--accent`), pastille d'icône ronde, barre
+    d'accent en haut, hover surélevé avec halo coloré, badge de coût. Grille 3 colonnes.
+    Raccourcis clavier réduits à 1/2/3.
+  - **Repos (énergie pleine 2 ticks)** : retire désormais **-1 énergie** au lieu de vider
+    toute la barre (`f.nrj = max(0, nrj-1)`). Contretemps léger plutôt que punitif.
+  - **Déplacement en ARC** pour les attaques (`moveXY`/`arcTo`) : bond montée→apex→chute.
+    **Grand arc** (apex ~76 px) pour les grosses attaques = impression de puissance ;
+    **petit arc** (~26 px) pour les attaques normales.
+  - **Cue ennemi grosse attaque** télégraphiée **500 ms plus tôt** (fenêtre de réaction
+    allongée sur les gros coups) : `revealIn -= 500` si `type==='big'`.
+  - Vérif jsdom : 3 boutons, repos 4→3, arcs (grand/petit) sans erreur.
+
+### 2026-07-15 — v0.35
+- [Combat LIVE — proto v2.6 : jauge décharge en anneau + clash à tension]
+  - **Jauge de décharge** retirée de l'arène → **anneau circulaire autour du bouton
+    « Décharge »** (conic-gradient masqué, rempli par la variable `--p` 0..100 ; classe
+    `full` + glow quand la réserve est pleine). Code `store gauge` supprimé de `render()`,
+    bloc HTML `#storeP/#sfillP` retiré.
+  - **Emoji mouton retiré** du nom de Poofowl.
+  - **Clash refondu pour la tension** : les deux créatures se **rejoignent au centre sans
+    échanger de place** (distance calculée dynamiquement via `clashReach()` sur les rects
+    des `.fighter`, arrêt face à face) → **FX de clash** (spark + flash + shake + vibration
+    `fx-hit` des deux) → **suspense** → **attaque simultanée** (thrust) → résolution :
+    - **Égalité** (ratio < 1,5) : **PARADE** — anneau doré central (`#clashring`), flash or,
+      floater « PARADE », rebond symétrique.
+    - **Gagnant** (ratio ≥ 1,5) : le gagnant **enfonce** sa frappe, le perdant est **projeté
+      vers son bord** avec **éclat directionnel orienté vers lui** (`dirFlash`) + gros shake +
+      dégâts → on lit immédiatement qui gagne.
+  - Nouveaux FX : `#clashring` (anneau), `dirFlash()` (éclat orienté), `ring()`.
+  - Vérif jsdom : render sans erreur (store retiré), clash gagnant + égalité OK, `--p` 0→100.
+
+### 2026-07-15 — v0.34
+- [Combat LIVE — proto v2.5 : rythme + cue tardive + clash épuré]
+  - **Durée de tick : 4 s → 2 s** (`TICK_MS=2000`). Combat plus nerveux.
+  - **Cue ennemi révélée tardivement** : au début du tick l'ennemi reste **neutre (idle)**,
+    il ne montre plus son intention immédiatement. Son aura de télégraphe (`tg-*`/`armed-*`)
+    apparaît via `showEnemyCue`, planifiée **entre 1000 ms et 100 ms avant la fin du tick**
+    (`revealIn = TICK_MS - (100 + rand*900)`, `cueTimer`). Nettoyé dans `reset`/`endGame`.
+    → fenêtre de réaction courte et variable pour le joueur.
+  - **Clash simplifié** : windup → **les deux avancent et se percutent au milieu** (accél.
+    `EASE_HIT`) → collision (spark/shake) → **suspense** au contact → **égalité** (rebond)
+    ou **break** (le plus fort passe, l'autre repoussé). Suppression du double arrêt+thrust.
+  - Vérif jsdom : tick 2 s OK, boutons `ON`, cue neutre à t=60 ms puis `tg-*` ~1,5 s ;
+    `animClash`/`animShieldAbsorb`/attaques sans erreur.
+
+### 2026-07-15 — v0.33
+- [Combat LIVE — proto v2.4 : vraies attaques + clash figé au milieu]
+  - **Séquence d'attaque en 6 temps** (`attackSeq`) partagée par joueur/ennemi : windup →
+    course (décélération) → **ARRÊT NET juste avant le coup** (temps mort) → **frappe**
+    (thrust rapide `EASE_HIT` + pose d'attaque `strikePose` : inclinaison/étirement vers la
+    cible, flip préservé) → impact → recul. Plus de simple translation + dégât.
+  - **Clash** : les deux courent jusqu'au **milieu**, s'**arrêtent net face à face** (temps
+    mort ~340 ms), puis se percutent simultanément au centre ; suspense au contact avant
+    résolution (repoussé / rebond). Easings dédiés : `EASE_STOP` (arrêt) / `EASE_HIT` (percussion).
+  - `animShieldAbsorb` aligné sur le même schéma (course → stop → frappe sur le bouclier).
+  - Vérif jsdom : `animClash`, `animShieldAbsorb`, attaques joueur/ennemi exécutées sans
+    erreur ; boucle de ticks OK, boutons `ON`.
+
+### 2026-07-15 — v0.32
+- [Combat LIVE — proto v2.3 : vie & fluidité]
+  - **Vrai fix « boutons bloqués après le 1er tick »** : dans `startTick()`, `render()`
+    était appelé **avant** `phase='input'` → les boutons étaient (re)dessinés en état
+    `resolve` (désactivés) et jamais rafraîchis jusqu'au tick suivant. Au 1er tick ça
+    marchait car `start()` avait déjà mis `phase='input'`. Corrigé : `phase='input'`
+    (puis `settle`) **avant** `render()`. Confirmé en jsdom : boutons `ON` aux ticks 1→4.
+  - **Idle animations distinctes par créature** (designé + implémenté) : Poofowl =
+    respiration/dandinement moelleux (`idleP`, 2,3 s) ; Sprigling = balancement de plante
+    + respiration verticale plus lente (`idleE`, 2,9 s). Boucles CSS sur `.sprite`.
+  - **Anticipation sur choix d'action** : quand le joueur met une action en file, l'idle
+    devient une **pose d'intention** avant résolution — `aim-peck` (penché, prêt à bondir),
+    `aim-guard` (se ramasse + halo bouclier), `aim-burst` (tremble + montée d'énergie),
+    `aim-wait` (respiration ample). Reset propre à la résolution.
+  - **Course au contact** : lunges rallongés (`CONTACT` 300 / `CONTACT_BIG` 340 px) avec
+    **windup** (repli d'anticipation) avant le dash ; clash avec pré-repli symétrique.
+  - **Fix technique du mouvement** : le déplacement inline (`transform`) était écrasé par
+    l'origine « animation » des classes idle/télégraphe. `moveSprite` force désormais
+    `animation:none` inline pendant le dash ; `settle()` rend la main aux boucles CSS
+    à la fin de chaque anim → l'ennemi se déplace vraiment lors de ses frappes.
+  - **Télégraphe ennemi = son idle vivant** : `tg-small/tg-big` animés (prépa qui respire
+    et se gonfle), `armed-*` (vibration/menace) redéfinis après `tg` pour gagner la cascade.
+  - Vérif : syntaxe OK (`node --check`) + harness jsdom (ticks 1→4, attaque incluse), aucun blocage.
+
+### 2026-07-14 — v0.31
+- [Combat LIVE — proto v2.2 : fix blocage + sprites /4 + télégraphe épuré]
+  - **Vrai fix du blocage au tick 2** : `classList.add('armed', '')` passait un **token vide** (attaque « small ») → `SyntaxError` non catchée dans la chaîne async → la boucle mourait, phase figée en `resolve`. Reproduit et confirmé via harness **jsdom headless**. Corrigé.
+  - **Barre de charge de l'ennemi supprimée** (la « 2e barre jaune » au-dessus du NME). Le télégraphe passe désormais **uniquement par l'aura du sprite** : `tg-small` (halo ambre) / `tg-big` (rouge + grossit) en prépa, + `armed-*` (pulsation/menace) au tick de frappe.
+  - **Sprites réduits ~/4** (34×46 px), ombres/halo de garde/repos ajustés ; déplacement de clash rallongé (270 px/côté) pour que les mini-sprites se rejoignent au centre.
+  - Vérif : enchaînement des ticks 1→6 (grosse attaque incluse) sans erreur (jsdom), syntaxe OK.
+- [Combat LIVE — proto v2.1 : correctifs feel] Retours de test sur `combat-live-proto.html`.
+  - **Bug corrigé** : la boucle bloquait au tick 2 (double chemin de résolution clic/timer). Réécrite en boucle unique `startTick → onTickEnd → resolve → startTick`.
+  - **Clic = mise en FILE** : cliquer une action la sélectionne (surlignage ✓) mais la **résolution attend la fin du tick** (plus de résolution immédiate). Re-clic = désélection.
+  - **Tick allongé à 4 s**.
+  - **Facing corrigé** : Poofowl regarde à gauche dans le sprite source → il est désormais **flippé** (le joueur, à gauche) pour faire face à l'ennemi ; Sprigling (à droite) non flippé. Les deux se regardent enfin.
+  - **Sprites plus petits** (88px) ; **barres de vie compactes** (7px) repositionnées juste au-dessus de chaque sprite ; pips/jauges réduits en conséquence.
+  - **Petit FX + anim par move** : charge (bob + ⚡), garde (halo bleu + anneau), attaque (hop + fx-hit sur la cible), décharge (wind-up doré). Déplacements d'attaque raccourcis ; clash gardé ample (collision au centre + suspense).
+- [Combat LIVE — proto v2 : temps réel, visuel-first] Itération du banc d'essai `combat-live-proto.html` suite au test joueur.
+  - **Temps réel** : écran de départ (« Prêt ? »), la clock **avance seule** (~2,4 s/tick, barre de compte à rebours). Ne rien faire = **charger** (défaut). Cliquer une action = la jouer immédiatement ce tick.
+  - **Éco d'énergie resserrée** : **attaquer ne régénère PAS** l'énergie du tick (seuls charger/garder donnent +1). **Garde plus chère** (coût 2). **Réserve de décharge plafonnée** (STORE_MAX = 30) avec jauge qui vire au **rouge** en approchant du max et **bouton qui brille** à plein.
+  - **État « repos »** : rester à énergie pleine 2 ticks d'affilée → **décharge totale à 0** (cue visuel : sprite qui s'affaisse + 💤 + pips qui clignotent). Punit l'accumulation passive.
+  - **Télégraphe 100% visuel, sans texte** : l'ennemi attaque **toujours avec 1 tick de prépa**. Jauge de charge au-dessus de lui + aura (**ambre** = petit coup, **rouge + grossit + tremble** = grosse attaque à parer). Aucun texte de combat, aucun log.
+  - **Animations longues** : vrais déplacements (aller/impact/retour), wind-up de la décharge, et **clash chorégraphié** (les deux avancent → collision + étincelle → **suspense** → break d'un côté ou égalité/rebond).
+  - **Divers** : sprites qui se font face ; **Recommencer** réinitialise aussi l'état visuel des sprites (rotation K.O., filtres). Logique éco/repos vérifiée en headless (9/9), résolution clash/garde (13/13).
+- [Combat — EXPÉRIMENTATION : refonte vers un combat LIVE tick/énergie] Nouveau prototype de combat **hors app**, isolé dans `combat-live-proto.html` (HTML autonome, sprites embarqués en base64). **Rien n'est intégré au jeu React** — c'est un banc d'essai pour valider le feel avant décision d'intégration. Le combat déterministe actuel (`game/engine/combat.ts`) reste la référence en prod.
+  - **Designé (ruleset) :**
+    - Combat en **ticks** (pas de temps réel pur) : chaque tick commence par **+1 énergie à tous** (barre max = **4**), l'ennemi **télégraphie** son action du tick, le joueur **choisit UNE action** (offensive OU défensive OU charger), puis **tout se résout en fin de tick**. Auto-avance si rien à faire, pause dès qu'il y a un choix.
+    - **Ordre de résolution :** priorité > défenses > attaques.
+    - **Clash** (deux attaques le même tick) : si ratio de dégâts ≥ 1.5 → le plus fort touche, l'autre encaisse ; sinon **dégâts annulés**. (Prévu plus tard : un AM spécialiste du clash gagnant systématiquement.)
+    - **Défense :** coûte 1 tick pour armer, tient **X ticks** en attendant une attaque. **PARFAIT** si frappé pile au tick d'armement (bonus + **remboursement d'énergie**). Attaquer annule/consomme la garde. Coût d'énergie croissant avec la durée (les parfaits remboursent).
+    - **Multi-tick :** certaines attaques ont un **windup** (charge télégraphiée sur un tick avant de frapper → l'attaquant est à découvert pendant la charge). Prévu aussi : moves avec ticks de récup.
+  - **Designé (3 starters, identités) :**
+    - **Poofowl 🐑 (shield-burst)** — *Garde* absorbe le coup dans une **réserve**, puis *Décharge* renvoie 8 + toute la réserve. Boucle : encaisser le gros coup en garde parfaite → décharger.
+    - **Emberpup 🔥 (combo ramp)** — charger sa barre puis attaquer **plusieurs ticks d'affilée** avec dégâts **croissants (×1,×2,×3,×4)**. Drawback : un move raté (défense forcée / clash perdu) **casse le combo** + **1 tick de récup**.
+    - **Haloux 🕊️ (esquive-riposte)** — lecture du télégraphe : *Esquive* parfaite → annule + **charge de riposte** + énergie rendue ; *Riposte* = gros coup conditionné à la charge.
+  - **Designé (roster NME) :** **Sprigling** (« petit, petit, GROS coup » — slam télégraphié à esquiver/absorber), **Cobbleback** (turtle lent qui charge un coup massif multi-tick, punit l'avidité), **Murkwisp** (feinte : télégraphie un gros coup puis parfois l'annule pour punir la défense panique).
+  - **État d'implémentation :** prototype jouable = **1 duel Poofowl 🐑 vs Sprigling** (medium/tactique, HP 60 vs 65). Implémenté : boucle de tick, énergie +1/tick, télégraphe d'intention, garde/garde parfaite + réserve, décharge, clash, windup du slam, juice (lunge/shake/floaters/bannières PARFAIT/CLASH), log, raccourcis clavier 1-4. Non implémenté (designé seulement) : Emberpup, Haloux, Cobbleback, Murkwisp, moves à priorité, AM spécialiste clash, ticks de récup génériques. Logique vérifiée par port headless (13/13 checks).
 - [DA — « prototype gris » + lisibilité + House refondue + onboarding/carte allégés] Deuxième vague de polish demandée par le joueur.
   - **Palette prototype** : fond de page passé d'un lavande bleuté à un **gris neutre clair** (`--bg #eceef1`), surfaces/lignes désaturées. **Contrastes texte renforcés** : `--ink #1a1c22`, `--ink-2 #383c45`, `--dim #565b66`, `--faint #868b96` ; accents *foncés pour rester lisibles comme texte* (`--acc`, `--gold`, `--green`, `--red`). Fonds décoratifs colorés retirés : **carte du monde** (radial teal/indigo + grille pointillée → surface unie) et **salle de combat** (halo violet → dégradé gris neutre).
   - **House — clic AM « débuggé »** : suppression du **zoom en place + volet coulissant** (animations `flex-basis`/`white-space` sources de bugs de layout). Nouvelle interaction simple : la pièce affiche le compagnon qui erre (errance + émotes conservées), **un clic ouvre directement la fiche** (`onOpenSheet`). Sous la pièce : carte d'identité cliquable (nom + niveau + PV), points de sélection d'équipe, rappel de quêtes, 3 sorties. Halo/ombre au sol neutralisés. Supprimé : `house-stage/panel/open`, `house-critter-anim/zoomed/walking`, `houseHop`, `house-back/caption/exit-btn`.
@@ -195,8 +436,9 @@
 
 | Aspect | Designé | Implémenté (état réel) |
 |--------|---------|------------------------|
-| Moteur de combat / ActionLog | Oui (§3.1) | ✅ `app/client/src/game/engine` (déterministe, testé) |
-| Renderer (combat) | Oui (§9) | ✅ `CombatView.tsx` (rejoue l'ActionLog, vitesse ×1/2/4). **v0.17 :** grande salle façon House élargie, combattants face à face (position de repos fixe + sprite ennemi retourné), assaut = déplacement vers l'adversaire → impact (bulle dégâts/esquive) → retour. |
+| **Combat LIVE (v0.42)** | Oui (§3) | ✅ **Combat réel du jeu, partout** : `engine/live.ts` (moteur data-driven pur + `autoSim` headless, 30/30) + `renderer/LiveCombat.tsx`/`liveEngine.ts`/`live-combat.css`. Interactif temps réel (ticks 2 s, énergie, garde/parade, décharge, clash, garde tardive, contre-attaque). **4 kits AM distincts** (Poofowl garde • Emberpup combo • Fungoot poison • Haloux esquive) et **3 NME** (Sprigling rythme • Cobbleback tank/slam • Murkwisp feinte ; boss = alias Cobbleback). |
+| Moteur de combat déterministe / ActionLog | Oui (§3.1, legacy) | ✅ `engine/combat.ts` (déterministe, testé 132/132) — **plus branché à l'UI** depuis v0.42, conservé pour tests/daily |
+| Renderer replay (legacy) | Oui (§9) | 🟡 `CombatView.tsx` (rejoue l'ActionLog, ×1/2/4) — **orphelin depuis v0.42** (remplacé par LiveCombat), conservé au cas où |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches, dont 4 promues automonster). **v0.24 : chaque AM jouable a une identité + 2 branches de spécialisation** (talents débloqués par palier) ; variations régionales/spéciales toujours non implémentées |
 | Branches de spécialisation | Oui (§4.2/4.3, v0.24) | ✅ `SpeciesDef.branches` sur les 4 AM ; choix joueur irréversible au niv 3 (`BRANCH_CHOICE_LEVEL`), talents core (niv 3) + upgrade (niv 6) ; modal de choix + bloc fiche ; `activeTalents`/`needsBranchChoice`/`chooseBranch` |
 | Statuts & altérations (F7) | Oui (§3.3 F7, v0.24) | ✅ **Poison & Brûlure** (DoT) implémentés : ticks au début du tour de la victime, actions `status`/`statusTick`, retrait auto ; amplification de dégâts vs cible affligée |
@@ -208,7 +450,7 @@
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
 | Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers **Explorer le monde**/Boutique (v0.17 : bouton renommé) |
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
-| Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (`CombatView tutorial`, pauses + bulles) → hub/boucle → adoption. Remplace le dialogue Disco Elysium |
+| Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (**v0.42 : `LiveCombat tutorial`, combat interactif** vs Sprigling ; « tu pilotes ») → hub/boucle → adoption |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
 | Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix). **v0.24 : talent inné + branche choisie** (dont les talents se débloquent par palier de niveau) |
 | Stats & talents lisibles (v0.20) | Oui | ✅ **4 stats** (stamina retirée) ; fiche en **barres + tag de rôle** ; talents avec **icône + infobulle** ; **labels flottants de talent en combat** (`talentProc`) |
@@ -262,7 +504,42 @@ Explorer la carte → Rencontrer un combat → Regarder le combat live → Réco
 > Le système de combat détaillé est spécifié feature par feature dans `combat-system-features.md`.
 > Cette section décrit le **principe**, les features retenues seront listées au fil de la refonte.
 
-### 3.1 Principe directeur — moteur / renderer
+### 3.0 État v0.42 — le combat LIVE interactif est le combat réel (partout)
+
+**Depuis v0.42, le combat du jeu est le combat LIVE interactif** (issu de `combat-live-proto.html`),
+et non plus le replay automatique d'un `ActionLog` déterministe (§3.1, désormais *legacy*, conservé
+pour les tests). Le joueur **pilote** son AM en temps réel.
+
+Modèle : combat en **ticks de 2 s**. Chaque tick, tout le monde regagne **+1 énergie** (sauf si on a
+attaqué), l'ennemi **télégraphie** son intention (aura ambre = petit coup / rouge = gros coup), le
+joueur choisit **une action** (offensive / défensive / décharge) ou laisse **Charger** (défaut) ;
+tout se résout en fin de tick. Mécaniques : **garde à boucliers** (parade → réserve de décharge),
+**garde tardive** (« triche » jusqu'à mi-mouvement ennemi), **contre-attaque** (fenêtre 500 ms post-
+parade), **clash** (deux attaques le même tick → le plus fort touche si ratio ≥ 1,5, sinon annulé),
+**repos** (plein 2 ticks → −1 énergie).
+
+**Chaque AM jouable a un kit V1 au feeling volontairement distinct** (`engine/live.ts → KITS`) :
+
+| AM | Style (`special`) | Boutons (1/2/3 + Charger) | Identité |
+|----|-------------------|---------------------------|----------|
+| **Poofowl** | garde | Coup · Garde (2 boucliers) · Décharge | Contre-puncheur : pare, stocke, décharge |
+| **Emberpup** | combo | Griffe · Brasier (brûlure) · Curée | Agression : combo ×1→×4, aucune garde, fragile |
+| **Fungoot** | poison | Crachat (poison) · Spores (empoisonne l'attaquant) · Frappe | Usure : DoT empilable, punit le contact |
+| **Haloux** | dodge | Frappe · Esquive (parfaite → riposte) · Riposte | Glass cannon au timing |
+
+**3 NME possibles seulement, comportements radicalement différents** (`engine/live.ts → BEHAVIORS`) :
+
+| NME | Comportement | Ce qu'il apprend au joueur |
+|-----|--------------|----------------------------|
+| **Sprigling** | rythme : petit, petit, GROS coup | lire la cadence, parer le gros coup |
+| **Cobbleback** | tortue : se protège puis charge un slam massif (exposée pendant la charge) | punir la charge, ne pas rester passif (avidité punie) |
+| **Murkwisp** | feinte : télégraphie un gros coup, l'annule ~40% | ne pas paniquer/gaspiller sa garde |
+
+Le boss `gravelmaw` réutilise le comportement **Cobbleback** (alias). Dégâts dérivés des stats
+(`hitDmg(power, atk, def)`) → tout scale avec le niveau. Moteur pur testé en headless
+(`live.test.ts`, `autoSim`, 30/30).
+
+### 3.1 Principe directeur — moteur / renderer *(legacy ActionLog)*
 
 Le combat repose sur une **séparation stricte en deux couches**, reliées par un seul artefact : le **journal d'actions** (`ActionLog`).
 
