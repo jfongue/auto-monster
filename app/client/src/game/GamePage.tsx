@@ -60,7 +60,7 @@ import { TALENTS, talentName } from "./engine/talents";
 import { HpBar, StatRow, talentTooltip, RoleTag } from "./shared";
 import { Icon, type IconName } from "./icons";
 import { AmHeroInfo, AmDetails, HealControls } from "./AmDetails";
-import House, { type QuestGlance } from "./House";
+import House from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
 import type { ArenaOpponent } from "../lib/api";
@@ -81,7 +81,6 @@ import {
   claimDaily,
   ensureDaily,
   bumpQuest,
-  questDef,
   hasDailyClaimable,
   applyOfflineRest,
   arenaWinsToday,
@@ -232,6 +231,13 @@ export default function GamePage() {
 
   const findChar = (id: string): Character | undefined =>
     gs.team.find((c) => c.id === id) ?? (gs.rental?.char.id === id ? gs.rental.char : undefined);
+
+  // ── Surnom (l'espèce reste affichée séparément, inchangée) ────────────────
+  function renameChar(charId: string, name: string) {
+    const trimmed = name.trim().slice(0, 18);
+    if (!trimmed) return;
+    updateChar(charId, (c) => ({ ...c, name: trimmed }));
+  }
 
   // ── Onboarding : adoption du 1er AM ─────────────────────────────────────────
   function adopt(speciesId: string) {
@@ -532,10 +538,8 @@ export default function GamePage() {
       {route.v === "house" && (
         <House
           team={gs.team}
-          quests={questGlance(gs)}
           gold={gs.gold}
           potions={gs.potions}
-          onOpenDaily={() => setModal({ k: "daily" })}
           onGoForest={() => setRoute({ v: "forest" })}
           onGoShop={goShop}
           onGoArena={goArena}
@@ -544,6 +548,7 @@ export default function GamePage() {
           onFull={healFullPaid}
           onInteract={doInteract}
           onChooseBranch={(id) => setModal({ k: "branch", charId: id })}
+          onRename={renameChar}
         />
       )}
 
@@ -643,6 +648,7 @@ export default function GamePage() {
             onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid}
             onInteract={doInteract} onClose={() => setModal({ k: "none" })}
             onChooseBranch={() => setModal({ k: "branch", charId: c.id })}
+            onRename={renameChar}
           />
         );
       })()}
@@ -720,16 +726,6 @@ export default function GamePage() {
 
     </div>
   );
-}
-
-/** Résumé des quêtes du jour pour le rappel affiché sur la House. */
-function questGlance(s: GameState): QuestGlance[] {
-  const day = todayKey();
-  const list = s.quests?.day === day ? s.quests.list : [];
-  return list.map((q) => {
-    const def = questDef(q.id);
-    return { id: q.id, icon: def.icon, label: def.label, progress: q.progress, target: def.target, done: q.claimed || q.progress >= def.target };
-  });
 }
 
 /** Applique une transformation à un Character sur un état donné (pur). */
@@ -1331,10 +1327,11 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
   );
 }
 
-function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose, onChooseBranch }: {
+function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose, onChooseBranch, onRename }: {
   c: Character; gold: number; potions: number; rentedFights?: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
   onInteract: (id: string, k: InteractKind) => void; onClose: () => void; onChooseBranch: () => void;
+  onRename: (id: string, name: string) => void;
 }) {
   const sp = SPECIES[c.speciesId];
   return (
@@ -1350,7 +1347,7 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
           <div className="am-art" style={{ background: `radial-gradient(circle at 50% 38%, ${sp.tint}33, transparent 72%)` }}>
             <img src={`/sprites/${sp.gfx}.png`} alt={c.name} />
           </div>
-          <AmHeroInfo c={c} rentedFights={rentedFights} />
+          <AmHeroInfo c={c} rentedFights={rentedFights} onRename={(name) => onRename(c.id, name)} />
         </section>
 
         <AmDetails

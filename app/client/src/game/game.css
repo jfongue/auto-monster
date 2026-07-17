@@ -393,6 +393,20 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .team-name.big { font-size: 20px; }
 .heal-quick { flex: none; }
 
+/* ── surnom éditable (fiche AM) ──────────────────────────────────────────── */
+.am-rename-btn {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  border-radius: 999px; border: 1px solid transparent; background: transparent; box-shadow: none;
+  color: var(--faint);
+}
+.am-rename-btn:hover:not(:disabled) { color: var(--acc); background: var(--acc-soft); border-color: transparent; box-shadow: none; }
+.am-name-input {
+  font: inherit; font-weight: 700; font-size: 20px; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--acc); border-radius: 8px;
+  padding: 2px 8px; min-width: 0; width: 12ch; max-width: 60vw;
+}
+.am-name-input:focus { outline: none; border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+
 /* ── barres de vie / xp ──────────────────────────────────────────────────── */
 .hpline { display: flex; align-items: center; gap: 8px; }
 .hpline .hpbar { flex: 1; }
@@ -649,15 +663,25 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .hmenu-item { text-align: left; width: 100%; padding: 12px 14px; }
 .hmenu-item.danger { margin-top: auto; color: var(--red); border-color: #ffd7dd; }
 
-/* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════ */
-.house { max-width: 480px; margin: 0 auto; padding: 8px clamp(10px,3.5vw,16px) 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+/* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════
+   La pièce (.house-room) est volontairement SANS padding horizontal : elle
+   s'étire jusqu'aux bords réels de l'écran sur mobile (ex. Samsung A37,
+   ~360-412px CSS) et se fond dans le fond de page via le masque ci-dessous.
+   Les autres blocs (fiche, carte d'identité, actions) gardent leur propre
+   respiration horizontale via `.house-below` / `.house-focus`. */
+.house { max-width: 640px; margin: 0 auto; padding: 8px 0 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
 
 .house-room {
   position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 20px;
   background: var(--surface); overflow: hidden;
-  /* Les bords gauche/droit se fondent doucement vers le fond du site. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  /* Fondu latéral doux et progressif vers le fond du site — plusieurs paliers
+     pour une transition plus feutrée qu'un simple linéaire 2 points. */
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0%, rgba(0,0,0,.5) 4%, #000 14%,
+    #000 86%, rgba(0,0,0,.5) 96%, transparent 100%);
+  mask-image: linear-gradient(to right,
+    transparent 0%, rgba(0,0,0,.5) 4%, #000 14%,
+    #000 86%, rgba(0,0,0,.5) 96%, transparent 100%);
 }
 /* Halo lumineux ambiant neutre (léger volume, pas de teinte). */
 .house-glow {
@@ -692,7 +716,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-emote { position: absolute; top: -6%; left: 50%; transform: translateX(-50%); font-size: 26px; pointer-events: none; z-index: 4; animation: emoteFloat 0.95s ease forwards; }
 @keyframes emoteFloat { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5); } 25% { opacity: 1; transform: translate(-50%, -8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -34px) scale(1); } }
 
-.house-below { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.house-below { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 0 clamp(10px,3.5vw,16px); box-sizing: border-box; }
 /* Carte d'identité cliquable (nom + niveau + PV) → ouvre la fiche. */
 .house-id {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
@@ -754,6 +778,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 /* Panneau de fiche in-place : monté puis fade-in via la classe `.on`. */
 .house-focus {
   width: 100%; opacity: 0; transform: translateY(10px);
+  padding: 0 clamp(10px,3.5vw,16px); box-sizing: border-box;
   transition: opacity 0.4s ease 0.05s, transform 0.4s ease 0.05s;
 }
 .house-focus.on { opacity: 1; transform: translateY(0); }

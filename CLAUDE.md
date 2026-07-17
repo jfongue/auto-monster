@@ -69,7 +69,11 @@ Ne jamais réécrire l'historique : on ajoute, on ne supprime pas les entrées p
 ## Commande « live » — déploiement systématique
 
 Quand l'utilisateur dit **« live »** (ou « mets ça live », « déploie »), exécuter
-**systématiquement et sans redemander** cette routine, dans l'ordre :
+**systématiquement et sans redemander** cette routine, dans l'ordre.
+
+**Autonomie totale : ne jamais attendre de validation.** Committer et pousser
+soi-même immédiatement dès que c'est possible. Ne rendre la main à l'utilisateur
+(commande `git push` à lancer) qu'en cas d'échec d'auth GitHub avéré.
 
 1. **Build + tests** : `cd app/client && npx tsc -b` puis `npx vite build` ; lancer les
    tests moteur (`cd app/client/src/game/engine && npx tsx engine.test.ts`). Ne pas

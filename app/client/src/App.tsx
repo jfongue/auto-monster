@@ -3,6 +3,7 @@ import { useAuth } from "./lib/auth";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import GamePage from "./game/GamePage";
+import BuildFooter from "./BuildFooter";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -11,11 +12,13 @@ export default function App() {
     return (
       <div className="center-screen">
         <div className="spinner" />
+        <BuildFooter />
       </div>
     );
   }
 
   return (
+    <>
     <Routes>
       <Route
         path="/"
@@ -31,5 +34,7 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <BuildFooter />
+    </>
   );
 }

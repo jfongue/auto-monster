@@ -27,15 +27,10 @@ function randBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-/** Résumé d'une quête du jour, affiché en rappel sur la House. */
-export type QuestGlance = { id: string; icon: string; label: string; progress: number; target: number; done: boolean };
-
 export default function House({
   team,
-  quests,
   gold,
   potions,
-  onOpenDaily,
   onGoForest,
   onGoShop,
   onGoArena,
@@ -44,12 +39,11 @@ export default function House({
   onFull,
   onInteract,
   onChooseBranch,
+  onRename,
 }: {
   team: Character[];
-  quests: QuestGlance[];
   gold: number;
   potions: number;
-  onOpenDaily: () => void;
   onGoForest: () => void;
   onGoShop: () => void;
   onGoArena: () => void;
@@ -58,6 +52,7 @@ export default function House({
   onFull: (id: string) => void;
   onInteract: (id: string, k: InteractKind) => void;
   onChooseBranch: (id: string) => void;
+  onRename: (id: string, name: string) => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [pos, setPos] = useState({ x: 46, y: 14 });
@@ -166,7 +161,7 @@ export default function House({
       {rendered && (
         <div className={`house-focus ${focused ? "on" : ""}`}>
           <div className="house-focus-head">
-            <AmHeroInfo c={c} />
+            <AmHeroInfo c={c} onRename={(name) => onRename(c.id, name)} />
             <button className="ghost sm house-focus-close" onClick={closeFocus} aria-label="Fermer la fiche">
               <Icon name="close" size={16} />
             </button>
@@ -202,15 +197,6 @@ export default function House({
               />
             ))}
           </div>
-        )}
-
-        {quests.some((q) => !q.done) && (
-          <button className="house-quests" onClick={onOpenDaily} aria-label="Journal du jour">
-            <Icon name="journal" size={14} />
-            {quests.filter((q) => !q.done).map((q) => (
-              <span key={q.id} className="hq-item">{q.icon} {q.progress}/{q.target}</span>
-            ))}
-          </button>
         )}
 
         <div className="house-exit-choices">

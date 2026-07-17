@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.47 — Document de référence du projet
+> Version 0.48 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,23 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-17 — v0.48
+- [Home / House — pièce edge-to-edge + fondu] **House élargie** (max-width 480 → 640, 720 en
+  focus inchangé) ; `.house-room` perd son padding horizontal hérité et s'étire jusqu'aux bords
+  réels de l'écran sur mobile (ciblé Samsung A37, ~360-412px CSS) — les blocs internes
+  (`house-below`, `house-focus`) reprennent leur propre respiration horizontale. Le **fondu
+  latéral** vers le fond de page passe d'un `mask-image` 2 points (linéaire) à un dégradé à
+  paliers (transparent → 50 % → opaque, plus feutré).
+- [Home / Quêtes] **Rappel des quêtes du jour retiré de la House** (pilule `house-quests`
+  supprimée) : le Journal du jour reste accessible uniquement via l'icône 📅 du header. Plumbing
+  associé nettoyé côté `House.tsx`/`GamePage.tsx` (`quests`, `onOpenDaily`, `questGlance`,
+  `QuestGlance`).
+- [Fiches AM — surnom] **Renommage des AM** : bouton crayon + édition inline du nom (`c.name`)
+  dans `AmHeroInfo` (fiche House en focus et fiche plein écran `AmPage`), 18 caractères max. La
+  **mention de l'espèce reste toujours affichée séparément** juste en-dessous (inchangée, déjà
+  distincte du nom). Nouvelle icône `edit` (`icons.tsx`). Build tsc + vite OK ; tests moteur
+  verts (132/0).
 
 ### 2026-07-17 — v0.47
 - [House/UX] Fix hover du compagnon dans la House : le `button:hover` global appliquait
@@ -499,7 +516,7 @@
 | Rencontres sauvages (zone) | Oui (§5) | ✅ **v0.17 :** plus de choix d'ennemi — la rencontre non nettoyée est présentée automatiquement, ennemi centré, sans ligne de butin ; choix de l'AM à envoyer conservé |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
-| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens). **v0.44 : clic AM = focus in-place** (état local `focused`, sans navigation ni `pushState`) — l'AM glisse en haut à gauche, la fiche (identité + stats/talents/soins/interactions + espèce + historique, via `AmDetails`) fade-in autour de lui, le reste fond ; clic dehors = retour smooth. Fiche plein écran `AmPage` conservée pour l'ouverture depuis l'équipe/inventaire. Sortie vers **Explorer le monde**/Boutique |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens). **v0.44 : clic AM = focus in-place** (état local `focused`, sans navigation ni `pushState`) — l'AM glisse en haut à gauche, la fiche (identité + stats/talents/soins/interactions + espèce + historique, via `AmDetails`) fade-in autour de lui, le reste fond ; clic dehors = retour smooth. Fiche plein écran `AmPage` conservée pour l'ouverture depuis l'équipe/inventaire. Sortie vers **Explorer le monde**/Boutique. **v0.48 :** pièce élargie et **edge-to-edge sur mobile** (plus de padding hérité sur `.house-room`, fondu latéral à paliers plus doux) ; **rappel de quêtes retiré** de la House (Journal accessible seulement via le header) |
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
 | Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (**v0.42 : `LiveCombat tutorial`, combat interactif** vs Sprigling ; « tu pilotes ») → hub/boucle → adoption |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
@@ -508,10 +525,10 @@
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
 | Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
-| Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions |
+| Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions. **v0.48 : surnom éditable** (crayon → input inline, 18 car. max) dans `AmHeroInfo`, partagé par la fiche House (focus in-place) et `AmPage` ; l'espèce reste affichée séparément, non affectée par le surnom |
 | Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues. **v0.26 :** pass minimaliste — **icônes SVG line** (`game/icons.tsx`, `<Icon>`) à la place des emojis *chrome*, texte explicatif superflu retiré (emojis de contenu conservés) |
 | Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile. **v0.26 :** carte du monde aérée < 680px, header sans débordement < 420px, en-tête de combat repliable, `heal-row` pleine largeur < 360px (breakpoints 900/680/560/420/360) |
-| Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour. **v0.21 :** quêtes **auto-réclamées** à la complétion (toast avec récompense) + **rappel de progression sur la House** (pilule → 📅). Testé (`daily.smoke.ts`, 16 checks) |
+| Boucle quotidienne (bonus + streak + quêtes) | Oui (v0.19) | ✅ state v6 : `dailyDay`/`dailyStreak`/`quests`, Journal du jour (`Daily.tsx`), auto-ouverture 1×/jour. **v0.21 :** quêtes **auto-réclamées** à la complétion (toast avec récompense). **v0.48 :** rappel de progression retiré de la House (accès Journal uniquement via le header 📅). Testé (`daily.smoke.ts`, 16 checks) |
 | Repos hors-ligne (PV/humeur temps réel) | Oui (v0.19) | ✅ `applyOfflineRest` (PV max en ~6 h, humeur → 60), toast de retour |
 | PvP | Oui (§6) | 🟡 **Arène de duels asynchrones** (`Arena.tsx` + `GET /api/arena/opponents`) : duel amical vs le meilleur AM d'un autre joueur (ou bot Nova), 3 victoires récompensées/jour. Pas encore de PvP synchrone/classé ni de liste d'amis |
 | UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` ; header avec bourse permanente + Journal 📅 ; toasts de feedback |

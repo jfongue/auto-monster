@@ -12,7 +12,7 @@ export type IconName =
   | "heal" | "pause" | "play" | "flee"
   | "back" | "close" | "menu" | "power" | "reset"
   | "lock" | "warn" | "star" | "levelup" | "boss" | "check" | "gift"
-  | "plus" | "return" | "chat" | "home";
+  | "plus" | "return" | "chat" | "home" | "edit";
 
 type P = { d?: string; el?: React.ReactNode };
 
@@ -51,6 +51,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   return: <g><path d="M9 7 4 12l5 5" /><path d="M4 12h11a5 5 0 0 1 0 10h-2" /></g>,
   chat: <path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 16H9l-4 3.5V6.5A1.5 1.5 0 0 1 6.5 5z" />,
   home: <g><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9.5h12V10" /></g>,
+  edit: <g><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5z" /><path d="M14.5 5.5l3 3" /></g>,
 };
 
 export function Icon({

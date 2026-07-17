@@ -126,15 +126,62 @@ export function InteractButtons({ c, onInteract }: { c: Character; onInteract: (
 }
 
 /** Bloc d'identité (nom, niveau, espèce, trait, humeur, PV, XP). Sans l'art :
- *  l'art est fourni par le contexte (fiche modale ou compagnon de la House). */
-export function AmHeroInfo({ c, rentedFights }: { c: Character; rentedFights?: number }) {
+ *  l'art est fourni par le contexte (fiche modale ou compagnon de la House).
+ *  Le nom (surnom) est éditable via `onRename` ; l'espèce reste toujours affichée
+ *  séparément juste en-dessous, quel que soit le surnom choisi. */
+export function AmHeroInfo({ c, rentedFights, onRename }: { c: Character; rentedFights?: number; onRename?: (name: string) => void }) {
   const sp = SPECIES[c.speciesId];
   const xpNext = xpForNext(c.level);
   const p = c.personality;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.name);
+
+  useEffect(() => { setDraft(c.name); }, [c.name, c.id]);
+
+  function commit() {
+    const trimmed = draft.trim().slice(0, 18);
+    if (onRename && trimmed && trimmed !== c.name) onRename(trimmed);
+    else setDraft(c.name);
+    setEditing(false);
+  }
+  function cancel() {
+    setDraft(c.name);
+    setEditing(false);
+  }
+
   return (
     <div className="am-hero-info">
       <div className="team-name big">
-        {c.name} <span className="lvl">N.{c.level}</span>
+        {editing ? (
+          <input
+            className="am-name-input"
+            value={draft}
+            autoFocus
+            maxLength={18}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commit(); }
+              if (e.key === "Escape") { e.preventDefault(); cancel(); }
+            }}
+          />
+        ) : (
+          <>
+            {c.name} <span className="lvl">N.{c.level}</span>
+            {onRename && (
+              <button
+                type="button"
+                className="am-rename-btn"
+                onClick={() => setEditing(true)}
+                aria-label="Renommer"
+                title="Renommer"
+              >
+                <Icon name="edit" size={13} />
+              </button>
+            )}
+          </>
+        )}
         {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
         {rentedFights != null && <span className="rent-tag">loué · {rentedFights}c</span>}
       </div>
