@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.46 — Document de référence du projet
+> Version 0.47 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,11 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-17 — v0.47
+- [House/UX] Fix hover du compagnon dans la House : le `button:hover` global appliquait
+  `translateY(-2px)`, écrasant le `translateX(-50%)` de centrage → le sprite se décalait au
+  survol. Override `.house-critter:hover/:active` conservant `translateX(-50%)` (game.css).
 
 ### 2026-07-17 — v0.46
 - [Campagne] **Ennemis de la campagne solo = les 4 NME de planche 4.** Les encounters de la
