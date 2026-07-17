@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AutoMonster — Proto combat LIVE v2</title>
+<style>
+  :root{
+    --bg:#0f1116; --panel:#171a22; --panel-2:#1e2230; --line:#2a2f3d;
+    --ink:#eef1f7; --dim:#a6adbb; --faint:#6b7280;
+    --hp:#e0556b; --hp-trail:#7a2432;
+    --nrj:#38bdf8; --nrj-empty:#243244;
+    --gold:#f4c453; --green:#4ade80; --red:#f87171; --purple:#a78bfa;
+    --shield:#5dd0e8; --burst:#ffb454; --big:#ff3b52;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(120% 90% at 50% -10%, #1a2030 0%, var(--bg) 60%);
+    color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100%; -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent; overscroll-behavior:none;
+  }
+  .wrap{width:min(860px,100%); padding:clamp(10px,2.5vw,16px) clamp(10px,2.5vw,16px) 40px; display:flex; flex-direction:column; gap:clamp(8px,1.6vw,12px)}
+  header.top{display:flex; align-items:center; justify-content:space-between}
+  header.top h1{font-size:14px; margin:0; letter-spacing:.3px; font-weight:700}
+  .tickbadge{font-size:12px; color:var(--dim)} .tickbadge b{color:var(--ink); font-variant-numeric:tabular-nums}
+
+  /* Arena */
+  .arena{position:relative; width:100%; aspect-ratio:23/9; min-height:300px; max-height:470px; border-radius:16px; overflow:hidden;
+    background:linear-gradient(180deg,#12151d 0%, #0d0f14 100%); border:1px solid var(--line);
+    display:flex; align-items:flex-end; justify-content:space-between; padding:0 clamp(14px,4%,44px) 0;
+    --line-y:74%; --float-y:22%}
+  .ground{position:absolute; left:0; right:0; bottom:0; height:24%; min-height:60px;
+    background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.35)); border-top:1px solid rgba(255,255,255,.04)}
+  /* countdown timer bar */
+  .timer{position:absolute; top:0; left:0; height:4px; width:100%; background:linear-gradient(90deg,var(--purple),#c4b5fd); transform-origin:left; z-index:7; opacity:.9}
+
+  .fighter{position:relative; width:clamp(104px,26%,150px); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; padding-bottom:clamp(28px,7%,40px); z-index:2}
+  .sprite-wrap{position:relative; width:clamp(48px,7vw,60px); height:clamp(68px,10vw,84px); display:flex; align-items:flex-end; justify-content:center}
+  .sprite{position:relative; width:clamp(42px,6vw,52px); height:clamp(56px,8vw,70px); display:flex; align-items:flex-end; justify-content:center;
+    transition:transform .28s cubic-bezier(.34,1.4,.5,1)}
+  .sprite img{max-width:100%; max-height:100%; filter:drop-shadow(0 4px 5px rgba(0,0,0,.5)); transition:filter .3s, transform .18s}
+  .fighter.player .sprite img{transform:scaleX(-1)}   /* Poofowl regarde à gauche -> flip pour faire face à droite */
+  .shadow{position:absolute; bottom:-3px; left:50%; margin-left:-18px; width:36px; height:8px; border-radius:50%;
+    background:radial-gradient(closest-side, rgba(0,0,0,.5), transparent); z-index:0; transition:transform .3s}
+
+  /* enemy charge telegraph (legacy, styles conservés) */
+  .charge{position:absolute; top:-14px; left:50%; transform:translateX(-50%); width:72px; height:7px;
+    border-radius:6px; background:#0c0e13; border:1px solid var(--line); overflow:hidden; opacity:0; transition:opacity .2s; z-index:4}
+  .charge .fillc{position:absolute; inset:0; width:0%; border-radius:6px; transition:width .9s linear;
+    background:linear-gradient(90deg,#facc15,#f59e0b)}
+  .charge.on{opacity:1}
+  .charge.big .fillc{background:linear-gradient(90deg,#ff6b7f,var(--big))}
+  .charge.armed .fillc{width:100%!important}
+  .charge.armed{animation:cpulse .5s ease-in-out infinite}
+  @keyframes cpulse{0%,100%{box-shadow:0 0 0 rgba(0,0,0,0)}50%{box-shadow:0 0 12px var(--big)}}
+  /* enemy body states */
+  .sprite.tg-small img{filter:drop-shadow(0 12px 12px rgba(0,0,0,.5)) drop-shadow(0 0 6px rgba(245,158,11,.7))}
+  .sprite.tg-big img{filter:drop-shadow(0 12px 14px rgba(0,0,0,.5)) drop-shadow(0 0 14px rgba(255,59,82,.95)) saturate(1.4) brightness(1.05)}
+  /* repos state */
+  .sprite.repos{transform:translateY(7px) rotate(-4deg)!important; filter:none}
+  .sprite.repos img{filter:grayscale(.6) brightness(.7) drop-shadow(0 6px 8px rgba(0,0,0,.5))!important}
+
+  /* nameplate / hp */
+  .nameplate{width:min(104px,100%); margin-bottom:6px}
+  .nameplate .nm{display:flex; justify-content:center; font-size:10px; margin-bottom:2px; color:var(--dim)}
+  .hpbar{position:relative; height:7px; border-radius:5px; background:#0c0e13; overflow:hidden; border:1px solid var(--line)}
+  .hpbar .trail{position:absolute; inset:0; background:var(--hp-trail); border-radius:7px; transition:width .6s ease .15s}
+  .hpbar .fill{position:absolute; inset:0; background:linear-gradient(90deg,#ff7a8c,var(--hp)); border-radius:7px; transition:width .35s ease}
+  /* 4 crans disposés en arc de cercle (au lieu d'une ligne droite) */
+  .nrj{position:relative; width:80px; height:26px; margin:8px auto 0}
+  .pip{position:absolute; width:15px; height:8px; border-radius:3px; background:var(--nrj-empty); border:1px solid #33465c; transition:background .25s,border-color .25s,box-shadow .25s}
+  .nrj .pip:nth-child(1){left:2px; top:15px}
+  .nrj .pip:nth-child(2){left:20px; top:3px}
+  .nrj .pip:nth-child(3){left:45px; top:3px}
+  .nrj .pip:nth-child(4){left:63px; top:15px}
+  .pip.full{background:linear-gradient(90deg,#7dd3fc,var(--nrj)); border-color:#7dd3fc; box-shadow:0 0 7px rgba(56,189,248,.55)}
+  .pip.resting{animation:restpip .5s ease-in-out 2}
+  @keyframes restpip{0%,100%{background:var(--nrj-empty)}50%{background:#5b5170; box-shadow:0 0 8px #a78bfa}}
+  /* cran d'énergie nouvellement gagné : couleur distincte (vert) + pop */
+  .pip.gain{background:linear-gradient(90deg,#86efac,var(--green))!important; border-color:#86efac!important;
+    box-shadow:0 0 10px rgba(74,222,128,.85)!important; animation:pipgain .8s ease}
+  @keyframes pipgain{0%{transform:scale(.5); opacity:.3}45%{transform:scale(1.5)}100%{transform:scale(1)}}
+
+  /* stored / discharge gauge (player) */
+  .store{width:104px; margin-top:8px; opacity:.55; transition:opacity .3s}
+  .store.has{opacity:1}
+  .store .lab{font-size:10px; color:var(--dim); text-align:center; margin-bottom:2px}
+  .storebar{position:relative; height:9px; border-radius:6px; background:#0c0e13; border:1px solid var(--line); overflow:hidden}
+  .storebar .sfill{position:absolute; inset:0; width:0%; border-radius:6px; transition:width .4s ease, background .4s}
+
+  /* floaters / banners / fx */
+  .floater{position:absolute; left:50%; bottom:var(--float-y,22%); top:auto; font-weight:800; font-size:clamp(19px,2.6vw,24px); z-index:9; pointer-events:none;
+    white-space:nowrap; text-align:center; text-shadow:0 2px 4px rgba(0,0,0,.8); animation:floatUp 1.1s ease-out forwards}
+  .floater.dmg{color:#ff8a9a} .floater.big{font-size:clamp(26px,3.6vw,34px); color:var(--big)}
+  .floater.absorb{color:var(--shield)} .floater.rest{color:var(--purple); font-size:clamp(21px,2.8vw,26px)}
+  .floater.toolate{color:#ff5d5d}
+  .floater.nrjgain{color:var(--green); font-size:clamp(15px,2vw,19px)}
+  /* libellés texte (PARADE, +N décharge…) : plus petits, sur pastille sombre pour la lisibilité */
+  .floater.txt{font-size:14px; font-weight:900; letter-spacing:.4px; padding:3px 9px; border-radius:10px;
+    background:rgba(10,12,18,.8); box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  @keyframes floatUp{0%{opacity:0; transform:translate(-50%,6px) scale(.8)}15%{opacity:1}100%{opacity:0; transform:translate(-50%,-54px) scale(1.05)}}
+  .flash{position:absolute; inset:0; z-index:8; opacity:0; pointer-events:none}
+  .flash.go{animation:fl .5s ease-out}
+  @keyframes fl{0%{opacity:.5}100%{opacity:0}}
+  .clashspark{position:absolute; top:var(--line-y,74%); left:50%; transform:translate(-50%,-50%) scale(0); z-index:9;
+    width:clamp(56px,9vw,84px); aspect-ratio:1; border-radius:50%; background:radial-gradient(closest-side,#fff,rgba(255,220,120,.6),transparent)}
+  .clashspark.go{animation:spark .6s ease-out}
+  @keyframes spark{0%{transform:translate(-50%,-50%) scale(0); opacity:0}30%{opacity:1; transform:translate(-50%,-50%) scale(1.3)}100%{opacity:0; transform:translate(-50%,-50%) scale(1.8)}}
+  /* anneau de clash (parade / choc au centre) */
+  .clashring{position:absolute; top:var(--line-y,74%); left:50%; transform:translate(-50%,-50%) scale(.2); z-index:9;
+    width:clamp(76px,12vw,110px); aspect-ratio:1; border-radius:50%; border:3px solid var(--gold); opacity:0; pointer-events:none;
+    box-shadow:0 0 22px rgba(244,196,83,.7)}
+  .clashring.go{animation:cring .6s cubic-bezier(.2,.7,.3,1)}
+  @keyframes cring{0%{opacity:0; transform:translate(-50%,-50%) scale(.2)}25%{opacity:1}100%{opacity:0; transform:translate(-50%,-50%) scale(1.7)}}
+  /* hôte des floaters au CENTRE de l'arène (ex: CLASH), même repère vertical que les floaters des combattants */
+  .clashtext{position:absolute; top:0; left:50%; width:0; height:100%; pointer-events:none}
+  /* onde de choc (impact des grosses attaques) */
+  .shock{position:absolute; top:var(--line-y,74%); left:50%; transform:translate(-50%,-50%) scale(.3); z-index:9;
+    width:clamp(40px,7vw,56px); aspect-ratio:1; border-radius:50%; border:4px solid #fff; opacity:0; pointer-events:none}
+  .shock.go{animation:shockw .5s ease-out}
+  @keyframes shockw{0%{opacity:.95; transform:translate(-50%,-50%) scale(.3)}100%{opacity:0; transform:translate(-50%,-50%) scale(2.6)}}
+  /* traînée de vitesse pendant le bond d'une grosse attaque */
+  .sprite.dashP img{filter:drop-shadow(0 0 12px rgba(255,180,84,.95)) drop-shadow(-16px 0 12px rgba(255,180,84,.5)) drop-shadow(-30px 0 9px rgba(255,180,84,.25))!important}
+  .sprite.dashE img{filter:drop-shadow(0 0 12px rgba(255,59,82,.95)) drop-shadow(16px 0 12px rgba(255,59,82,.5)) drop-shadow(30px 0 9px rgba(255,59,82,.25))!important}
+
+  .shield-fx{position:absolute; bottom:2px; left:50%; margin-left:-30px; width:60px; height:60px; border-radius:50%;
+    border:2px solid var(--shield); box-shadow:0 0 16px rgba(93,208,232,.6) inset; opacity:0; z-index:6}
+  .shield-fx.go{animation:shf .7s ease-out}
+  @keyframes shf{0%{opacity:0; transform:scale(.8)}30%{opacity:.95}100%{opacity:0; transform:scale(1.15)}}
+  /* champ de protection persistant (tient plusieurs tours tant que la garde est levée) */
+  .field{position:absolute; bottom:-2px; left:50%; margin-left:-38px; width:76px; height:76px; border-radius:50%;
+    border:2px solid rgba(93,208,232,.55); box-shadow:0 0 22px rgba(93,208,232,.4) inset, 0 0 14px rgba(93,208,232,.35);
+    opacity:0; transform:scale(.85); transition:opacity .4s, transform .4s; z-index:5; pointer-events:none}
+  .field.on{opacity:1; transform:scale(1); animation:fieldPulse 2.4s ease-in-out infinite}
+  @keyframes fieldPulse{0%,100%{box-shadow:0 0 20px rgba(93,208,232,.35) inset, 0 0 12px rgba(93,208,232,.3); transform:scale(1)}
+    50%{box-shadow:0 0 30px rgba(93,208,232,.5) inset, 0 0 20px rgba(93,208,232,.45); transform:scale(1.05)}}
+
+  .arena.shake{animation:shk .34s} .arena.shake-big{animation:shk .55s}
+  @keyframes shk{0%,100%{transform:translate(0,0)}20%{transform:translate(-7px,4px)}40%{transform:translate(7px,-4px)}60%{transform:translate(-5px,3px)}80%{transform:translate(5px,-3px)}}
+
+  /* controls */
+  .controls{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px;
+    -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none}
+  .controls .act{touch-action:manipulation}
+  .btns{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; transition:opacity .3s ease, filter .3s ease}
+  /* rangée Charger : action par défaut, plus petite, sous les 3 actions principales */
+  .chargewrap{margin-top:9px; transition:opacity .3s ease, filter .3s ease}
+  .chargewrap.locked{opacity:.28; filter:grayscale(.4); pointer-events:none}
+  .act.wait.chargebtn{flex-direction:row; gap:9px; padding:9px 12px; border-radius:12px; width:100%;
+    justify-content:center; --accent:var(--purple); opacity:.9}
+  .act.wait.chargebtn .ic{width:28px; height:28px; font-size:16px}
+  .act.wait.chargebtn .k{font-size:11.5px}
+  .act.wait.chargebtn::after{height:2px}
+  .act.wait.chargebtn.selected{opacity:1}
+  /* menu estompé quand on ne peut plus changer d'action */
+  .btns.locked{opacity:.28; filter:grayscale(.4); pointer-events:none}
+  .act{--accent:var(--purple); position:relative; cursor:pointer; border:1px solid var(--line);
+    background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--panel-2)), var(--panel-2));
+    color:var(--ink); border-radius:16px; padding:16px 10px 14px; transition:transform .12s, border-color .15s, box-shadow .15s, background .2s;
+    text-align:center; display:flex; flex-direction:column; align-items:center; gap:7px; overflow:hidden}
+  .act::after{content:''; position:absolute; left:0; right:0; top:0; height:3px; background:var(--accent); opacity:.85}
+  .act:hover:not(:disabled){transform:translateY(-3px); border-color:var(--accent); box-shadow:0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent)}
+  .act:active:not(:disabled){transform:translateY(-1px) scale(.97)}
+  /* pas de hover collant sur écran tactile */
+  @media (hover:none){ .act:hover:not(:disabled){transform:none; box-shadow:none} }
+  .act:disabled{opacity:.3; cursor:not-allowed; filter:saturate(.5)}
+  .act .ic{font-size:24px; line-height:1; width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; background:color-mix(in srgb, var(--accent) 22%, transparent); box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) inset}
+  .act .k{font-size:12.5px; font-weight:800; letter-spacing:.2px; color:var(--accent)}
+  .act .cost{position:absolute; top:9px; right:11px; font-size:11px; color:var(--nrj); font-weight:800; z-index:3;
+    background:rgba(0,0,0,.35); border-radius:8px; padding:1px 6px}
+  .act.atk{--accent:#ffb877} .act.def{--accent:var(--shield)} .act.burst{--accent:var(--burst)}
+  /* garde : 2 boucliers = 2 tours de protection */
+  .act.def .shields{position:absolute; bottom:-11px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:4}
+  .act.def .shields i{width:15px; height:17px; background:var(--nrj-empty); border:1px solid #33465c;
+    clip-path:polygon(50% 0,100% 20%,100% 58%,50% 100%,0 58%,0 20%);
+    transition:background .25s, box-shadow .25s, opacity .2s; transform-origin:center}
+  .act.def .shields i.on{background:linear-gradient(180deg,#9fe8f5,var(--shield)); border-color:transparent; box-shadow:0 0 8px rgba(93,208,232,.7)}
+  .act.def .shields i.vanish{animation:shVanish .55s ease-out forwards}
+  @keyframes shVanish{0%{opacity:1; transform:translateY(0) scale(1)}100%{opacity:0; transform:translateY(-11px) scale(.5)}}
+  .act.def .shields i.bvanish{animation:shBurst .55s cubic-bezier(.3,.8,.3,1) forwards}
+  @keyframes shBurst{0%{opacity:1; transform:scale(1)}35%{opacity:1; transform:scale(1.7); box-shadow:0 0 18px var(--shield)}100%{opacity:0; transform:scale(.3)}}
+  .act.def .shields i.jump{animation:shJump .46s ease}
+  @keyframes shJump{0%,100%{transform:translateY(0)}30%{transform:translateY(-8px) scale(1.15)}62%{transform:translateY(0) rotate(-9deg)}}
+  .act.def.active{border-color:var(--shield); box-shadow:0 0 0 2px rgba(93,208,232,.5) inset, 0 0 16px rgba(93,208,232,.5)}
+  /* garde cliquée juste trop tard : reste interceptable (pointer-events) sans changer l'aspect grisé */
+  .act.def.graceClick{pointer-events:auto!important}
+  .act.def.shakeLate{animation:shakeLate .32s ease}
+  @keyframes shakeLate{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}50%{transform:translateX(4px)}75%{transform:translateX(-3px)}}
+  /* jauge de décharge : anneau circulaire autour du bouton Décharge (rempli par --p 0..100, animé en JS) */
+  .act.burst{overflow:visible}
+  /* coût de la décharge : dans une pastille centrée en haut, bien lisible sur l'anneau */
+  .act.burst .cost{top:-9px; right:auto; left:50%; transform:translateX(-50%); background:var(--panel);
+    border:1px solid color-mix(in srgb, var(--burst) 55%, var(--line)); box-shadow:0 0 8px rgba(0,0,0,.5)}
+  /* ligne d'accent du haut retirée pour la décharge : elle chevauchait la jauge circulaire */
+  .act.burst::after{display:none}
+  .act.burst::before{content:''; position:absolute; inset:-4px; border-radius:15px; padding:4px; z-index:0;
+    background:conic-gradient(from -45deg, var(--burst) calc(var(--p,0)*3.6deg), rgba(255,255,255,.09) 0);
+    -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor; mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite:exclude; pointer-events:none}
+  .act.burst.full::before{box-shadow:0 0 14px rgba(255,180,84,.85)}
+  .act.burst > *{position:relative; z-index:1}
+  /* jauge vide : bouton grisé pour bien montrer qu'il n'y a rien à décharger */
+  .act.burst.empty{filter:grayscale(.75) brightness(.75)}
+  /* pulsation au moment où la réserve monte (défense) */
+  .act.burst.charging{animation:burstcharge .65s ease}
+  .act.burst.charging::before{filter:brightness(1.5) drop-shadow(0 0 9px var(--burst))}
+  @keyframes burstcharge{0%{box-shadow:0 0 0 rgba(255,180,84,0)}45%{box-shadow:0 0 24px rgba(255,180,84,.95)}100%{box-shadow:0 0 0 rgba(255,180,84,0)}}
+  /* feedback EXAGÉRÉ du bouton décharge sur défense réussie */
+  .act.burst.pop{opacity:1!important; filter:none!important; z-index:5; animation:burstpop .85s cubic-bezier(.25,.8,.3,1)}
+  .act.burst.pop::before{filter:brightness(2.1) drop-shadow(0 0 20px var(--burst))!important}
+  @keyframes burstpop{0%{transform:scale(1); box-shadow:0 0 0 rgba(255,180,84,0)}30%{transform:scale(1.28); box-shadow:0 0 32px rgba(255,180,84,1)}55%{transform:scale(.94)}100%{transform:scale(1); box-shadow:0 0 0 rgba(255,180,84,0)}}
+  .act.glow{border-color:var(--burst); box-shadow:0 0 0 rgba(255,180,84,0); animation:btnglow 1s ease-in-out infinite}
+  @keyframes btnglow{0%,100%{box-shadow:0 0 4px rgba(255,180,84,.4)}50%{box-shadow:0 0 18px rgba(255,180,84,.9)}}
+  /* fenêtre de contre-attaque (500ms post-parade) : le bouton décharge se démasque et pulse */
+  .act.burst.counterReady{opacity:1!important; filter:none!important; pointer-events:auto!important;
+    border-color:var(--burst); box-shadow:0 0 0 3px rgba(255,180,84,.55), 0 0 22px rgba(255,180,84,.9);
+    animation:counterPulse .4s ease-in-out infinite alternate}
+  @keyframes counterPulse{0%{transform:scale(1)}100%{transform:scale(1.06)}}
+  .act.selected{border-color:var(--purple); background:#252a3a; box-shadow:0 0 0 2px rgba(167,139,250,.5) inset; animation:selpulse .9s ease-in-out infinite}
+  @keyframes selpulse{0%,100%{box-shadow:0 0 0 2px rgba(167,139,250,.35) inset}50%{box-shadow:0 0 0 2px rgba(167,139,250,.85) inset}}
+  .act.selected .k::after{content:' ✓'; color:var(--purple)}
+  .sprite.fx-charge{animation:bob .5s ease}
+  @keyframes bob{0%,100%{transform:translateY(0)}40%{transform:translateY(-9px)}}
+  .sprite.fx-guard img{filter:drop-shadow(0 8px 9px rgba(0,0,0,.5)) drop-shadow(0 0 10px rgba(93,208,232,.9))!important}
+  .sprite.fx-hit{animation:hitpop .18s ease}
+  @keyframes hitpop{0%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.08)}100%{transform:translateY(0) scale(1)}}
+
+  /* ============ VIE / IDLE ============ */
+  .fighter.player .sprite.idle{animation:idleP 2.3s ease-in-out infinite}
+  @keyframes idleP{
+    0%,100%{transform:translateY(0) scaleY(1) rotate(0deg)}
+    30%{transform:translateY(-3px) scaleY(1.02) rotate(-1.5deg)}
+    55%{transform:translateY(-5px) scaleY(1.03) rotate(0deg)}
+    80%{transform:translateY(-2px) scaleY(.99) rotate(1.5deg)}
+  }
+  .fighter.enemy .sprite.idle{animation:idleE 2.9s ease-in-out infinite}
+  @keyframes idleE{
+    0%,100%{transform:translateX(0) translateY(0) rotate(0deg) scaleY(1)}
+    25%{transform:translateX(-3px) rotate(-2.5deg)}
+    50%{transform:translateY(-2px) scaleY(1.04)}
+    75%{transform:translateX(3px) rotate(2.5deg)}
+  }
+
+  /* ============ ANTICIPATION JOUEUR ============ */
+  .fighter.player .sprite.aim-peck{animation:aimPeck .5s ease-in-out infinite}
+  @keyframes aimPeck{0%,100%{transform:translateX(4px) translateY(0) rotate(4deg)}50%{transform:translateX(9px) translateY(-3px) rotate(7deg)}}
+  .fighter.player .sprite.aim-guard{animation:aimGuard 1s ease-in-out infinite}
+  .fighter.player .sprite.aim-guard img{filter:drop-shadow(0 8px 9px rgba(0,0,0,.5)) drop-shadow(0 0 10px rgba(93,208,232,.85))}
+  @keyframes aimGuard{0%,100%{transform:translateY(1px) scaleY(.96) scaleX(1.04)}50%{transform:translateY(3px) scaleY(.92) scaleX(1.07)}}
+  .fighter.player .sprite.aim-burst{animation:aimBurst .28s ease-in-out infinite}
+  .fighter.player .sprite.aim-burst img{filter:drop-shadow(0 6px 8px rgba(0,0,0,.5)) drop-shadow(0 0 14px rgba(255,180,84,.95)) brightness(1.1)}
+  @keyframes aimBurst{0%,100%{transform:translate(-2px,-2px)}25%{transform:translate(2px,-4px)}50%{transform:translate(-1px,-2px)}75%{transform:translate(2px,-3px)}}
+  .fighter.player .sprite.aim-wait{animation:aimWait 1.6s ease-in-out infinite}
+  @keyframes aimWait{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-6px) scaleY(1.05)}}
+
+  /* ============ TÉLÉGRAPHE ENNEMI ============ */
+  .fighter.enemy .sprite.tg-small{animation:prepE 1.3s ease-in-out infinite}
+  @keyframes prepE{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.03)}}
+  .fighter.enemy .sprite.tg-big{animation:prepBigE 1.05s ease-in-out infinite}
+  @keyframes prepBigE{0%,100%{transform:translateY(0) scale(1.06)}50%{transform:translateY(-5px) scale(1.11)}}
+  .fighter.enemy .sprite.armed-small{animation:menaceS .42s ease-in-out infinite}
+  @keyframes menaceS{0%,100%{transform:translateX(0) translateY(0)}50%{transform:translateX(-4px) translateY(-2px)}}
+  .fighter.enemy .sprite.armed-big{animation:menace .3s ease-in-out infinite}
+  @keyframes menace{0%,100%{transform:scale(1.1) translateX(0)}50%{transform:scale(1.15) translateX(-5px)}}
+
+  .row{display:flex; justify-content:flex-end; margin-top:10px}
+  .restart{cursor:pointer; background:transparent; color:var(--dim); border:1px solid var(--line); border-radius:10px; padding:7px 14px; font-weight:700; font-size:12px}
+  .restart:hover{color:var(--ink); border-color:var(--purple)}
+
+  /* overlay (start / end) */
+  .overlay{position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    background:rgba(8,10,15,.72); backdrop-filter:blur(4px); transition:opacity .3s}
+  .overlay.hide{opacity:0; pointer-events:none}
+  .overlay .big-t{font-size:30px; font-weight:900; letter-spacing:1px}
+  .overlay .sub{font-size:13px; color:var(--dim); text-align:center; padding:0 20px}
+  .cta{cursor:pointer; border:none; border-radius:12px; padding:14px 34px; font-size:17px; font-weight:800; color:#12101a;
+    background:linear-gradient(90deg,var(--purple),#c4b5fd); box-shadow:0 6px 22px rgba(167,139,250,.4)}
+  .cta:hover{transform:translateY(-1px)}
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width:560px){
+    .arena{aspect-ratio:16/11; min-height:280px}
+    .btns{gap:8px}
+    .act{padding:12px 6px 11px; border-radius:13px; gap:5px}
+    .act .ic{font-size:20px; width:38px; height:38px}
+    .act .k{font-size:11.5px}
+    .act.wait.chargebtn{padding:8px 12px}
+    .controls{padding:10px}
+    .overlay .big-t{font-size:24px}
+    .cta{padding:12px 26px; font-size:15px}
+  }
+  @media (max-width:380px){
+    .act .k{font-size:10.5px}
+    .act .ic{width:34px; height:34px; font-size:18px}
+  }
+  @media (min-width:900px){ .arena{aspect-ratio:2.6/1} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>AutoMonster — combat <span style="color:var(--purple)">LIVE</span></h1>
+    <div class="tickbadge">TICK <b id="tickN">0</b></div>
+  </header>
+
+  <div class="arena" id="arena">
+    <div class="ground"></div>
+    <div class="timer" id="timer" style="transform:scaleX(0)"></div>
+    <div class="flash" id="flash"></div>
+    <div class="clashspark" id="spark"></div>
+    <div class="clashring" id="clashring"></div>
+    <div class="clashtext" id="fC"></div>
+    <div class="shock" id="shock"></div>
+
+    <div class="fighter player" id="fP">
+      <div class="nameplate">
+        <div class="nm"><span>Poofowl</span></div>
+        <div class="hpbar"><div class="trail" id="trailP"></div><div class="fill" id="hpP"></div></div>
+      </div>
+      <div class="sprite-wrap">
+        <div class="field" id="fieldP"></div>
+        <div class="shield-fx" id="shfxP"></div>
+        <div class="sprite idle" id="sprP"><img src="poofowl.png" alt="Poofowl"></div>
+      </div>
+      <div class="nrj" id="nrjP"></div>
+    </div>
+
+    <div class="fighter enemy" id="fE">
+      <div class="nameplate">
+        <div class="nm"><span>Sprigling</span></div>
+        <div class="hpbar"><div class="trail" id="trailE"></div><div class="fill" id="hpE"></div></div>
+      </div>
+      <div class="sprite-wrap">
+        <div class="sprite idle" id="sprE"><img src="sprigling.png" alt="Sprigling"></div>
+      </div>
+      <div class="nrj" id="nrjE"></div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <div class="big-t" id="ovT">Combat LIVE</div>
+      <div class="sub" id="ovS">La clock avance seule. Ne rien faire = charger.</div>
+      <button class="cta" id="cta">Prêt ?</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="btns" id="btns"></div>
+    <div class="chargewrap" id="chargeWrap"></div>
+    <div class="row"><button class="restart" id="restart">↻ Recommencer</button></div>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const MAX_NRJ = 4, STORE_MAX = 30, TICK_MS = 2000;
+const MOVES = {
+  peck:  { id:'peck',  kind:'atk', ic:'🐾', k:'Coup',     cost:1, dmg:7 },
+  guard: { id:'guard', kind:'def', ic:'🛡️', k:'Garde',    cost:2, hold:2 },
+  burst: { id:'burst', kind:'atk', ic:'💥', k:'Décharge', cost:2, dmg:6, burst:true },
+  wait:  { id:'wait',  kind:'wait',ic:'🔋', k:'Charger',  cost:0 },
+};
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+// ================= STATE =================
+let P, E, tick, phase, queued, tickTimer, cueTimer, running;
+let lateGuardOpen=false, lateGuard=false, lateGuardResolve=null;
+let counterOpen=false, counterFired=false, counterResolve=null;
+let lateGuardClosedAt=-9999, graceTimer=null;
+const TOO_LATE_GRACE=380;
+
+function mkFighter(o){ return { name:o.name, hp:o.hp, maxHp:o.hp, nrj:o.nrj, stored:0, guard:null, fullStreak:0 }; }
+
+function reset(toReady){
+  clearTimeout(tickTimer); clearTimeout(cueTimer); running=false;
+  lateGuardOpen=false; lateGuard=false; lateGuardResolve=null;
+  counterOpen=false; counterFired=false; counterResolve=null;
+  P = mkFighter({name:'Poofowl', hp:60, nrj:2});
+  E = mkFighter({name:'Sprigling', hp:90, nrj:3});
+  E.plan = []; E.pattern = ['small','small','big']; E.pending = null;
+  tick = 0; phase='ready'; queued='wait';
+  ['sprP','sprE'].forEach(id=>{ const s=$(id); s.className='sprite idle'; s.style.cssText=''; const img=s.querySelector('img'); img.style.cssText=''; });
+  $('fieldP').classList.remove('on');
+  $('timer').style.transition='none'; $('timer').style.transform='scaleX(0)';
+  render();
+  if(toReady){ $('overlay').classList.remove('hide'); $('ovT').textContent='Combat LIVE'; $('ovS').textContent='La clock avance seule. Ne rien faire = charger.'; $('cta').textContent='Prêt ?'; $('cta').style.display=''; }
+}
+
+function start(){
+  $('overlay').classList.add('hide');
+  layout();
+  running=true; phase='input';
+  startTick();
+}
+
+// ================= TICK LOOP =================
+function startTick(){
+  if(!running) return;
+  tick++; $('tickN').textContent=tick;
+  queued='wait';   // Charger = action par défaut sélectionnée
+  enemyDecide();
+  phase='input';
+  settle('P'); settle('E');
+  render();
+  // barre de compte à rebours
+  const t=$('timer'); t.style.transition='none'; t.style.transform='scaleX(1)';
+  // barre non linéaire : décélère vers la fin (fenêtre d'action de dernière minute), même durée totale
+  requestAnimationFrame(()=>{ t.style.transition=`transform ${TICK_MS}ms cubic-bezier(.2,.55,.35,1)`; t.style.transform='scaleX(0)'; });
+  clearTimeout(tickTimer);
+  tickTimer = setTimeout(onTickEnd, TICK_MS);
+}
+
+// fin du tick : on résout ce qui a été mis en file (ou charger par défaut)
+async function onTickEnd(){
+  if(phase!=='input') return;
+  phase='resolve';
+  await resolve(queued||'wait');
+  if(!running) return;
+  if(P.hp<=0 || E.hp<=0){ return endGame(E.hp<=0); }
+  startTick();
+}
+
+function enemyDecide(){
+  if(E.pending){ E.mode='strike'; }
+  else {
+    if(E.plan.length===0) E.plan=[...E.pattern];
+    const type=E.plan.shift();
+    E.pending={type}; E.mode='prep';
+  }
+  $('sprE').className='sprite idle';
+  clearTimeout(cueTimer);
+  let revealIn = TICK_MS - (100 + Math.random()*900);
+  if(E.pending.type==='big') revealIn -= 500;
+  cueTimer = setTimeout(showEnemyCue, Math.max(0, revealIn));
+}
+function showEnemyCue(){
+  if(phase!=='input' || !E.pending) return;
+  const spr=$('sprE'); spr.className='sprite';
+  spr.style.animation=''; spr.style.transform=''; spr.style.transition='';
+  const big = E.pending.type==='big';
+  spr.classList.add(big ? 'tg-big' : 'tg-small');
+  if(E.mode==='strike') spr.classList.add(big ? 'armed-big' : 'armed-small');
+}
+
+function queue(id){
+  if(counterOpen && id==='burst'){ triggerCounter(); return; }
+  if(lateGuardOpen && id==='guard'){ triggerLateGuard(); return; }
+  if(id==='guard' && (performance.now()-lateGuardClosedAt)<TOO_LATE_GRACE){ tooLateFeedback(); return; }
+  if(phase!=='input') return;
+  const mv=MOVES[id]; if(!mv || mv.cost>P.nrj) return;
+  // clic = mise en FILE ; la résolution attend la fin du tick.
+  // Re-clic ne désélectionne PLUS (spam autorisé) ; revenir à Charger = bouton Charger.
+  queued = id;
+  if((id==='peck'||id==='burst') && P.guard && P.guard.hold>0) shieldJump();   // les boucliers vont sauter
+  render();
+}
+
+// ---- Fenêtre de garde tardive ----
+function openLateGuard(){ lateGuard=false; lateGuardOpen=true; render(); }
+function closeLateGuard(){
+  if(!lateGuardOpen) return;
+  lateGuardOpen=false;
+  lateGuardClosedAt=performance.now();
+  render();
+  clearTimeout(graceTimer);
+  graceTimer=setTimeout(render, TOO_LATE_GRACE+20);
+}
+function triggerLateGuard(){
+  if(!lateGuardOpen || P.nrj < MOVES.guard.cost) return;
+  lateGuard=true; lateGuardOpen=false;
+  if(lateGuardResolve){ const r=lateGuardResolve; lateGuardResolve=null; r(); }
+  render();
+}
+function raceLate(ms){
+  return new Promise(res=>{
+    const t=setTimeout(()=>{ if(lateGuardResolve){ lateGuardResolve=null; } res(); }, ms);
+    lateGuardResolve=()=>{ clearTimeout(t); res(); };
+  });
+}
+
+function tooLateFeedback(){
+  floater('fP','TROP TARD','toolate txt');
+  const b=$('btns').querySelector('.act.def');
+  if(b){ b.classList.remove('shakeLate'); void b.offsetWidth; b.classList.add('shakeLate'); setTimeout(()=>b.classList.remove('shakeLate'),380); }
+}
+
+// ---- Fenêtre de contre-attaque (post-parade) ----
+function openCounterWindow(){ counterFired=false; counterOpen=true; render(); }
+function closeCounterWindow(){ if(!counterOpen) return; counterOpen=false; render(); }
+function triggerCounter(){
+  if(!counterOpen || P.stored<=0) return;
+  counterFired=true; counterOpen=false;
+  if(counterResolve){ const r=counterResolve; counterResolve=null; r(); }
+  render();
+}
+function raceCounter(ms){
+  return new Promise(res=>{
+    const t=setTimeout(()=>{ if(counterResolve){ counterResolve=null; } res(); }, ms);
+    counterResolve=()=>{ clearTimeout(t); res(); };
+  });
+}
+
+// ================= RESOLUTION =================
+async function resolve(pId){
+  const sp=$('sprP'); sp.classList.remove('idle','aim-peck','aim-guard','aim-burst','aim-wait');
+  sp.style.animation=''; sp.style.transform=''; sp.style.transition='';
+  const pMv=MOVES[pId]||MOVES.wait;
+  const eStrike = (E.mode==='strike');
+  const eType = E.pending? E.pending.type : null;
+  const eDmg = eStrike ? (eType==='big'?20:6) : 0;
+  let guardConsumed=false;   // true si la garde a paré un coup -> les boucliers restants sautent
+
+  // costs
+  P.nrj -= pMv.cost;
+  if(eStrike) E.nrj -= (eType==='big'?2:1);
+
+  const pAtk = pMv.kind==='atk';
+  let pDmg = pAtk ? (pMv.dmg + (pMv.burst? Math.min(P.stored,STORE_MAX):0)) : 0;
+
+  // arm guard
+  if(pMv.kind==='def') P.guard={hold:pMv.hold, armedThisTick:true};
+
+  // ---- résolution des interactions ----
+  if(pMv.kind==='def'){
+    fxGuard('P');
+    if(eStrike){ await animShieldAbsorb(eType, eDmg, true); guardConsumed=true; }
+    else await animGuardHold();
+  }
+  else if(pAtk){
+    P.guard=null; if(pMv.burst) P.stored=0;
+    if(eStrike) await animClash(pMv, pDmg, eType, eDmg);
+    else await animPlayerAttack(pMv, pDmg);
+  }
+  else { // charge / wait : le joueur n'a PAS attaqué
+    if(eStrike){
+      if(P.guard && P.guard.hold>0){ fxGuard('P'); await animShieldAbsorb(eType, eDmg, false); guardConsumed=true; }
+      else await enemyStrikeVsPlayer(eType, eDmg);
+    } else { fxCharge('P'); await animBothIdle(); }
+  }
+
+  if(eStrike){ E.pending=null; $('sprE').className='sprite'; }
+
+  // ---- energy regen : PAS de régen si on a attaqué ----
+  const pNrjB=P.nrj, eNrjB=E.nrj;
+  if(!pAtk) P.nrj=Math.min(MAX_NRJ, P.nrj+1);
+  if(!eStrike) E.nrj=Math.min(MAX_NRJ, E.nrj+1);
+
+  // guard tick-down : un bouclier disparaît par tick ; s'il a paré, les restants sautent (activation)
+  if(P.guard){
+    P.guard.armedThisTick=false;
+    if(guardConsumed){ shieldVanish('burst'); P.guard=null; }
+    else { shieldVanish('tick'); P.guard.hold--; if(P.guard.hold<=0)P.guard=null; }
+  }
+
+  // ---- REPOS : full 2 ticks d'affilée -> -1 d'énergie ----
+  await checkRepos(P,'P',pAtk);
+  await checkRepos(E,'E',eStrike);
+
+  render();
+  energyGainFx('P', P.nrj - pNrjB);
+  energyGainFx('E', E.nrj - eNrjB);
+}
+
+async function checkRepos(f, side, spent){
+  if(f.nrj>=MAX_NRJ) f.fullStreak++; else f.fullStreak=0;
+  if(f.fullStreak>=2){
+    f.nrj=Math.max(0, f.nrj-1); f.fullStreak=0;
+    const spr=$('spr'+side);
+    spr.classList.add('repos');
+    floater('f'+side, '💤', 'rest');
+    $('nrj'+side).querySelectorAll('.pip').forEach(p=>{p.classList.add('resting'); setTimeout(()=>p.classList.remove('resting'),1000);});
+    await wait(700);
+    spr.classList.remove('repos');
+  }
+}
+
+// ================= ANIMATIONS (longues) =================
+const FACE = side => side==='P' ? 'scaleX(-1) ' : '';
+function contact(side){
+  const me =$('spr'+side).parentElement.getBoundingClientRect();
+  const opp=$('spr'+(side==='P'?'E':'P')).parentElement.getBoundingClientRect();
+  const d=(opp.left+opp.width/2)-(me.left+me.width/2);
+  const s=Math.sign(d)||(side==='P'?1:-1);
+  return Math.round(d - s*(opp.width/2 + 30));
+}
+
+const EASE_SPRING = 'cubic-bezier(.4,1.2,.5,1)';
+const EASE_STOP   = 'cubic-bezier(.15,.7,.25,1)';
+const EASE_HIT    = 'cubic-bezier(.75,0,.9,.35)';
+function moveXY(side, x, y, ms, ease=EASE_SPRING){
+  const s=$('spr'+side);
+  s.style.animation='none';
+  s.classList.remove('idle');
+  s.style.transition=`transform ${ms}ms ${ease}`;
+  s.style.transform=`translate(${x}px, ${y}px)`;
+}
+function moveSprite(side, x, ms, ease=EASE_SPRING){ moveXY(side, x, 0, ms, ease); }
+async function arcTo(side, x, ms, h){
+  moveXY(side, x*0.5, -h, ms*0.5, 'cubic-bezier(.25,.7,.5,1)'); await wait(ms*0.5);
+  moveXY(side, x,     0,  ms*0.5, 'cubic-bezier(.5,0,.75,.4)'); await wait(ms*0.5);
+}
+function resetSprite(side, ms){ const s=$('spr'+side); s.style.transition=`transform ${ms}ms ease`; s.style.transform='translate(0,0)'; }
+function settle(side){ const s=$('spr'+side); s.style.animation=''; s.style.transition=''; s.style.transform=''; }
+
+function strikePose(side, ms){
+  const img=$('spr'+side).querySelector('img'); const base=FACE(side);
+  img.style.transition=`transform ${ms}ms ${EASE_HIT}`;
+  img.style.transform=base+`rotate(${side==='P'?-22:22}deg) scale(1.14)`;
+}
+function strikeReset(side, ms){
+  const img=$('spr'+side).querySelector('img'); const base=FACE(side);
+  img.style.transition=`transform ${ms}ms ease`; img.style.transform=base;
+}
+
+async function strikeLand(side, reach, big, onImpact){
+  if(big){
+    strikePose(side, 170);
+    $('spr'+side).classList.add('dash'+side);
+    await arcTo(side, reach, 300, 122);
+    $('spr'+side).classList.remove('dash'+side);
+    onImpact();
+    bigImpact(side);
+    strikeReset(side, 280);
+    await wait(400);
+  } else {
+    strikePose(side, 110);
+    await arcTo(side, reach, 180, 28);
+    onImpact();
+    strikeReset(side, 200);
+    await wait(220);
+  }
+  resetSprite(side, big?500:380); await wait(big?500:380);
+  settle(side);
+}
+
+async function attackSeq(side, reach, big, onImpact){
+  const dir = reach<0 ? -1 : 1;
+  const brake = reach - dir*56;
+  if(big){ const s=$('spr'+side); s.classList.add('fx-charge'); flash('var(--burst)'); await wait(280); s.classList.remove('fx-charge'); }
+  moveXY(side, -dir*(big?40:16), big?-8:0, big?210:130, EASE_STOP); await wait(big?210:130);
+  moveSprite(side, brake, big?340:260, EASE_STOP); await wait(big?340:260);
+  await wait(big?250:160);
+  await strikeLand(side, reach, big, onImpact);
+}
+function hurt(side, big){
+  const img=$('spr'+side).querySelector('img'); const base=FACE(side);
+  img.style.transition='transform .1s'; img.style.transform=base+`translateX(${side==='P'?8:-8}px)`;
+  setTimeout(()=>{img.style.transform=base;},150);
+  const s=$('spr'+side); s.classList.add('fx-hit'); setTimeout(()=>s.classList.remove('fx-hit'),200);
+  $('arena').classList.add(big?'shake-big':'shake'); setTimeout(()=>$('arena').classList.remove('shake','shake-big'),560);
+}
+function fxCharge(side){ const s=$('spr'+side); s.classList.add('fx-charge'); setTimeout(()=>s.classList.remove('fx-charge'),520); floater('f'+side,'⚡','absorb'); }
+function fxGuard(side){ const s=$('spr'+side); s.classList.add('fx-guard'); setTimeout(()=>s.classList.remove('fx-guard'),700);
+  const fx=$('shfx'+side); if(fx){ fx.classList.remove('go'); void fx.offsetWidth; fx.classList.add('go'); } }
+
+async function animPlayerAttack(mv, dmg){
+  const big=!!mv.burst;
+  await attackSeq('P', contact('P'), big, ()=>{
+    applyDamage(E,'E',dmg,big); hurt('E',big); render();
+  });
+}
+
+async function enemyStrikeVsPlayer(eType, eDmg){
+  const big=eType==='big';
+  const reach = contact('E'), dir=-1, brake = reach - dir*56;
+  const appr = big?340:260;
+  openLateGuard();
+  moveXY('E', big?40:16, big?-8:0, big?210:130, EASE_STOP);
+  await raceLate(big?210:130);
+  if(lateGuard) return lateAbsorb(eType, eDmg, reach);
+  moveSprite('E', brake, appr, EASE_STOP);
+  await raceLate(appr);
+  if(lateGuard) return lateAbsorb(eType, eDmg, reach);
+  closeLateGuard();
+  await wait(big?250:160);
+  await strikeLand('E', reach, big, ()=>{ applyDamage(P,'P',eDmg,big); hurt('P',big); render(); });
+}
+
+async function lateAbsorb(eType, eDmg, reach){
+  closeLateGuard();
+  fxGuard('P'); render();
+  strikePose('E', 90); moveSprite('E', reach, 150, EASE_HIT); await wait(150);
+  const gain = Math.round(eDmg*1.5);
+  addStored('P', gain);
+  $('shfxP').classList.remove('go'); void $('shfxP').offsetWidth; $('shfxP').classList.add('go');
+  floater('fP','PARADE !','absorb txt'); flash('var(--shield)'); ring();
+  strikeReset('E',180); hurt('E',false); render();
+  await wait(440);
+  if(P.stored>0){
+    openCounterWindow();
+    await raceCounter(500);
+    closeCounterWindow();
+    if(counterFired) await animCounterBurst();
+  }
+  resetSprite('E',420); await wait(420); settle('E');
+}
+
+async function animCounterBurst(){
+  const dmg = MOVES.burst.dmg + Math.min(P.stored, STORE_MAX);
+  P.stored = 0;
+  const R = clashReach();
+  strikePose('P', 120); moveSprite('P', R+30, 130, EASE_HIT); await wait(130);
+  applyDamage(E,'E',dmg,true); hurt('E',true);
+  flash('var(--burst)'); $('arena').classList.add('shake-big'); render();
+  await wait(260);
+  $('arena').classList.remove('shake-big');
+  strikeReset('P', 220); moveSprite('P', 0, 260, EASE_SPRING); await wait(260);
+  settle('P');
+}
+
+async function animGuardHold(){ await wait(600); }
+async function animBothIdle(){ await wait(520); }
+
+async function animShieldAbsorb(type, dmg, perfect){
+  const big=type==='big';
+  const reach = contact('E'), brake = reach + 56;
+  moveSprite('E', 16, 130, EASE_STOP); await wait(130);
+  moveSprite('E', brake, big?320:260, EASE_STOP); await wait(big?320:260);
+  await wait(big?220:160);
+  strikePose('E', 110); moveSprite('E', reach, 110, EASE_HIT); await wait(110);
+  strikeReset('E', 220);
+  const mult = perfect?1.5:1;
+  if(perfect) P.nrj=Math.min(MAX_NRJ, P.nrj + MOVES.guard.cost);
+  $('shfxP').classList.remove('go'); void $('shfxP').offsetWidth; $('shfxP').classList.add('go');
+  if(perfect) flash('var(--shield)');
+  hurt('E', false); render();
+  addStored('P', Math.round(dmg*mult));
+  await wait(520);
+  resetSprite('E', 420); await wait(420);
+  settle('E');
+}
+
+function clashReach(){
+  const a=$('fP').getBoundingClientRect(), b=$('fE').getBoundingClientRect();
+  const sep=(b.left+b.width/2)-(a.left+a.width/2);
+  return Math.max(60, sep/2 - 22);
+}
+
+async function animClash(pMv, pDmg, eType, eDmg){
+  const R = clashReach();
+  const eBig = eType==='big';
+  if(pMv.burst){ flash('var(--burst)'); $('sprP').classList.add('fx-charge'); await wait(240); $('sprP').classList.remove('fx-charge'); }
+  // 1) windup
+  moveSprite('P', -18, 120, EASE_STOP); moveSprite('E', 18, 120, EASE_STOP); await wait(120);
+  // 2) les deux se REJOIGNENT au centre
+  moveSprite('P', R, 360, EASE_STOP); moveSprite('E', -R, 360, EASE_STOP); await wait(360);
+  // 3) FX de CLASH au contact + montée de tension
+  spark(); flash('#fff'); $('arena').classList.add('shake'); await wait(140);
+  $('arena').classList.remove('shake');
+  $('sprP').classList.add('fx-hit'); $('sprE').classList.add('fx-hit');
+  await wait(520);   // SUSPENSE
+  $('sprP').classList.remove('fx-hit'); $('sprE').classList.remove('fx-hit');
+  // 4) ATTAQUE SIMULTANÉE
+  strikePose('P', 110); strikePose('E', 110);
+  moveSprite('P', R+24, 110, EASE_HIT); moveSprite('E', -(R+24), 110, EASE_HIT); await wait(110);
+  // 5) impact des deux côtés
+  applyDamage(E,'E',pDmg,pMv.burst); applyDamage(P,'P',eDmg,eBig);
+  hurt('E', pMv.burst); hurt('P', eBig);
+  spark(); flash('#fff'); ring(); $('arena').classList.add('shake-big'); render();
+  await wait(180);
+  $('arena').classList.remove('shake-big');
+  strikeReset('P', 220); strikeReset('E', 220); await wait(140);
+  // 6) recul
+  moveSprite('P', 0, 320, EASE_SPRING); moveSprite('E', 0, 320, EASE_SPRING); await wait(320);
+  settle('P'); settle('E');
+}
+
+// ================= FX primitives =================
+function floater(hostId, text, cls){
+  const host=$(hostId); if(!host) return;
+  const f=document.createElement('div'); f.className='floater '+(cls||''); f.textContent=text;
+  host.appendChild(f); setTimeout(()=>f.remove(), 1150);
+}
+function flash(color){ const f=$('flash'); f.style.background=color; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+function spark(){ const s=$('spark'); s.classList.remove('go'); void s.offsetWidth; s.classList.add('go'); }
+function ring(){ const r=$('clashring'); r.classList.remove('go'); void r.offsetWidth; r.classList.add('go'); }
+function bigImpact(side){
+  const s=$('shock'); s.classList.remove('go'); void s.offsetWidth; s.classList.add('go');
+  spark(); flash('#fff');
+  $('arena').classList.add('shake-big'); setTimeout(()=>$('arena').classList.remove('shake-big'), 560);
+}
+function applyDamage(f, side, dmg, big){
+  f.hp = Math.max(0, f.hp - dmg);
+  floater('f'+side, '-'+dmg, 'dmg'+(big?' big':''));
+}
+
+// ================= LAYOUT =================
+function layout(){
+  const ar=$('arena'); if(!ar) return;
+  const arR=ar.getBoundingClientRect(); if(!arR.height) return;
+  const sw=$('sprP').parentElement.getBoundingClientRect();
+  const spriteTop = sw.top - arR.top;
+  ar.style.setProperty('--line-y', Math.round(spriteTop + sw.height*0.52)+'px');
+  ar.style.setProperty('--float-y', Math.round(arR.height - spriteTop)+'px');
+}
+
+// ================= RENDER =================
+function updatePlayerPose(){
+  if(phase!=='input') return;
+  const s=$('sprP');
+  s.classList.remove('idle','aim-peck','aim-guard','aim-burst','aim-wait');
+  s.style.animation=''; s.style.transition=''; s.style.transform='';
+  s.classList.add(queued ? 'aim-'+queued : 'idle');
+}
+
+function render(){
+  renderFighter(P,'P'); renderFighter(E,'E');
+  updatePlayerPose();
+  renderButtons();
+  // fade-out du menu quand on ne peut plus changer d'action
+  const lock=!(phase==='input' || lateGuardOpen || counterOpen);
+  $('btns').classList.toggle('locked', lock);
+  $('chargeWrap').classList.toggle('locked', lock);
+  // champ de protection persistant tant que la garde tient
+  $('fieldP').classList.toggle('on', !!(P.guard && P.guard.hold>0));
+}
+function renderFighter(f,s){
+  const pct=100*f.hp/f.maxHp;
+  $('hp'+s).style.width=pct+'%'; $('trail'+s).style.width=pct+'%';
+  const nrj=$('nrj'+s);
+  if(nrj.children.length!==MAX_NRJ){ nrj.innerHTML=''; for(let i=0;i<MAX_NRJ;i++){ const p=document.createElement('div'); p.className='pip'; nrj.appendChild(p); } }
+  [...nrj.children].forEach((p,i)=>p.classList.toggle('full', i<f.nrj));
+}
+
+const BTN_IDS=['peck','guard','burst'];
+function buildBtn(id){
+  const mv=MOVES[id];
+  const b=document.createElement('button'); b.dataset.id=id;
+  const kindCls = mv.kind==='atk'?(mv.burst?'burst':'atk'):(mv.kind==='def'?'def':'wait');
+  b.className='act '+kindCls+(id==='wait'?' chargebtn':'');
+  b.innerHTML=`${mv.cost>0?`<span class="cost">⚡${mv.cost}</span>`:''}<span class="ic">${mv.ic}</span><span class="k">${mv.k}</span>${id==='guard'?'<span class="shields"><i></i><i></i></span>':''}`;
+  b.onclick=()=>queue(id);
+  return b;
+}
+// ---- FX boucliers de garde ----
+function shieldOnEls(){ const w=$('btns').querySelector('.act.def .shields'); return w?[...w.querySelectorAll('i.on')]:[]; }
+function shieldVanish(kind){   // 'tick' = le dernier disparaît ; 'burst' = tous les restants sautent
+  const ons=shieldOnEls(); if(!ons.length) return;
+  const cls = kind==='burst' ? 'bvanish' : 'vanish';
+  const targets = kind==='burst' ? ons : ons.slice(-1);
+  targets.forEach(el=>{ el.classList.add(cls); setTimeout(()=>el.classList.remove(cls,'on'),560); });
+}
+function shieldJump(){ shieldOnEls().forEach(el=>{ el.classList.remove('jump'); void el.offsetWidth; el.classList.add('jump'); setTimeout(()=>el.classList.remove('jump'),460); }); }
+
+function renderButtons(){
+  const box=$('btns'), cw=$('chargeWrap');
+  if(box.children.length!==BTN_IDS.length){ box.innerHTML=''; BTN_IDS.forEach(id=>box.appendChild(buildBtn(id))); }
+  if(cw.children.length!==1){ cw.innerHTML=''; cw.appendChild(buildBtn('wait')); }
+  [...box.children, ...cw.children].forEach(b=>{
+    const id=b.dataset.id, mv=MOVES[id];
+    let disabled;
+    if(!running) disabled=true;
+    else if(phase==='input') disabled = mv.cost>P.nrj;
+    else if(lateGuardOpen) disabled = !(id==='guard' && P.nrj>=MOVES.guard.cost);
+    else if(counterOpen) disabled = !(id==='burst' && P.stored>0);
+    else if(id==='guard' && (performance.now()-lateGuardClosedAt)<TOO_LATE_GRACE) disabled=false;
+    else disabled=true;
+    b.disabled=disabled;
+    b.classList.toggle('selected', (queued===id) || (lateGuardOpen && id==='guard' && !disabled));
+    if(id==='guard'){
+      const active = !!(P.guard && P.guard.hold>0);
+      const preview = (phase==='input' && queued==='guard');   // aperçu 2 boucliers à la sélection
+      const n = preview ? MOVES.guard.hold : (active ? P.guard.hold : 0);
+      b.classList.toggle('active', active || preview);
+      b.classList.toggle('graceClick', (performance.now()-lateGuardClosedAt)<TOO_LATE_GRACE);
+      const shields=b.querySelector('.shields');
+      if(shields){ [...shields.children].forEach((el,i)=>{
+        if(!el.classList.contains('vanish') && !el.classList.contains('bvanish')) el.classList.toggle('on', i<n);
+      }); }
+    }
+    if(id==='burst'){
+      if(!storeAnim) b.style.setProperty('--p', 100*Math.min(P.stored,STORE_MAX)/STORE_MAX);
+      b.classList.toggle('full', P.stored>=STORE_MAX);
+      b.classList.toggle('empty', P.stored<=0);
+      b.classList.toggle('glow', P.stored>=STORE_MAX && !disabled);
+      b.classList.toggle('counterReady', counterOpen && !disabled);
+    }
+  });
+}
+
+// ---- FX de GAIN ----
+let storeAnim=null;
+function addStored(side, amount){
+  if(amount<=0 || side!=='P') { if(amount>0){const f=side==='P'?P:E; f.stored=Math.min(STORE_MAX,f.stored+amount);} return; }
+  const from = 100*Math.min(P.stored,STORE_MAX)/STORE_MAX;
+  P.stored = Math.min(STORE_MAX, P.stored + amount);
+  const to = 100*Math.min(P.stored,STORE_MAX)/STORE_MAX;
+  const b=$('btns').querySelector('.act.burst');
+  if(b){
+    b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); setTimeout(()=>b.classList.remove('pop'),850);
+    if(storeAnim) cancelAnimationFrame(storeAnim);
+    const t0=performance.now(), dur=550;
+    (function step(){
+      const k=Math.min(1,(performance.now()-t0)/dur), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      b.style.setProperty('--p', from+(to-from)*e);
+      if(k<1) storeAnim=requestAnimationFrame(step); else storeAnim=null;
+    })();
+  }
+}
+function energyGainFx(side, count){
+  if(count<=0) return;
+  const pips=[...$('nrj'+side).children];
+  for(let i=Math.max(0, (side==='P'?P.nrj:E.nrj)-count); i<(side==='P'?P.nrj:E.nrj); i++){
+    const p=pips[i]; if(!p) continue; p.classList.add('gain'); setTimeout(()=>p.classList.remove('gain'),850);
+  }
+  floater('f'+side, '+'+count+' ⚡', 'nrjgain');
+}
+
+// ================= END =================
+function endGame(win){
+  phase='over'; running=false; clearTimeout(tickTimer); clearTimeout(cueTimer);
+  const loser = win?'E':'P';
+  const spr=$('spr'+loser); spr.style.transition='transform .6s, opacity .6s';
+  spr.style.transform=`translateY(34px) rotate(${loser==='P'?-78:78}deg)`; spr.querySelector('img').style.opacity=.35;
+  flash(win?'var(--green)':'var(--red)');
+  setTimeout(()=>{
+    $('overlay').classList.remove('hide');
+    $('ovT').textContent= win?'VICTOIRE':'K.O.';
+    $('ovT').style.color= win?'var(--green)':'var(--red)';
+    $('ovS').textContent='';
+    $('cta').style.display='none';
+  }, 900);
+}
+
+// ================= INPUT =================
+$('cta').onclick=start;
+$('restart').onclick=()=>{ $('ovT').style.color=''; reset(true); };
+window.addEventListener('keydown',e=>{
+  const m={'1':'peck','2':'guard','3':'burst','4':'wait'}; const k=m[e.key]; if(!k) return;
+  const tooLateGrace = k==='guard' && (performance.now()-lateGuardClosedAt)<TOO_LATE_GRACE;
+  if(phase==='input'||counterOpen||tooLateGrace) queue(k);
+});
+
+reset(true);
+layout();
+window.addEventListener('resize', layout);
+window.addEventListener('load', layout);
+</script>
+</body>
+</html>
