@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.43 — Document de référence du projet
+> Version 0.44 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,23 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-17 — v0.44
+- [Home / House — **focus in-place** (T002)] **Le clic sur l'AM n'ouvre plus la fiche en page
+  séparée (modal `amPage`)** : la House passe en état local `focused` (aucun `pushState`, aucune
+  navigation). L'AM glisse en douceur en haut à gauche (transitions CSS `left/bottom/width`),
+  l'errance et les émotes se **figent** pendant le focus, les éléments de base (`house-below` :
+  carte d'id, points d'équipe, quêtes, sorties) fondent (`opacity` + repli), la pièce se compacte,
+  et la **fiche apparaît en fade-in** autour du compagnon (identité + stats/talents/spécialisation/
+  soins/interactions + espèce + historique). **Clic hors de l'AM** (fond de la pièce) ou bouton ✕ :
+  fade-out, réactivation de l'errance, retour smooth à la House de base. Le panneau reste monté le
+  temps du fade-out (`rendered` + `FOCUS_OUT_MS`).
+- [Refactor] Contenu de la fiche extrait dans **`game/AmDetails.tsx`** (`AmHeroInfo`, `AmDetails`
+  + sous-composants `HealControls`/`TalentChips`/`BranchBlock`/`InteractButtons`, `STAT_LABELS`,
+  `fmtDate`, `HIST_ICON`) — réutilisé par le focus House **et** par la fiche plein écran `AmPage`
+  (conservée pour l'ouverture depuis l'équipe/l'inventaire). `House` reçoit de nouvelles props
+  (`gold`, `potions`, `onToggleHeal/onPotion/onFull/onInteract/onChooseBranch`) ; `onOpenSheet`
+  n'est plus utilisé depuis la House. Build tsc + vite OK ; tests moteur verts (engine 132/0).
 
 ### 2026-07-16 — v0.43
 - [Bestiaire] **Reclassement planche 4** (`sprites/planche 4.png`, 9 espèces, ordre de lecture 3×3).
@@ -457,7 +474,7 @@
 | Rencontres sauvages (zone) | Oui (§5) | ✅ **v0.17 :** plus de choix d'ennemi — la rencontre non nettoyée est présentée automatiquement, ennemi centré, sans ligne de butin ; choix de l'AM à envoyer conservé |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
-| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens), **zoom smooth en place au clic** + volet d'info glissant à droite (pas d'écran séparé), sortie vers **Explorer le monde**/Boutique (v0.17 : bouton renommé) |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens). **v0.44 : clic AM = focus in-place** (état local `focused`, sans navigation ni `pushState`) — l'AM glisse en haut à gauche, la fiche (identité + stats/talents/soins/interactions + espèce + historique, via `AmDetails`) fade-in autour de lui, le reste fond ; clic dehors = retour smooth. Fiche plein écran `AmPage` conservée pour l'ouverture depuis l'équipe/inventaire. Sortie vers **Explorer le monde**/Boutique |
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
 | Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (**v0.42 : `LiveCombat tutorial`, combat interactif** vs Sprigling ; « tu pilotes ») → hub/boucle → adoption |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |

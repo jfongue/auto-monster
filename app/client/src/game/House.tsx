@@ -1,19 +1,26 @@
 // House — cœur de la home. Vue de côté d'une petite pièce où le compagnon actif
 // erre tranquillement (marche aléatoire, pauses, profondeur, émotes spontanées).
-// Un clic sur le compagnon ouvre directement sa fiche (plus de zoom en place ni
-// de volet coulissant — c'était source de bugs de layout).
+// Un clic sur le compagnon met la House en « focus in-place » (T002) : le reste
+// de la House fade out, l'AM glisse en haut à gauche et sa fiche (stats, actions,
+// espèce, historique) apparaît en fade-in autour de lui — sans changer de page ni
+// pousser d'entrée d'historique de navigation. Un clic hors de l'AM revient à la
+// House de base en douceur.
 
 import { useEffect, useState } from "react";
 import { SPECIES } from "./engine/data";
 import { HpBar } from "./shared";
 import { Icon } from "./icons";
-import type { Character } from "./engine/types";
+import { AmHeroInfo, AmDetails } from "./AmDetails";
+import type { Character, InteractKind } from "./engine/types";
 
 // Bornes de déplacement dans la pièce.
 const X_MIN = 18;
 const X_MAX = 78;
 const DEPTH_MIN = 6; // bottom %, proche (avant-plan)
 const DEPTH_MAX = 30; // bottom %, loin
+
+// Durée du fade-out avant démontage du panneau de focus (doit matcher le CSS).
+const FOCUS_OUT_MS = 460;
 
 function randBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
@@ -25,19 +32,31 @@ export type QuestGlance = { id: string; icon: string; label: string; progress: n
 export default function House({
   team,
   quests,
-  onOpenSheet,
+  gold,
+  potions,
   onOpenDaily,
   onGoForest,
   onGoShop,
   onGoArena,
+  onToggleHeal,
+  onPotion,
+  onFull,
+  onInteract,
+  onChooseBranch,
 }: {
   team: Character[];
   quests: QuestGlance[];
-  onOpenSheet: (id: string) => void;
+  gold: number;
+  potions: number;
   onOpenDaily: () => void;
   onGoForest: () => void;
   onGoShop: () => void;
   onGoArena: () => void;
+  onToggleHeal: (id: string) => void;
+  onPotion: (id: string) => void;
+  onFull: (id: string) => void;
+  onInteract: (id: string, k: InteractKind) => void;
+  onChooseBranch: (id: string) => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [pos, setPos] = useState({ x: 46, y: 14 });
@@ -45,6 +64,10 @@ export default function House({
   const [dir, setDir] = useState<1 | -1>(1);
   const [reacting, setReacting] = useState(false);
   const [emote, setEmote] = useState<string | null>(null);
+  // Focus in-place : `focused` = intention (pilote les classes/transitions),
+  // `rendered` = présence DOM du panneau (maintenu le temps du fade-out).
+  const [focused, setFocused] = useState(false);
+  const [rendered, setRendered] = useState(false);
 
   const EMOTES = ["❤️", "✨", "😊", "🎵", "💜", "🌟"];
   function react(emo?: string) {
@@ -54,13 +77,23 @@ export default function House({
     window.setTimeout(() => setEmote(null), 950);
   }
 
+  function openFocus() {
+    setRendered(true);
+    // laisse le DOM se monter avant d'activer la transition d'entrée
+    requestAnimationFrame(() => setFocused(true));
+  }
+  function closeFocus() {
+    setFocused(false);
+    window.setTimeout(() => setRendered(false), FOCUS_OUT_MS);
+  }
+
   const idx = Math.min(activeIdx, Math.max(0, team.length - 1));
   const c = team[idx];
   const sp = c ? SPECIES[c.speciesId] : null;
 
-  // Errance aléatoire.
+  // Errance aléatoire — gelée pendant le focus.
   useEffect(() => {
-    if (!c) return;
+    if (!c || focused) return;
     let cancelled = false;
     let timer: number;
     const step = () => {
@@ -80,11 +113,11 @@ export default function House({
     };
     timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(400, 1200));
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [c]);
+  }, [c, focused]);
 
-  // Émotes spontanées.
+  // Émotes spontanées — gelées pendant le focus.
   useEffect(() => {
-    if (!c) return;
+    if (!c || focused) return;
     let cancelled = false;
     let timer: number;
     const loop = () => {
@@ -97,21 +130,29 @@ export default function House({
     loop();
     return () => { cancelled = true; window.clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [c]);
+  }, [c, focused]);
 
   if (!c || !sp) return null;
 
+  // En focus : l'AM se fige en haut à gauche de la pièce (compacte) ; sinon il erre.
+  const critterStyle = focused
+    ? { left: "24%", bottom: "16%" }
+    : { left: `${pos.x}%`, bottom: `${pos.y}%` };
+
   return (
-    <div className="house view">
-      <div className="house-room">
+    <div className={`house view ${focused ? "focused" : ""}`}>
+      <div
+        className="house-room"
+        onClick={() => { if (focused) closeFocus(); }}
+      >
         <div className="house-glow" />
         <div className="house-floor" />
         <button
           className={`house-critter dir-${dir > 0 ? "r" : "l"}`}
-          style={{ left: `${pos.x}%`, bottom: `${pos.y}%` }}
-          onClick={() => { react(); onOpenSheet(c.id); }}
-          aria-label={`${c.name} — ouvrir la fiche`}
-          title={`Voir ${c.name}`}
+          style={critterStyle}
+          onClick={(e) => { e.stopPropagation(); react(); if (!focused) openFocus(); }}
+          aria-label={focused ? `${c.name} — fermer la fiche` : `${c.name} — voir la fiche`}
+          title={focused ? c.name : `Voir ${c.name}`}
         >
           {emote && <span className="house-emote">{emote}</span>}
           <span className={`hc-body ${!walking ? "idle" : ""} ${reacting ? "reacting" : ""}`}>
@@ -121,8 +162,29 @@ export default function House({
         </button>
       </div>
 
+      {rendered && (
+        <div className={`house-focus ${focused ? "on" : ""}`}>
+          <div className="house-focus-head">
+            <AmHeroInfo c={c} />
+            <button className="ghost sm house-focus-close" onClick={closeFocus} aria-label="Fermer la fiche">
+              <Icon name="close" size={16} />
+            </button>
+          </div>
+          <AmDetails
+            c={c}
+            gold={gold}
+            potions={potions}
+            onToggleHeal={onToggleHeal}
+            onPotion={onPotion}
+            onFull={onFull}
+            onInteract={onInteract}
+            onChooseBranch={() => onChooseBranch(c.id)}
+          />
+        </div>
+      )}
+
       <div className="house-below">
-        <button className="house-id" onClick={() => onOpenSheet(c.id)} title="Ouvrir la fiche">
+        <button className="house-id" onClick={openFocus} title="Voir la fiche">
           <span className="team-name">{c.name} <span className="lvl">N.{c.level}</span></span>
           {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
           <span className="house-id-hp"><HpBar c={c} /></span>

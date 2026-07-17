@@ -724,6 +724,40 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .exit-choice .exit-ico { color: var(--ink-2); display: grid; place-items: center; transition: color 0.18s; }
 .exit-choice .exit-txt { font-weight: 700; font-size: 14px; }
 
+/* ══ FOCUS IN-PLACE DE LA HOUSE (T002) ════════════════════════════════════
+   Clic sur l'AM → la House passe en `focused` : la pièce se compacte, l'AM
+   glisse en haut à gauche, les éléments de base fondent et la fiche apparaît en
+   fade-in. Tout est piloté par transitions CSS — aucun changement de page. */
+.house { transition: max-width 0.42s cubic-bezier(.22,.9,.3,1); }
+.house.focused { max-width: 720px; }
+
+/* La pièce se réduit en bandeau compact pendant le focus. */
+.house-room { transition: height 0.5s cubic-bezier(.22,.9,.3,1); }
+.house.focused .house-room { aspect-ratio: auto; height: 150px; cursor: pointer; }
+.house.focused .house-glow,
+.house.focused .house-floor { opacity: 0; transition: opacity 0.3s ease; }
+
+/* Le compagnon rétrécit un peu et anime aussi sa largeur pendant le focus. */
+.house-critter { transition:
+  left 1.3s cubic-bezier(.45,.05,.35,1),
+  bottom 1.3s cubic-bezier(.45,.05,.35,1),
+  width 0.5s cubic-bezier(.22,.9,.3,1); }
+.house.focused .house-critter { width: 20%; }
+
+/* Éléments de base : fondu + repli fluide (réapparaissent en sortie de focus). */
+.house-below { transition: opacity 0.3s ease, max-height 0.45s ease, margin 0.3s ease; max-height: 800px; opacity: 1; }
+.house.focused .house-below { opacity: 0; max-height: 0; margin: 0; pointer-events: none; overflow: hidden; }
+
+/* Panneau de fiche in-place : monté puis fade-in via la classe `.on`. */
+.house-focus {
+  width: 100%; opacity: 0; transform: translateY(10px);
+  transition: opacity 0.4s ease 0.05s, transform 0.4s ease 0.05s;
+}
+.house-focus.on { opacity: 1; transform: translateY(0); }
+.house-focus-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.house-focus-head .am-hero-info { flex: 1; }
+.house-focus-close { margin-left: auto; flex: 0 0 auto; }
+
 /* ══ BOUTIQUE (page dédiée minimale) ══════════════════════════════════════ */
 .boutique-screen { max-width: 420px; }
 .boutique-card { text-align: center; }

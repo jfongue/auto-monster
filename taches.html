@@ -93,7 +93,7 @@
 
 <script type="application/json" id="tasks-data">
 {
-  "meta": { "version": 1, "updated": "2026-07-16" },
+  "meta": { "version": 2, "updated": "2026-07-17" },
   "tasks": [
     {
       "id": "T001",
@@ -109,6 +109,48 @@
         { "step": "Re-run autoSim + live.test.ts (doit rester vert)", "done": false }
       ],
       "expected": "win-rate 45-55% sur les 3 NME ; tous les tests moteur passent ; entrée ajoutée au GDD.",
+      "results": "",
+      "log": []
+    },
+    {
+      "id": "T002",
+      "title": "House — focus AM in-place (fade, sans changement de page)",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-16",
+      "objectives": "Remplacer l'ouverture de la fiche AM en page séparée (modal amPage) par un focus in-place sur la House. Au clic sur l'AM : le reste de la House (dots, quêtes, sorties, id) fade out, l'AM se déplace de manière smooth en haut à gauche, et ses infos (caractéristiques, actions, description d'espèce, historique : capture / combats / montées de niveau) apparaissent en fade-in autour de lui — sans jamais monter/démonter de page ni pousser une entrée d'historique de navigation. Un clic hors de l'AM/panneau : fade-out des infos et retour smooth à l'affichage de base de la House.",
+      "plan": [
+        { "step": "Ajouter un état local `focused` dans House.tsx (bool) piloté par le clic sur .house-critter, sans appeler onOpenSheet", "done": true },
+        { "step": "Déplacer l'AM en haut à gauche via transform/transition CSS quand focused (figer l'errance aléatoire pendant le focus)", "done": true },
+        { "step": "Fade-out des éléments de base (house-below : id, dots, quêtes, sorties) via classe conditionnelle + transition opacity", "done": true },
+        { "step": "Extraire le contenu de AmPage (stats, InteractButtons, HealControls, espèce, historique) en un panneau réutilisable et l'afficher en fade-in dans le focus House", "done": true },
+        { "step": "Clic sur le fond / bouton fermer : fade-out infos, réactiver l'errance, revenir à l'état de base smooth", "done": true },
+        { "step": "Rebrancher GamePage : onOpenSheet ne route plus vers modal amPage depuis la House (conserver amPage pour l'inventaire/équipe si besoin, ou factoriser)", "done": true },
+        { "step": "Build tsc + vite, lancer engine.test.ts (doit rester vert)", "done": true }
+      ],
+      "expected": "Clic sur l'AM = focus in-place sans navigation (pas de nouvelle page, pas de pushState) ; AM en haut à gauche + infos en fade-in (stats, actions, espèce, historique capture/combat/levelup) ; clic dehors = fade-out et retour smooth à la House de base ; aucun bug de layout ; build OK ; tests moteur verts ; entrée GDD ajoutée.",
+      "results": "Fait. Nouveau fichier game/AmDetails.tsx : AmHeroInfo + AmDetails (+ sous-composants HealControls/TalentChips/BranchBlock/InteractButtons, STAT_LABELS, fmtDate, HIST_ICON) extraits de AmPage et réutilisés par le focus House et la fiche plein écran. House.tsx : état local focused/rendered, clic AM → focus in-place (aucun pushState/onOpenSheet), AM figé + glissé en haut à gauche (transitions CSS left/bottom/width), errance/émotes gelées pendant le focus, house-below en fade-out, clic fond de pièce ou bouton ✕ → retour smooth. game.css : bloc .house.focused (compactage pièce, fade base, panneau .house-focus en fade-in). GamePage : House reçoit gold/potions + callbacks heal/interact/branch ; amPage conservé pour équipe/inventaire. Vérifs : tsc -b OK, vite build OK (52 modules, EPERM dist = limite montage, build /tmp OK), engine.test.ts 132 ok / 0 échec.",
+      "log": [
+        { "date": "2026-07-17", "text": "Implémenté focus in-place (T002). Extraction AmDetails.tsx, refonte House.tsx + CSS, rebranchement GamePage. tsc/vite OK, engine 132/0. GDD v0.44." }
+      ]
+    },
+    {
+      "id": "T003",
+      "title": "House — mini-menu d'interaction à icônes (clic-action puis clic AM + drag&drop)",
+      "status": "planned",
+      "priority": "haute",
+      "created": "2026-07-16",
+      "objectives": "Permettre d'interagir avec l'AM sans passer par le menu de la fiche. Un mini-menu d'icônes (une icône par action : Nourrir, Caresser, Jouer, + objets utilisables de l'inventaire) s'ouvre de manière smooth juste en dessous de la fenêtre de la House. Deux modes d'usage : (1) clic sur une action → puis clic sur l'AM → il réagit ; (2) drag & drop de l'icône sur l'AM. Une info-bulle décrit l'action au hover/clic sur son icône.",
+      "plan": [
+        { "step": "Ajouter un toggle du mini-menu (bouton) qui l'ouvre/ferme en slide+fade sous la .house-room", "done": false },
+        { "step": "Générer les icônes d'action depuis INTERACT_LABELS (nourrir/caresser/jouer) + les objets utilisables de l'inventaire (potions/items)", "done": false },
+        { "step": "Mode clic : sélectionner une action (état `armedAction`), curseur/feedback visuel, puis clic sur l'AM déclenche onInteract/usage objet + réaction (react/emote)", "done": false },
+        { "step": "Mode drag&drop : rendre les icônes draggables et l'AM zone de drop ; au drop, même effet que le clic", "done": false },
+        { "step": "Info action : tooltip au hover + affichage au clic (nom + hint, cooldown si applicable via interactReadyIn)", "done": false },
+        { "step": "Gérer cooldowns/indispo (action grisée) et consommation d'objet (décrément inventaire)", "done": false },
+        { "step": "Build tsc + vite, lancer engine.test.ts (doit rester vert)", "done": false }
+      ],
+      "expected": "Mini-menu d'icônes qui s'ouvre smooth sous la House ; actions Nourrir/Caresser/Jouer + objets utilisables présents ; clic-action-puis-clic-AM ET drag&drop fonctionnent et déclenchent la réaction de l'AM ; info affichée au hover/clic ; cooldowns et consommation d'objets respectés ; build OK ; tests moteur verts ; entrée GDD ajoutée.",
       "results": "",
       "log": []
     }

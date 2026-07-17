@@ -24,7 +24,6 @@ import {
   HEAL_CENTER_COST,
   RANCH_OFFERS,
   RANCH_EXTEND,
-  INTERACT_LABELS,
   ZONES,
   ZONE_PATHS,
   MAP_WORLD_W,
@@ -35,9 +34,7 @@ import {
   applySpeciesOverrides,
   branchesOf,
   branchDef,
-  activeTalents,
   needsBranchChoice,
-  BRANCH_CHOICE_LEVEL,
   type MapLocation,
   type Npc,
   type Zone,
@@ -47,24 +44,22 @@ import {
   makeLeveledCharacter,
   makeEnemy,
   addXp,
-  xpForNext,
   currentLife,
   isHealing,
   isFull,
   startHeal,
   commitHeal,
-  healEtaMs,
   withMoodBattle,
   moodOf,
-  moodLabel,
   pushHistory,
   interact,
   interactReadyIn,
   chooseBranch,
 } from "./engine/progression";
 import { TALENTS, talentName } from "./engine/talents";
-import { HpBar, StatRow, TalentList, talentTooltip, RoleTag } from "./shared";
+import { HpBar, StatRow, talentTooltip, RoleTag } from "./shared";
 import { Icon, type IconName } from "./icons";
+import { AmHeroInfo, AmDetails, HealControls } from "./AmDetails";
 import House, { type QuestGlance } from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
@@ -116,13 +111,6 @@ type Modal =
   | { k: "daily" };
 
 type Toast = { id: number; text: string };
-
-const STAT_LABELS: Record<StatKey, { icon: IconName; label: string }> = {
-  hp: { icon: "hp", label: "Vie" },
-  atk: { icon: "atk", label: "Force" },
-  def: { icon: "def", label: "Armure" },
-  spd: { icon: "spd", label: "Vitesse" },
-};
 
 /** Zone contenant un encounter (combat). */
 const zoneOfEncounter = (locId: string): Zone | undefined =>
@@ -545,11 +533,17 @@ export default function GamePage() {
         <House
           team={gs.team}
           quests={questGlance(gs)}
-          onOpenSheet={(id) => setModal({ k: "amPage", charId: id })}
+          gold={gs.gold}
+          potions={gs.potions}
           onOpenDaily={() => setModal({ k: "daily" })}
           onGoForest={() => setRoute({ v: "forest" })}
           onGoShop={goShop}
           onGoArena={goArena}
+          onToggleHeal={toggleHeal}
+          onPotion={healPotion}
+          onFull={healFullPaid}
+          onInteract={doInteract}
+          onChooseBranch={(id) => setModal({ k: "branch", charId: id })}
         />
       )}
 
@@ -1241,62 +1235,6 @@ function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) 
 // Composants partagés (réutilisés)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function HealControls({ c, gold, potions, onToggleHeal, onPotion, onFull }: {
-  c: Character; gold: number; potions: number;
-  onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-}) {
-  const full = isFull(c);
-  const healing = isHealing(c);
-  const eta = healing ? Math.ceil(healEtaMs(c) / 1000) : 0;
-  return (
-    <div className="heal-row">
-      <button className="chip-ico" disabled={full} onClick={() => onToggleHeal(c.id)} title={healing ? "Stopper le soin" : "Soin progressif gratuit"}>{healing ? <><Icon name="pause" size={14} /> {eta}s</> : <><Icon name="heal" size={14} /> Soin</>}</button>
-      <button className="chip-ico" disabled={potions <= 0 || full} onClick={() => onPotion(c.id)} title="Utiliser une potion (+50% PV)"><Icon name="potion" size={14} /> {potions}</button>
-      <button className="chip-ico" disabled={gold < FULL_HEAL_COST || full} onClick={() => onFull(c.id)} title={`Soin complet — ${FULL_HEAL_COST} or`}><Icon name="gold" size={14} /> {FULL_HEAL_COST}</button>
-    </div>
-  );
-}
-
-function TalentChips({ c }: { c: Character }) {
-  const sp = SPECIES[c.speciesId];
-  const ids = [sp.innate, ...activeTalents(c)].filter(Boolean) as string[];
-  // dédoublonne (l'inné peut réapparaître dans une branche)
-  return <TalentList ids={[...new Set(ids)]} />;
-}
-
-/** Bloc « Spécialisation » de la fiche : branche choisie, ou invitation à choisir. */
-function BranchBlock({ c, onChoose }: { c: Character; onChoose: () => void }) {
-  const branches = branchesOf(c.speciesId);
-  if (branches.length === 0) return null;
-  const chosen = branchDef(c.speciesId, c.branch);
-  return (
-    <div className="branch-block">
-      <h4 className="block-title">Spécialisation</h4>
-      {chosen ? (
-        <div className="branch-current">
-          <div className="branch-head"><span className="branch-ico">{chosen.icon}</span> <b>{chosen.name}</b></div>
-          <p className="muted small">{chosen.desc}</p>
-          <div className="branch-tiers">
-            {chosen.tiers.map((t) => {
-              const unlocked = c.level >= t.level;
-              const td = TALENTS[t.talent];
-              return (
-                <span key={t.talent} className={`branch-tier ${unlocked ? "on" : "off"}`} title={talentTooltip(t.talent)}>
-                  {unlocked ? "✓" : `N.${t.level}`} {td?.icon} {td?.name}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      ) : c.level >= BRANCH_CHOICE_LEVEL ? (
-        <button className="primary sm" onClick={onChoose}>⚡ Choisir une spécialisation</button>
-      ) : (
-        <p className="muted small">Choix de spécialisation débloqué au niveau {BRANCH_CHOICE_LEVEL} (2 voies au choix).</p>
-      )}
-    </div>
-  );
-}
-
 /** Modal de choix de branche : présente les 2 voies et leurs talents. */
 function BranchModal({ c, onPick }: { c: Character; onPick: (branchId: string) => void }) {
   const branches = branchesOf(c.speciesId);
@@ -1393,49 +1331,12 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
   );
 }
 
-function fmtDate(ts?: number): string {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-}
-const HIST_ICON: Record<string, string> = { capture: "⭐", combat: "⚔️", interact: "💞", levelup: "🆙" };
-
-function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: string, k: InteractKind) => void }) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => force((x) => x + 1), 500);
-    return () => window.clearInterval(id);
-  }, []);
-  const kinds = Object.keys(INTERACT_LABELS) as InteractKind[];
-  const lastText = c.history?.find((h) => h.kind === "interact")?.text;
-  return (
-    <div className="interact-block">
-      <h4 className="block-title">Interagir</h4>
-      <div className="interact-grid">
-        {kinds.map((k) => {
-          const ready = interactReadyIn(c, k);
-          const meta = INTERACT_LABELS[k];
-          return (
-            <button key={k} className="interact-btn" disabled={ready > 0} onClick={() => onInteract(c.id, k)} title={meta.hint}>
-              <span className="interact-emoji">{meta.emoji}</span>
-              <span>{meta.name}</span>
-              <span className="muted small">{ready > 0 ? `${Math.ceil(ready / 1000)}s` : meta.hint}</span>
-            </button>
-          );
-        })}
-      </div>
-      {lastText && <p className="interact-last">« {lastText} »</p>}
-    </div>
-  );
-}
-
 function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose, onChooseBranch }: {
   c: Character; gold: number; potions: number; rentedFights?: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
   onInteract: (id: string, k: InteractKind) => void; onClose: () => void; onChooseBranch: () => void;
 }) {
   const sp = SPECIES[c.speciesId];
-  const xpNext = xpForNext(c.level);
-  const p = c.personality;
   return (
     <div className="am-page">
       <header className="am-page-top">
@@ -1449,52 +1350,14 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
           <div className="am-art" style={{ background: `radial-gradient(circle at 50% 38%, ${sp.tint}33, transparent 72%)` }}>
             <img src={`/sprites/${sp.gfx}.png`} alt={c.name} />
           </div>
-          <div className="am-hero-info">
-            <div className="team-name big">
-              {c.name} <span className="lvl">N.{c.level}</span>
-              {sp.rarity === "rare" && <span className="rare-tag">RARE</span>}
-              {rentedFights != null && <span className="rent-tag">loué · {rentedFights}c</span>}
-            </div>
-            <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
-            {p && <div className="am-trait">{p.emoji} {p.archetype}</div>}
-            <div className="am-mood">Humeur : <strong>{moodLabel(c)}</strong></div>
-            <HpBar c={c} />
-            <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
-            <div className="muted small">XP {c.xp}/{xpNext}</div>
-          </div>
+          <AmHeroInfo c={c} rentedFights={rentedFights} />
         </section>
 
-        <div className="am-cols">
-          <div className="am-col">
-            <h4 className="block-title">Caractéristiques</h4>
-            <div className="sheet-stats">
-              {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-                <div key={k} className="sheet-stat"><span className="chip-ico"><Icon name={STAT_LABELS[k].icon} size={15} /> {STAT_LABELS[k].label}</span><strong>{c.stats[k]}</strong></div>
-              ))}
-            </div>
-            <TalentChips c={c} />
-            <BranchBlock c={c} onChoose={onChooseBranch} />
-            <h4 className="block-title">Soins</h4>
-            <HealControls c={c} gold={gold} potions={potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
-            <InteractButtons c={c} onInteract={onInteract} />
-          </div>
-
-          <div className="am-col">
-            <h4 className="block-title">Espèce</h4>
-            <p className="am-species-desc">{sp.desc}</p>
-            <h4 className="block-title">Historique</h4>
-            <div className="am-history">
-              {(c.history ?? []).length === 0 && <p className="muted small">Aucun évènement pour l'instant.</p>}
-              {(c.history ?? []).map((h, i) => (
-                <div key={i} className="hist-row">
-                  <span className="hist-icon">{HIST_ICON[h.kind] ?? "•"}</span>
-                  <span className="hist-text">{h.text}</span>
-                  <span className="hist-date muted small">{fmtDate(h.t)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <AmDetails
+          c={c} gold={gold} potions={potions}
+          onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull}
+          onInteract={onInteract} onChooseBranch={onChooseBranch}
+        />
       </div>
     </div>
   );
