@@ -650,12 +650,14 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .hmenu-item.danger { margin-top: auto; color: var(--red); border-color: #ffd7dd; }
 
 /* ══ HOUSE — cœur de la home, minimaliste, pensé mobile ══════════════════ */
-.house { max-width: 440px; margin: 0 auto; padding: 8px clamp(12px,4vw,20px) 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.house { max-width: 480px; margin: 0 auto; padding: 8px clamp(10px,3.5vw,16px) 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 
 .house-room {
   position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 20px;
-  background: var(--surface); border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm); overflow: hidden;
+  background: var(--surface); overflow: hidden;
+  /* Les bords gauche/droit se fondent doucement vers le fond du site. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
 }
 /* Halo lumineux ambiant neutre (léger volume, pas de teinte). */
 .house-glow {
@@ -674,10 +676,9 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
   position: absolute; transform: translateX(-50%);
   width: 26%; aspect-ratio: 1; padding: 0; border: none; background: transparent; box-shadow: none;
   display: flex; align-items: flex-end; justify-content: center;
-  transition: left 1.3s cubic-bezier(.45,.05,.35,1), bottom 1.3s cubic-bezier(.45,.05,.35,1);
+  transition: left 1.6s cubic-bezier(.45,.05,.35,1), bottom 1.6s cubic-bezier(.45,.05,.35,1);
   z-index: 2;
 }
-.house-critter:hover { transform: translateX(-50%) scale(1.05); }
 .hc-body { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; transform-origin: 50% 100%; }
 .hc-body.idle { animation: houseBreath 3.4s ease-in-out infinite; }
 .hc-body.reacting { animation: houseCheer 0.52s cubic-bezier(.3,1.5,.5,1); }
@@ -739,8 +740,8 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 
 /* Le compagnon rétrécit un peu et anime aussi sa largeur pendant le focus. */
 .house-critter { transition:
-  left 1.3s cubic-bezier(.45,.05,.35,1),
-  bottom 1.3s cubic-bezier(.45,.05,.35,1),
+  left 1.6s cubic-bezier(.45,.05,.35,1),
+  bottom 1.6s cubic-bezier(.45,.05,.35,1),
   width 0.5s cubic-bezier(.22,.9,.3,1); }
 .house.focused .house-critter { width: 20%; }
 

@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.44 — Document de référence du projet
+> Version 0.45 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,18 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-17 — v0.45
+- [Home / House — polish déplacement & pièce] Retours joueur sur la House :
+  - **Hover désactivé** sur le compagnon (suppression du `scale(1.05)` au survol qui faisait
+    « glisser » le sprite).
+  - **Pièce élargie** (`.house` max-width 440 → 480, padding latéral réduit) pour mieux coller à
+    une largeur mobile ; **bornes d'errance étendues** (`X_MIN/X_MAX` 18–78 → 13–87) pour que l'AM
+    puisse approcher les bords gauche/droit.
+  - **Bords gauche/droit en fondu** vers le fond du site : `.house-room` perd sa bordure/ombre au
+    profit d'un `mask-image` horizontal (transparent → opaque 9 %–91 % → transparent).
+  - **Rythme de déplacement ralenti** : marche 0.9–1.7 s → 1.5–2.4 s, pauses 0.6–3.2 s → 2.8–6.5 s,
+    transition CSS `left/bottom` 1.3 s → 1.6 s.
 
 ### 2026-07-17 — v0.44
 - [Home / House — **focus in-place** (T002)] **Le clic sur l'AM n'ouvre plus la fiche en page

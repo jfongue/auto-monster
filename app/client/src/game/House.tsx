@@ -13,9 +13,10 @@ import { Icon } from "./icons";
 import { AmHeroInfo, AmDetails } from "./AmDetails";
 import type { Character, InteractKind } from "./engine/types";
 
-// Bornes de déplacement dans la pièce.
-const X_MIN = 18;
-const X_MAX = 78;
+// Bornes de déplacement dans la pièce. L'AM (centré via translateX(-50%),
+// largeur ~26%) peut désormais approcher les bords gauche/droit.
+const X_MIN = 13;
+const X_MAX = 87;
 const DEPTH_MIN = 6; // bottom %, proche (avant-plan)
 const DEPTH_MAX = 30; // bottom %, loin
 
@@ -104,14 +105,14 @@ export default function House({
         return { x: nx, y: ny };
       });
       setWalking(true);
-      const walkMs = randBetween(900, 1700);
+      const walkMs = randBetween(1500, 2400);
       timer = window.setTimeout(() => {
         if (cancelled) return;
         setWalking(false);
-        timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(600, 3200));
+        timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(2800, 6500));
       }, walkMs);
     };
-    timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(400, 1200));
+    timer = window.setTimeout(() => { if (!cancelled) step(); }, randBetween(700, 1600));
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [c, focused]);
 
