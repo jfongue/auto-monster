@@ -1,6 +1,6 @@
 # Game Design Document — AutoMonster
 
-> Version 0.45 — Document de référence du projet
+> Version 0.46 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
@@ -10,6 +10,14 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-17 — v0.46
+- [Campagne] **Ennemis de la campagne solo = les 4 NME de planche 4.** Les encounters de la
+  Vallée Sauvage passent de `sprigling/murkwisp/cobbleback/murkwisp` à `waxwick` (N.1),
+  `spinepuff` (N.2), `beetlorn` (N.3), `meteorb` (N.4) — rampe de difficulté croissante,
+  descriptions mises à jour. Boss des Cimes (`gravelmaw`) inchangé. Murkwisp & co. ne sont
+  plus jamais rencontrés (les combats sont à ennemi fixe via `enemySpecies`, pas de spawn
+  aléatoire). tsc + tests verts (132/0, 30/0).
 
 ### 2026-07-17 — v0.45
 - [Home / House — polish déplacement & pièce] Retours joueur sur la House :
