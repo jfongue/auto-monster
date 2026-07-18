@@ -30,7 +30,7 @@ export default function DailyJournal({
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal daily-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal daily-modal" role="dialog" aria-modal="true" aria-label="Journal du jour" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h3 className="chip-ico"><Icon name="journal" size={18} /> Aujourd'hui</h3>
           <button className="ghost sm" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>

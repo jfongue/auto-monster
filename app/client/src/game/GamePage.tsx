@@ -47,7 +47,6 @@ import {
   startHeal,
   commitHeal,
   withMoodBattle,
-  moodOf,
   pushHistory,
   interact,
   interactReadyIn,
@@ -137,6 +136,12 @@ export default function GamePage() {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }
 
+  /** Toast standard pour chaque quête du jour complétée (factorisé — réutilisé
+   *  après interaction, jouet, victoire et duel gagné). */
+  function toastQuests(completed: { label: string; gold: number; potions: number }[]) {
+    completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+  }
+
   // Back navigateur / Android : ferme d'abord le modal ouvert, puis remonte à la
   // maison, sans jamais quitter l'app. On maintient toujours une entrée d'historique
   // à dépiler.
@@ -149,13 +154,26 @@ export default function GamePage() {
   useEffect(() => {
     window.history.pushState(null, "");
     const onPop = () => {
+      // Un combat en cours ne doit jamais être abandonné par le bouton retour :
+      // le seul chemin de sortie est le bouton « Abandonner » (avec confirmation).
+      if (modalRef.current.k === "combat") { window.history.pushState(null, ""); return; }
       if (modalRef.current.k !== "none") setModal({ k: "none" });
       else if (menuOpenRef.current) setMenuOpen(false);
       else if (routeRef.current.v !== "house") setRoute({ v: "house" });
       window.history.pushState(null, "");
     };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    // Échap : ferme le menu puis les modals (sauf le combat, non-annulable ici).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (menuOpenRef.current) { setMenuOpen(false); return; }
+      if (modalRef.current.k !== "none" && modalRef.current.k !== "combat") setModal({ k: "none" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -275,7 +293,7 @@ export default function GamePage() {
     const res = interact(c, kind);
     const { state: bumped, completed } = bumpQuest(gs, "interact");
     persist(withCharUpdate(bumped, charId, () => res.character));
-    completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+    toastQuests(completed);
   }
 
   // ── T009 — Jouet (barre sociale) ────────────────────────────────────────
@@ -286,29 +304,33 @@ export default function GamePage() {
     const res = giveToy(c);
     const { state: bumped, completed } = bumpQuest(gs, "interact");
     persist(withCharUpdate({ ...bumped, toys: bumped.toys - 1 }, charId, () => res.character));
-    completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+    toastQuests(completed);
   }
 
   // ── Marchand / soin / ranch ─────────────────────────────────────────────
   function buyPotion() {
     if (gs.gold < POTION_PRICE) return;
     persist({ ...gs, gold: gs.gold - POTION_PRICE, potions: gs.potions + 1 });
+    pushToast(`🧪 +1 potion (−${POTION_PRICE}💰)`);
   }
   function buyToy() {
     if (gs.gold < TOY_PRICE) return;
     persist({ ...gs, gold: gs.gold - TOY_PRICE, toys: gs.toys + 1 });
+    pushToast(`🧸 +1 jouet (−${TOY_PRICE}💰)`);
   }
   function healAllTeam() {
     if (gs.gold < HEAL_CENTER_COST) return;
     const needs = gs.team.some((c) => currentLife(c) < c.stats.hp);
     if (!needs) return;
     persist({ ...gs, gold: gs.gold - HEAL_CENTER_COST, team: gs.team.map((c) => ({ ...c, life: c.stats.hp, healStart: null })) });
+    pushToast(`💚 Équipe soignée à bloc (−${HEAL_CENTER_COST}💰)`);
   }
   function rent(offerIdx: number) {
     const offer = RANCH_OFFERS[offerIdx];
     if (!offer || gs.rental || gs.gold < offer.price) return;
     const char = makeLeveledCharacter(offer.speciesId, offer.level);
     persist({ ...gs, gold: gs.gold - offer.price, rental: { char, fightsLeft: offer.fights } });
+    pushToast(`🐾 ${SPECIES[offer.speciesId]?.name ?? "Monstre"} rejoint l'équipe (loué · ${offer.fights} combats)`);
   }
   function extendRental() {
     if (!gs.rental || gs.gold < RANCH_EXTEND.price) return;
@@ -381,7 +403,7 @@ export default function GamePage() {
       s = { ...s, gold: s.gold + goldGain, duels: { day, wins: wins + 1 } };
       const b = bumpQuest(s, "duel");
       s = b.state;
-      b.completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+      toastQuests(b.completed);
     }
     s = withCharUpdate(s, charId, (c) =>
       pushHistory(c, "combat", won ? `Duel gagné vs ${duel.trainer}` : `Duel perdu vs ${duel.trainer}`)
@@ -471,7 +493,7 @@ export default function GamePage() {
     if (won) {
       const b = bumpQuest(nextState, "win");
       nextState = b.state;
-      b.completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+      toastQuests(b.completed);
     }
     persist(nextState);
     setModal({ k: "reward", reward: { outcome: won ? "win" : outcome === "lose" ? "lose" : "draw", loc, pStat, firstClear, levelsGained } });
@@ -550,7 +572,7 @@ export default function GamePage() {
           <span className="mini-purse">
             <span className="purse-item"><Icon name="gold" size={15} /> {gs.gold}</span>
             <span className="purse-item"><Icon name="potion" size={15} /> {gs.potions}</span>
-            <span className="purse-item">🧸 {gs.toys}</span>
+            <span className="purse-item"><Icon name="toy" size={15} /> {gs.toys}</span>
           </span>
           <button
             className={`journal-btn ${hasDailyClaimable(gs) ? "attention" : ""}`}
@@ -630,7 +652,7 @@ export default function GamePage() {
 
       {menuOpen && (
         <div className="hmenu-overlay" onClick={() => setMenuOpen(false)}>
-          <div className="hmenu-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="hmenu-panel" role="dialog" aria-modal="true" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
             <button className="ghost sm hmenu-close" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu"><Icon name="close" size={16} /></button>
             <div className="hmenu-user">{user?.displayName || user?.username || "Dresseur"}</div>
             <div className="hmenu-purse chip-ico"><Icon name="gold" size={14} /> {gs.gold} <span className="dot">·</span> <Icon name="potion" size={14} /> {gs.potions}</div>
@@ -685,7 +707,7 @@ export default function GamePage() {
       {modal.k === "combat" && (
         // T005 : page plein écran dédiée (plus un modal centré) — 100dvh, sans scroll,
         // header compact + zone de combat qui se partage le reste de la hauteur.
-        <div className="combat-fullscreen">
+        <div className="combat-fullscreen" role="dialog" aria-modal="true" aria-label={`Combat — ${modal.ctx.loc.name}`}>
           <div className="combat-head">
             <span>{modal.ctx.loc.name}</span>
             <div className="speedctl">
@@ -838,7 +860,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
               </div>
               <div className="ob-hero-id">
                 <h3>{sp.name}</h3>
-                <span className="ob-role chip-ico">🏅 Rang {sp.rank ?? DEFAULT_RANK}</span>
+                <span className="ob-role chip-ico"><Icon name="rank" size={14} /> Rang {sp.rank ?? DEFAULT_RANK}</span>
               </div>
             </div>
             <div className="ob-statcards">
@@ -847,7 +869,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
                 <div className="ob-statcard-desc">À 0, K.O.</div>
               </div>
               <div className="ob-statcard">
-                <div className="ob-statcard-top"><span className="ob-statcard-icon">⚡</span><b>Stamina</b><span className="ob-statcard-val">{sp.baseStamina ?? hero.stamina ?? DEFAULT_STAMINA}</span></div>
+                <div className="ob-statcard-top"><span className="ob-statcard-icon"><Icon name="stamina" size={18} /></span><b>Stamina</b><span className="ob-statcard-val">{sp.baseStamina ?? hero.stamina ?? DEFAULT_STAMINA}</span></div>
                 <div className="ob-statcard-desc">Ressource pour enchaîner les actions en combat.</div>
               </div>
             </div>
@@ -957,6 +979,7 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
               </span>
               <span className="zone-label">
                 <span className="zn">{z.name}</span>
+                {unlocked && showRing && <span className="zpct">{Math.round(comp * 100)}%</span>}
               </span>
             </button>
           );
@@ -1063,7 +1086,7 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
                   {gs.rental ? (
                     <>
                       <div className="pick-row">
-                        <img className="mini" src={`/sprites/${SPECIES[gs.rental.char.speciesId].gfx}.png`} alt="" />
+                        <img className="mini" src={`/sprites/${SPECIES[gs.rental.char.speciesId].gfx}.png`} alt={SPECIES[gs.rental.char.speciesId].name} />
                         <div className="pick-meta">
                           <div className="team-name">{gs.rental.char.name} <span className="rent-tag">loué · {gs.rental.fightsLeft}c</span></div>
                           <HpBar c={gs.rental.char} />
@@ -1113,10 +1136,10 @@ function BoutiqueScreen({ gold, potions, toys, onBuy, onBuyToy, onBack }: {
         </button>
       </div>
       <div className="card boutique-card">
-        <div className="card-title chip-ico" style={{ justifyContent: "center" }}>🧸 Jouet</div>
-        <div className="boutique-icon" style={{ fontSize: 40 }}>🧸</div>
+        <div className="card-title chip-ico" style={{ justifyContent: "center" }}><Icon name="toy" size={18} /> Jouet</div>
+        <div className="boutique-icon"><Icon name="toy" size={46} /></div>
         <p className="muted small">Cadeau — renforce toujours le lien (barre sociale)</p>
-        <p className="muted small chip-ico" style={{ justifyContent: "center" }}>🧸 {toys} <span className="dot">·</span> <Icon name="gold" size={13} /> {gold}</p>
+        <p className="muted small chip-ico" style={{ justifyContent: "center" }}><Icon name="toy" size={13} /> {toys} <span className="dot">·</span> <Icon name="gold" size={13} /> {gold}</p>
         <button className="primary big chip-ico" disabled={gold < TOY_PRICE} onClick={onBuyToy} style={{ width: "100%", justifyContent: "center" }}>
           Acheter — {TOY_PRICE} <Icon name="gold" size={15} />
         </button>
@@ -1152,7 +1175,7 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
       <div className="card-title chip-ico"><Icon name={zone.boss ? "boss" : "atk"} size={16} /> {zone.boss ? "Affrontement" : "Rencontres sauvages"}</div>
 
       <div className="enemy-preview centered">
-        <img src={`/sprites/${sp.gfx}.png`} alt="ennemi" style={{ transform: `scale(${sp.size / 100})` }} />
+        <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} style={{ transform: `scale(${sp.size / 100})` }} />
         <div className="enemy-name">
           {sp.name} <span className="lvl">N.{enc.enemyLevel}</span>
           {enc.isBoss && <span className="boss-tag chip-ico"><Icon name="boss" size={11} /> BOSS</span>}
@@ -1267,7 +1290,7 @@ function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?:
 function ModalShell({ title, onClose, children, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
     <div className="overlay" onClick={onClose}>
-      <div className={`modal ${wide ? "wide" : ""}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head"><h3 className="chip-ico">{title}</h3><button className="ghost sm" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button></div>
         <div className="modal-body">{children}</div>
       </div>

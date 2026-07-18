@@ -13,9 +13,9 @@ import { Icon } from "./icons";
 export function RankStatLine({ c }: { c: Character }) {
   return (
     <div className="statgrid">
-      <span>🏅 {c.rank ?? DEFAULT_RANK}</span>
-      <span className="chip-ico"><Icon name="hp" size={12} /> {c.stats.hp}</span>
-      <span>⚡ {c.stamina ?? DEFAULT_STAMINA}</span>
+      <span className="chip-ico"><Icon name="rank" size={13} /> {c.rank ?? DEFAULT_RANK}</span>
+      <span className="chip-ico"><Icon name="hp" size={13} /> {c.stats.hp}</span>
+      <span className="chip-ico"><Icon name="stamina" size={13} /> {c.stamina ?? DEFAULT_STAMINA}</span>
     </div>
   );
 }

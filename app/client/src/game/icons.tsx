@@ -7,7 +7,7 @@ import type { SVGProps } from "react";
 
 export type IconName =
   | "hp" | "atk" | "def" | "spd"
-  | "gold" | "potion"
+  | "gold" | "potion" | "toy" | "rank" | "stamina"
   | "map" | "arena" | "shop" | "journal" | "bestiary" | "team"
   | "heal" | "pause" | "play" | "flee"
   | "back" | "close" | "menu" | "power" | "reset"
@@ -25,6 +25,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
   spd: <g><path d="M3 8h11" /><path d="M3 12h15" /><path d="M3 16h9" /><path d="M15.5 6.5A3 3 0 1 1 18 8" /><path d="M13 17.5A3 3 0 1 0 15 20" /></g>,
   gold: <g><circle cx="12" cy="12" r="8.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="5.6" fill="none" stroke="var(--surface,#fff)" strokeWidth="1.6" /></g>,
   potion: <g><path d="M10 3h4" /><path d="M10.5 3v4.2L6.6 15a3.4 3.4 0 0 0 3 5h4.8a3.4 3.4 0 0 0 3-5l-3.9-7.8V3" /><path d="M7.7 13h8.6" /></g>,
+  toy: <g><circle cx="12" cy="12" r="8.5" /><path d="M3.6 10.8c5.2.8 10-1.4 13-5.4" /><path d="M20.4 13.2c-5.2-.8-10 1.4-13 5.4" /><path d="M9.5 3.6c3 5.6 3 11.2 0 16.8" /></g>,
+  rank: <g><path d="M9 3.2l1.9 4.1" /><path d="M15 3.2l-1.9 4.1" /><circle cx="12" cy="14.2" r="6" /><path d="M12 11l.95 2 2.05.3-1.5 1.5.35 2.1L12 15.9l-1.85 1 .35-2.1L9 13.3l2.05-.3L12 11z" fill="currentColor" stroke="none" /></g>,
+  stamina: <path d="M13 2 5 13.5h5l-1 8.5 9-12h-5l1-8z" fill="currentColor" stroke="none" />,
   map: <g><path d="m9 5-5 2v12l5-2 6 2 5-2V5l-5 2-6-2z" /><path d="M9 5v12" /><path d="M15 7v12" /></g>,
   arena: <g><path d="M14.5 4.5 20 4l-.5 5.5-8 8" /><path d="M9.5 4.5 4 4l.5 5.5 8 8" /><path d="M4 15l3.5 3.5" /><path d="M20 15l-3.5 3.5" /></g>,
   shop: <g><path d="M4 8h16l-1 4.5a3 3 0 0 1-3 2.4H8a3 3 0 0 1-3-2.4L4 8z" /><path d="M4 8 6 4h12l2 4" /><path d="M9 8v-.5a3 3 0 0 1 6 0V8" /><path d="M7 15v4.5h10V15" /></g>,

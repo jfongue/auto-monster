@@ -207,9 +207,9 @@ export function AmDetails({ c, gold, potions, toys, onToggleHeal, onPotion, onFu
       <div className="am-col">
         <h4 className="block-title">Caractéristiques</h4>
         <div className="sheet-stats">
-          <div className="sheet-stat"><span className="chip-ico">🏅 Rang</span><strong>{sp.rank ?? DEFAULT_RANK}</strong></div>
+          <div className="sheet-stat"><span className="chip-ico"><Icon name="rank" size={15} /> Rang</span><strong>{sp.rank ?? DEFAULT_RANK}</strong></div>
           <div className="sheet-stat"><span className="chip-ico"><Icon name="hp" size={15} /> HP</span><strong>{c.stats.hp}</strong></div>
-          <div className="sheet-stat"><span className="chip-ico">⚡ Stamina</span><strong>{sp.baseStamina ?? c.stamina ?? DEFAULT_STAMINA}</strong></div>
+          <div className="sheet-stat"><span className="chip-ico"><Icon name="stamina" size={15} /> Stamina</span><strong>{sp.baseStamina ?? c.stamina ?? DEFAULT_STAMINA}</strong></div>
         </div>
         <TraitBlock c={c} />
         <h4 className="block-title">Soins</h4>
