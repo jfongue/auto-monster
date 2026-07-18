@@ -53,11 +53,14 @@ import {
   interactReadyIn,
   giveToy,
   registerCombatSocial,
+  DEFAULT_RANK,
+  DEFAULT_STAMINA,
 } from "./engine/progression";
+import { ACTIVE_TRAITS } from "./engine/traits";
 import { applyDraftChoice, draftLabel, type DraftOption } from "./engine/draft";
 import { TALENTS, talentName } from "./engine/talents";
-import { HpBar, StatRow, talentTooltip, RoleTag } from "./shared";
-import { Icon, type IconName } from "./icons";
+import { HpBar, RankStatLine, talentTooltip } from "./shared";
+import { Icon } from "./icons";
 import { AmHeroInfo, AmDetails, HealControls } from "./AmDetails";
 import House from "./House";
 import DailyJournal from "./Daily";
@@ -65,7 +68,7 @@ import Arena, { makeDuelEnemy } from "./Arena";
 import SpeciesEditor from "./SpeciesEditor";
 import LevelUpDraft from "./LevelUpDraft";
 import type { ArenaOpponent } from "../lib/api";
-import type { Character, StatKey, InteractKind } from "./engine/types";
+import type { Character, InteractKind } from "./engine/types";
 import {
   freshState,
   migrate,
@@ -773,12 +776,6 @@ function makeTutorialEnemy(): Character {
   };
 }
 
-const STAT_CARDS: { key: StatKey; icon: IconName; label: string; desc: string }[] = [
-  { key: "hp", icon: "hp", label: "Vie", desc: "À 0, K.O." },
-  { key: "atk", icon: "atk", label: "Force", desc: "Dégâts infligés." },
-  { key: "def", icon: "def", label: "Armure", desc: "Réduit les dégâts subis." },
-  { key: "spd", icon: "spd", label: "Vitesse", desc: "Agit plus souvent." },
-];
 
 // Onboarding en wizard : (0) choix du monstre, (1) lecture de sa fiche,
 // (2) combat guidé avec bulles, (3) présentation du hub et de la boucle.
@@ -821,7 +818,7 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
                       <img src={`/sprites/${s.gfx}.png`} alt={s.name} />
                     </div>
                     <h3>{s.name}</h3>
-                    <StatRow stats={c.stats} />
+                    <RankStatLine c={c} />
                     {s.innate && <div className="talent-chip" title={talentTooltip(s.innate)}>{TALENTS[s.innate]?.icon ?? "✨"} {talentName(s.innate)}<span className="talent-chip-desc">{TALENTS[s.innate]?.desc}</span></div>}
                   </div>
                 );
@@ -841,21 +838,29 @@ function Onboarding({ onPick }: { onPick: (id: string) => void }) {
               </div>
               <div className="ob-hero-id">
                 <h3>{sp.name}</h3>
-                <RoleTag stats={hero.stats} className="ob-role" />
+                <span className="ob-role chip-ico">🏅 Rang {sp.rank ?? DEFAULT_RANK}</span>
               </div>
             </div>
             <div className="ob-statcards">
-              {STAT_CARDS.map((sc) => (
-                <div key={sc.key} className="ob-statcard">
-                  <div className="ob-statcard-top"><span className="ob-statcard-icon"><Icon name={sc.icon} size={18} /></span><b>{sc.label}</b><span className="ob-statcard-val">{hero.stats[sc.key]}</span></div>
-                  <div className="ob-statcard-desc">{sc.desc}</div>
-                </div>
-              ))}
+              <div className="ob-statcard">
+                <div className="ob-statcard-top"><span className="ob-statcard-icon"><Icon name="hp" size={18} /></span><b>Vie</b><span className="ob-statcard-val">{hero.stats.hp}</span></div>
+                <div className="ob-statcard-desc">À 0, K.O.</div>
+              </div>
+              <div className="ob-statcard">
+                <div className="ob-statcard-top"><span className="ob-statcard-icon">⚡</span><b>Stamina</b><span className="ob-statcard-val">{sp.baseStamina ?? hero.stamina ?? DEFAULT_STAMINA}</span></div>
+                <div className="ob-statcard-desc">Ressource pour enchaîner les actions en combat.</div>
+              </div>
             </div>
             {sp.innate && (
               <div className="ob-talentcard">
                 <span className="ob-statcard-icon">{TALENTS[sp.innate]?.icon ?? "✨"}</span>
                 <div><b>{talentName(sp.innate)}</b> — {TALENTS[sp.innate]?.desc ?? "toujours actif"}. Se déclenche <b>seul</b>.</div>
+              </div>
+            )}
+            {sp.startTrait && ACTIVE_TRAITS[sp.startTrait] && (
+              <div className="ob-talentcard">
+                <span className="ob-statcard-icon">{ACTIVE_TRAITS[sp.startTrait].icon}</span>
+                <div><b>{ACTIVE_TRAITS[sp.startTrait].name}</b> — Trait de départ. Pilote les dégâts en combat, monte en puissance avec les niveaux.</div>
               </div>
             )}
             <div className="ob-actions">
@@ -1289,7 +1294,7 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
               <div className="pick-meta">
                 <div className="team-name">{c.name} <span className="lvl">N.{c.level}</span>{sp.rarity === "rare" && <span className="rare-tag">RARE</span>}{isRent && <span className="rent-tag">loué · {gs.rental!.fightsLeft}c</span>}</div>
                 <HpBar c={c} />
-                <StatRow stats={c.stats} />
+                <RankStatLine c={c} />
               </div>
             </div>
             <HealControls c={c} gold={gs.gold} potions={gs.potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
@@ -1372,7 +1377,7 @@ function CaptureModal({ onCapture }: { onCapture: () => void }) {
             <img src={`/sprites/${sp.gfx}.png`} alt={sp.name} />
           </div>
           <h3>{sp.name} <span className="rare-tag">RARE</span></h3>
-          <StatRow stats={makeCharacter(RARE_REWARD).stats} />
+          <RankStatLine c={makeCharacter(RARE_REWARD)} />
           {sp.innate && <div className="talent-chip" title={talentTooltip(sp.innate)}>{TALENTS[sp.innate]?.icon ?? "✨"} {talentName(sp.innate)}<span className="talent-chip-desc">{TALENTS[sp.innate]?.desc}</span></div>}
         </div>
         <button className="primary big" onClick={onCapture}>Capturer</button>
