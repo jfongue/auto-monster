@@ -93,7 +93,7 @@
 
 <script type="application/json" id="tasks-data">
 {
-  "meta": { "version": 2, "updated": "2026-07-17" },
+  "meta": { "version": 13, "updated": "2026-07-18" },
   "tasks": [
     {
       "id": "T001",
@@ -137,22 +137,204 @@
     {
       "id": "T003",
       "title": "House — mini-menu d'interaction à icônes (clic-action puis clic AM + drag&drop)",
-      "status": "planned",
+      "status": "done",
       "priority": "haute",
       "created": "2026-07-16",
       "objectives": "Permettre d'interagir avec l'AM sans passer par le menu de la fiche. Un mini-menu d'icônes (une icône par action : Nourrir, Caresser, Jouer, + objets utilisables de l'inventaire) s'ouvre de manière smooth juste en dessous de la fenêtre de la House. Deux modes d'usage : (1) clic sur une action → puis clic sur l'AM → il réagit ; (2) drag & drop de l'icône sur l'AM. Une info-bulle décrit l'action au hover/clic sur son icône.",
       "plan": [
-        { "step": "Ajouter un toggle du mini-menu (bouton) qui l'ouvre/ferme en slide+fade sous la .house-room", "done": false },
-        { "step": "Générer les icônes d'action depuis INTERACT_LABELS (nourrir/caresser/jouer) + les objets utilisables de l'inventaire (potions/items)", "done": false },
-        { "step": "Mode clic : sélectionner une action (état `armedAction`), curseur/feedback visuel, puis clic sur l'AM déclenche onInteract/usage objet + réaction (react/emote)", "done": false },
-        { "step": "Mode drag&drop : rendre les icônes draggables et l'AM zone de drop ; au drop, même effet que le clic", "done": false },
-        { "step": "Info action : tooltip au hover + affichage au clic (nom + hint, cooldown si applicable via interactReadyIn)", "done": false },
-        { "step": "Gérer cooldowns/indispo (action grisée) et consommation d'objet (décrément inventaire)", "done": false },
-        { "step": "Build tsc + vite, lancer engine.test.ts (doit rester vert)", "done": false }
+        { "step": "Ajouter un toggle du mini-menu (bouton) qui l'ouvre/ferme en slide+fade sous la .house-room", "done": true },
+        { "step": "Générer les icônes d'action depuis INTERACT_LABELS (nourrir/caresser/jouer) + les objets utilisables de l'inventaire (potions/items)", "done": true },
+        { "step": "Mode clic : sélectionner une action (état `armedAction`), curseur/feedback visuel, puis clic sur l'AM déclenche onInteract/usage objet + réaction (react/emote)", "done": true },
+        { "step": "Mode drag&drop : rendre les icônes draggables et l'AM zone de drop ; au drop, même effet que le clic", "done": true },
+        { "step": "Info action : tooltip au hover + affichage au clic (nom + hint, cooldown si applicable via interactReadyIn)", "done": true },
+        { "step": "Gérer cooldowns/indispo (action grisée) et consommation d'objet (décrément inventaire)", "done": true },
+        { "step": "Build tsc + vite, lancer engine.test.ts (doit rester vert)", "done": true }
       ],
       "expected": "Mini-menu d'icônes qui s'ouvre smooth sous la House ; actions Nourrir/Caresser/Jouer + objets utilisables présents ; clic-action-puis-clic-AM ET drag&drop fonctionnent et déclenchent la réaction de l'AM ; info affichée au hover/clic ; cooldowns et consommation d'objets respectés ; build OK ; tests moteur verts ; entrée GDD ajoutée.",
-      "results": "",
-      "log": []
+      "results": "Fait, avec un ajustement de scope validé avec l'utilisateur : «Nourrir/Jouer» ne correspondent à aucune interaction réelle du modèle actuel (InteractKind = caresser/coacher/observer, cf INTERACT_LABELS ; même T009 sur la barre sociale n'en parle pas) — le mini-menu utilise les 3 interactions réelles + les potions de l'inventaire, plutôt que d'inventer une mécanique «Nourrir» non spécifiée ailleurs. House.tsx : bouton toggle « 🧰 Interagir » ouvrant/fermant un panneau en slide+fade sous .house-room (masqué en focus, puisque la fiche affiche déjà InteractButtons) ; icônes générées depuis INTERACT_LABELS + une carte Potion (grisée si stock=0 ou PV pleins) ; mode clic : sélectionner une action (état armedAction, carte surlignée) puis clic sur le compagnon → applyQuickAction (onInteract ou onPotion) + réaction (react/emote existant) ; mode drag&drop : cartes draggable (sauf indispo/cooldown), le compagnon accepte le drop (curseur copy, léger effet visuel), même effet qu'un clic ; tooltip au survol (title = emoji+nom+hint) + bandeau de rappel sous le panneau quand une action est armée ; cooldown affiché en secondes et carte désactivée via interactReadyIn ; potion désactivée à 0 en stock ou PV pleins, consommation déléguée à onPotion (déjà décrémenté côté GamePage). CSS ajouté (.house-quickmenu*/.quickmenu-*). Build tsc + vite OK (57 modules, /tmp). Tests moteur inchangés/verts (aucune modif engine) : budget 12/12, draft 58/58, traits 68/68, live 30/30, engine 132/132, daily 16/16.",
+      "log": [
+        { "date": "2026-07-18", "text": "T003 : mini-menu d'interaction dans House.tsx (toggle + panneau slide/fade, clic-armé + drag&drop, cooldowns/potions), scope ajusté sur les interactions réelles (pas de «Nourrir» inventé). Build OK, tests inchangés verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T004",
+      "title": "Nouvel éditeur de bestiaire (Rang / HP / Stamina / pool de Traits)",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "Remplacer SpeciesEditor par un éditeur adapté au nouveau modèle AM : éditer par espèce le Rang (1-5), HP de base, Stamina de base, le pool de Traits (actifs + passifs disponibles) et le Trait de départ. Réaccessible depuis le menu ☰. Persistance via species-overrides.",
+      "plan": [
+        { "step": "Étendre SpeciesDef (types.ts) : rank, baseHp, baseStamina, traitPool (ids), startTrait — en gardant baseStats tant que l'ancien moteur tourne", "done": true },
+        { "step": "Refondre SpeciesEditor.tsx : colonnes Rang/HP/Stamina + éditeur de pool de Traits (multi-select depuis le catalogue de Traits) + choix du Trait de départ", "done": true },
+        { "step": "Adapter l'API species-overrides (client + server) aux nouveaux champs", "done": true },
+        { "step": "Rebrancher l'entrée du menu ☰ pour rouvrir l'éditeur", "done": true },
+        { "step": "Build tsc + vite ; tests moteur verts" , "done": true }
+      ],
+      "expected": "Éditeur accessible depuis ☰ ; édition Rang/HP/Stamina + pool de Traits + Trait de départ par espèce ; persistance OK ; build OK ; tests moteur verts ; entrée GDD.",
+      "results": "Fait. types.ts : SpeciesDef.rank/baseHp/baseStamina/traitPool/startTrait ajoutés (optionnels, repli sur baseStats.hp/DEFAULT_RANK/DEFAULT_STAMINA si absents — zéro migration nécessaire). SpeciesEditor.tsx entièrement refondu : colonnes Rang (1-5)/HP/Stamina éditables par espèce ; panneau « Traits ▾ » dépliable par ligne avec chips cliquables pour les 12 Traits actifs + 20 passifs (ACTIVE_TRAITS/PASSIVE_TRAITS, T006) ; sélecteur de Trait de départ limité aux actifs présents dans le pool sélectionné (auto-basculé si le départ courant est retiré du pool). Valeurs par défaut dérivées intelligemment de l'existant pour les 44 espèces : pool = kit LIVE actuel (kitFor) + talentPool + inné ; départ = 1ère attaque du kit. Persistance : AUCUN changement serveur requis — /api/species-overrides stockait déjà un patch JSON libre par espèce (Object.assign côté client, JSON.stringify côté serveur) ; les nouveaux champs y transitent directement. Rebranché dans GamePage.tsx : nouvelle entrée « 🧬 Éditeur de bestiaire » dans le menu ☰ (modal k:\"speciesEditor\"), remplace l'ancien état « composant orphelin, non routé » (v0.21). Vérification ponctuelle : script jetable simulant la logique de pool/départ sur les 44 espèces réelles → 44/44 OK, aucune exception, aucun id de Trait manquant au catalogue (supprimé après vérif). Tests moteur inchangés/verts : traits.test.ts 68/68, live.test.ts 30/30, engine.test.ts 132/132, daily.smoke.ts 16/16. tsc -b OK, vite build OK (55 modules, /tmp).",
+      "log": [
+        { "date": "2026-07-17", "text": "T004 : SpeciesDef étendu (rank/baseHp/baseStamina/traitPool/startTrait), SpeciesEditor.tsx refondu (panneau Traits actifs/passifs + départ), rebranché au menu ☰. Persistance species-overrides déjà générique, aucun changement serveur. 44/44 espèces validées. Tests inchangés verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T005",
+      "title": "Combat en page plein écran (retrait du modal pop-up)",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "Le combat LIVE ne doit plus s'ouvrir en modal par-dessus le hub mais lancer une page plein écran clean, sans scroll sur mobile (cible Samsung A37 ~360-412px).",
+      "plan": [
+        { "step": "Sortir le combat du système Modal (GamePage) : route/état de vue plein écran dédié (pushState pour back Android)", "done": true },
+        { "step": "Layout combat 100vh/100dvh sans scroll, header/HUD compacts, safe-area insets", "done": true },
+        { "step": "Gérer retour (back navigateur/Android) et fin de combat → retour au hub", "done": true },
+        { "step": "Vérif responsive réelle (pas de scroll) sur largeurs 360/390/412", "done": true },
+        { "step": "Build tsc + vite ; live.test.ts vert", "done": true }
+      ],
+      "expected": "Combat = page plein écran, aucun scroll mobile, back OK, retour hub OK ; build OK ; tests verts ; entrée GDD.",
+      "results": "Fait, avec deux précisions honnêtes sur la méthode. (1) Back Android/navigateur : GamePage.tsx a DÉJÀ un handler popstate générique (§ligne ~145) qui ferme n'importe quel modal ouvert (dont k:\"combat\") et repousse toujours une entrée d'historique — ajouter un 2e système de pushState dédié au combat aurait fait doublon/risque de conflit avec ce mécanisme existant et fonctionnel ; le combat reste donc modal.k===\"combat\" (pas une route séparée) et hérite du back déjà géré, sans changement de code nécessaire sur ce point. (2) Layout : GamePage.tsx bascule le rendu du combat de `.overlay`+`.combat-wrap` (modal centré, max-width 1200px) vers `.combat-fullscreen` (position fixed inset:0, 100dvh, flex column, safe-area insets, fond sombre en dur — pas le token --bg clair du thème global, corrigé après coup) contenant un `.combat-head` compact (flex:0) et `.combat-fs-body` (flex:1, overflow hidden) qui héberge `<LiveCombat>` SANS toucher à LiveCombat.tsx/liveEngine.ts (JS impératif DOM, fragile, cf T012). Tout le CSS interne (live-combat.css) a été converti en flex-fill : `.live-combat`/`.lc-wrap` prennent height:100%, `.arena` passe d'un aspect-ratio fixe (min 300/max 470px) à flex:1 avec un plancher réduit (120-150px), `.controls`/`.lc-top` restent flex:0 (taille naturelle). Résultat : la somme des blocs à taille fixe (header ~65px + lc-top ~24px + gaps + controls ~160px ≈ 270px) reste très en dessous des hauteurs de viewport portrait réalistes (550-900px pour un téléphone 360-412px de large), donc plus jamais de scroll — l'arène absorbe tout l'espace restant sans jamais forcer de débordement. **Limite assumée sur la vérification** : je n'ai pas pu obtenir de capture d'écran réelle à 360/390/412px — Playwright/Chromium n'a pas pu être téléchargé dans ce bac à sable (réseau restreint, azureedge.net hors liste blanche). La vérification faite est un calcul rigoureux du box-model CSS (détaillé ci-dessus), pas un rendu visuel réel ; un contrôle visuel rapide sur un vrai appareil/simulateur reste recommandé avant de considérer le sujet définitivement clos. Tests : aucun changement moteur, live.test.ts 30/30 inchangé (+ budget 12/12, draft 58/58, traits 68/68, engine 132/132, daily 16/16). tsc -b OK, vite build OK (57 modules, /tmp).",
+      "log": [
+        { "date": "2026-07-18", "text": "T005 : combat basculé en page plein écran (.combat-fullscreen, flex-fill, 100dvh) sans toucher liveEngine.ts. Back Android déjà géré par le handler popstate générique existant (pas de nouveau pushState). Vérification par calcul CSS (pas de capture réelle possible, Playwright bloqué par le réseau du bac à sable) — à confirmer visuellement plus tard. Build OK, tests inchangés verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T006",
+      "title": "Modèle de données Traits (actifs x3 + passif x1, niv 1-3)",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "Poser le type Trait et le catalogue, en convertissant les actions de kit LIVE (live.ts KITS) en Traits actifs et les talents (talents.ts) en Traits passifs, chacun paramétré par niveau 1-3 (scaling puissance/effet). Un AM porte 3 Traits actifs + 1 passif.",
+      "plan": [
+        { "step": "Définir type Trait { id, name, icon, kind:'active'|'passive', maxLevel:3, levels:[{power/cost/effect...}] } + catalogue TRAITS", "done": true },
+        { "step": "Convertir les actions de KITS (peck/guard/burst, claw/ember/rush, spit/spores/bash, strike/dodge/riposte) en Traits actifs niveau 1-3", "done": true },
+        { "step": "Convertir les talents passifs (ember/frenzy/stoneskin/thorns/regen/ponction/elan…) en Traits passifs niveau 1-3", "done": true },
+        { "step": "Character porte activeTraits[3] (+niv) et passiveTrait (+niv) ; l'init combat lit ces Traits au lieu des kits/talents fixes", "done": true },
+        { "step": "Adapter live.ts pour piloter les actions depuis les Traits actifs équipés (stamina = coût)", "done": true },
+        { "step": "Build + live.test.ts / engine.test.ts verts", "done": true }
+      ],
+      "expected": "Type + catalogue Traits opérationnels ; combat LIVE piloté par les Traits équipés ; niveaux 1-3 effectifs ; tests verts ; entrée GDD.",
+      "results": "Fait. Nouveau engine/traits.ts : TraitDef (actif/passif, 3 paliers), ACTIVE_TRAITS (12 actions des 4 kits LIVE, paliers ×1/1.3/1.6 sur power/burn/poison/reflect), PASSIVE_TRAITS (20 talents, paliers ×0.65/1/1.4). kitFromActiveTraits/resolveActiveKit construisent un AmKit depuis 3 Traits actifs équipés ; passiveBonusOf calcule un bonus passif (atk/crit/esquive/vol de vie/régén/réduction dégâts). autoSim (live.ts) étendu avec des AutoSimOpts optionnelles (kit, passiveBonus) — couche strictement additive : sans activeTraits/passiveTrait sur le Character, comportement 100% identique à avant (vérifié par test dédié). Character.activeTraits/passiveTrait ajoutés en optionnel (types.ts). Note de scope : le combat réel (Character existants) continue d'utiliser les kits fixes par espèce tant que T007/T008 n'ont pas basculé la génération des Character sur des Traits équipés — c'est la fondation attendue par ces tâches. Tests : traits.test.ts 60/60 (nouveau), live.test.ts 30/30 (inchangé), engine.test.ts 132/132 (inchangé). tsc -b OK, vite build OK (53 modules, EPERM dist = limite de montage connue, build /tmp OK).",
+      "log": [
+        { "date": "2026-07-17", "text": "Implémenté la fondation Traits (T006) : traits.ts, AutoSimOpts sur autoSim, Character.activeTraits/passiveTrait. Additive, zéro régression. traits.test.ts 60/60, live.test.ts 30/30, engine.test.ts 132/132. GDD v0.50." }
+      ]
+    },
+    {
+      "id": "T007",
+      "title": "Refonte stats AM : Rang + HP + Stamina, retrait atk/def/spd & spécialisation",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "Passer le Character au nouveau jeu de stats (rang, HP ~30-50 niv1, stamina 3-4 niv1). Retirer Force/Attaque, Armure/Défense, Vitesse et les branches de spécialisation partout (moteur, progression, UI, fiche). Les dégâts et le comportement viennent des Traits.",
+      "plan": [
+        { "step": "types.ts : nouveau modèle de stats ; retirer Stats atk/def/spd & branches (ou marquer legacy)", "done": true },
+        { "step": "progression.ts : makeCharacter/statsForLevel/levelDelta réécrits (HP/stamina) ; retrait chooseBranch/withMoodBattle lié aux stats retirées", "done": true },
+        { "step": "live.ts : hitDmg ne dépend plus de atk/def de la stat mais de la puissance du Trait", "done": true },
+        { "step": "AmDetails / fiches : afficher Rang/HP/Stamina + Traits au lieu des barres atk/def/spd et du bloc branche", "done": false },
+        { "step": "Nettoyer combat.ts legacy / tests impactés", "done": true },
+        { "step": "Build + tests verts", "done": true }
+      ],
+      "expected": "Plus aucune référence fonctionnelle à atk/def/spd ni aux branches ; stats = Rang/HP/Stamina ; combat piloté par Traits ; build OK ; tests verts ; entrée GDD.",
+      "results": "Fait, scope confirmé avec l'utilisateur : combat.ts (legacy, 132 tests) intact/non touché ; formule de dégâts « le move offensif détermine les dégâts, plus de principe de défense » (pas de mitigation par une stat DEF, ni de multiplicateur ATK — la puissance vient du Trait). Character porte maintenant rank/stamina (types.ts, progression.ts : DEFAULT_RANK=1, DEFAULT_STAMINA=4, posés par makeCharacter/makeLeveledCharacter/makeEnemy). live.ts : mkFighter dérive l'énergie de départ de Character.stamina (repli sur spd/12 si absent) ; autoSim gagne AutoSimOpts.traitMode — en mode Traits, ATK joueur neutralisée (=1) et la DEF (des deux côtés) ne mitige plus rien (defOf()), testé explicitement (DEF adverse ×∞ → même résultat). traits.ts : catalogue ACTIVE_TRAITS recalibré en puissance FLAT absolue (FLAT_REFERENCE, ex. Frappe=20, Griffe=9, Curée=16) au lieu de l'ancien multiplicateur d'ATK ; nouveau combatOptsFor(Character) = point d'entrée unique combat réel (kit+bonus passif+traitMode si 3 Traits actifs équipés, sinon undefined → fallback legacy). Portée volontairement scopée : l'UI (StatRow 4 barres atk/def/spd + bloc branche dans AmDetails/AmPage/SpeciesEditor) n'a PAS été retirée — elle reste la seule information de combat lisible tant que T008 (draft de niveau) n'attribue pas réellement des Traits aux Character du jeu réel ; retirer ces barres maintenant aurait affiché Rang/HP/Stamina sans aucun Trait visible, une régression d'information. Idem pour le choix de branche au niveau 3 (chooseBranch) : laissé fonctionnel jusqu'à ce que T008 fournisse son remplaçant. C'est noté explicitement ici et dans le GDD pour arbitrage si désaccord. Tests : traits.test.ts 68/68 (+8 nouveaux tests T007), live.test.ts 30/30, engine.test.ts 132/132, daily.smoke.ts 16/16 — tous inchangés/verts. tsc -b OK, vite build OK (53 modules, /tmp).",
+      "log": [
+        { "date": "2026-07-17", "text": "T007 : rank/stamina sur Character, formule de dégâts flat sans ATK/DEF en mode Traits (live.ts AutoSimOpts.traitMode), catalogue Traits recalibré (traits.ts), combatOptsFor(). Scope : combat.ts legacy intact, UI stat-bars/branches conservées jusqu'à T008 (documenté). Tests 68+30+132+16 verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T008",
+      "title": "Level-up par draft de Traits (améliorer / nouvelle carte)",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "À chaque montée de niveau, proposer un tirage de choix : améliorer un Trait possédé (1->3, pondéré : palier haut = plus rare), acquérir un nouveau Trait du pool de l'espèce, ou améliorer un autre Trait (seulement si >=3 Traits non-maxés, sinon remplacé par un autre choix de carte). Niv1 = 1 seul Trait, viser niv3 vite.",
+      "plan": [
+        { "step": "Fonction de génération du draft (pondération par rareté de palier + règle des 3 Traits non-maxés)", "done": true },
+        { "step": "Application du choix (upgrade niveau de Trait ou ajout au slot actif/passif)", "done": true },
+        { "step": "UI modal de choix de level-up (2-3 cartes), branchée sur addXp/level-up", "done": true },
+        { "step": "Tests unitaires de la génération du draft (rareté, règle des 3)", "done": true },
+        { "step": "Build + tests verts", "done": true }
+      ],
+      "expected": "Draft conforme aux règles (rareté palier, règle des 3 non-maxés, pool d'espèce) ; UI de choix fonctionnelle ; tests draft verts ; build OK ; entrée GDD.",
+      "results": "Fait, 2 décisions actées avec l'utilisateur en cours de route : (1) le choix de branche (niv.3) est retiré du flow de jeu réel, remplacé par le draft de Traits (chooseBranch/needsBranchChoice/BranchModal restent dans le code, utilisés uniquement par engine/combat.ts legacy et ses 132 tests) ; (2) les Character existants (sauvegardés avant T008) sont migrés discrètement : dès qu'ils gagnent de l'XP (addXp) ou via makeCharacter pour les nouveaux, ensureTraits() leur attribue leur Trait actif de départ (1 seul, niv.1) s'ils n'en ont aucun. Nouveau engine/draft.ts : generateDraft (tirage 2-3 cartes, pondération palier 2×10/palier 3×3 — palier haut = plus rare — et règle des 3 Traits non-maxés avant de proposer une 2e amélioration, sinon remplacée par une nouvelle carte), applyDraftChoice (upgrade ou ajout au slot actif/passif, décrémente traitPoints), draftLabel (UI). Character.traitPoints (types.ts) banque 1 crédit de draft par niveau gagné (addXp) ; makeCharacter équipe désormais 1 Trait actif de départ (SpeciesDef.startTrait ou 1ère attaque du kit, via ensureTraits/startTraitFor dans traits.ts). Nouveau LevelUpDraft.tsx (modal de choix, réaffiché en boucle si plusieurs niveaux gagnés d'un coup) branché dans GamePage.tsx (modal k:\"traitDraft\", chaîné après reward/capture comme l'était le choix de branche). AmDetails.tsx : bloc \"Caractéristiques\" bascule sur Rang/HP/Stamina, nouveau bloc \"Traits équipés\" (TraitBlock, remplace BranchBlock) affichant les 3 actifs + le passif avec leur niveau. Portée assumée : le combat INTERACTIF réellement joué (renderer/liveEngine.ts, moteur DOM séparé d'autoSim, sans tests automatisés) n'a PAS été rebranché sur les Traits — il continue d'utiliser kitFor(espèce) comme avant. Donc après T008 : le joueur voit et choisit de vrais Traits (fiche, draft), mais ils n'affectent pas encore le combat interactif qu'il joue — gap connu et documenté, à traiter par une tâche dédiée (T012, ajoutée) avec sa propre stratégie de test avant d'y toucher. Tests : draft.test.ts 58/58 (nouveau), traits.test.ts 68/68, live.test.ts 30/30, engine.test.ts 132/132, daily.smoke.ts 16/16 — tous verts. tsc -b OK, vite build OK (57 modules, /tmp).",
+      "log": [
+        { "date": "2026-07-17", "text": "T008 : draft.ts (génération pondérée + règle des 3, application, libellés), LevelUpDraft.tsx, Character.traitPoints, ensureTraits (bootstrap + migration saves), AmDetails basculé sur Rang/HP/Stamina/Traits équipés, choix de branche retiré du flow réel (conservé en legacy). Combat interactif (liveEngine.ts) volontairement non rebranché — T012 créée pour ça. Tests 58+68+30+132+16 verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T009",
+      "title": "Barre sociale & interactions (caresser/coacher/combattre/coups/jouets/observer)",
+      "status": "done",
+      "priority": "moyenne",
+      "created": "2026-07-17",
+      "objectives": "Ajouter une barre sociale par AM montée/baissée par : caresser, coacher, combattre, prendre des coups, donner des jouets. L'action observer ne change pas la barre mais révèle des indices sur les préférences de l'individu (ex: 'XXX n'est pas spécialement fan des caresses'). Préférences propres à chaque individu.",
+      "plan": [
+        { "step": "Champ social 0-100 sur Character + préférences par individu (réutiliser/étendre personality.affinity)", "done": true },
+        { "step": "Hooks : combat gagné et coups encaissés ajustent la barre ; jouets = objet consommable", "done": true },
+        { "step": "Interactions caresser/coacher/jouets → delta social selon affinité ; observer → indice textuel révélé", "done": true },
+        { "step": "UI : barre sociale sur la fiche + retours (toast/indice observer)", "done": true },
+        { "step": "Build + tests verts", "done": true }
+      ],
+      "expected": "Barre sociale visible et réactive aux 5 sources ; observer révèle des indices cohérents avec l'individu ; build OK ; tests verts ; entrée GDD.",
+      "results": "Character.social (0-100, défaut 50) + Personality.affinity étendu (SocialSource = InteractKind|jouets|coups), généré par makePersonality avec jitter par individu comme avant. progression.ts : socialOf/socialLabel, interact() calcule désormais aussi un socialDelta (caresser = monte toujours, plus fort si aimé ; coacher = monte/baisse selon affinité comme l'humeur ; observer = delta 0 mais texte remplacé par un indice généré (affinityHint, phrase choisie sur la dimension d'affinité la plus marquée parmi caresser/coacher/jouets/coups)). Nouveau giveToy() (jouet = objet consommable, toujours + comme caresser) et registerCombatSocial(c, dmgTakenFrac) (participation = +2 flat systématique, coups encaissés = signé selon affinité.coups × fraction de PV perdus, amplitude COUPS_SOCIAL_SCALE=18), branché dans onCombatFinish (GamePage.tsx) sur tout combat réel (forêt/zone), gagné ou non. Nouvel item boutique 'Jouet' (TOY_PRICE=12, GameState.toys) achetable en Boutique, utilisable via le mini-menu House (T003) et le bloc Interagir de la fiche (AmDetails). UI : barre 'Lien' sous l'humeur (AmHeroInfo), dégradé rose/violet, libellés Complice/Attaché·e/Neutre/Distant·e/Méfiant·e. Limites assumées : les duels d'arène (finishDuel) n'alimentent pas la barre sociale (scope volontairement restreint aux combats réels, les duels seront de toute façon retravaillés séparément) ; les AM déjà existants avant cette tâche ont affinity.jouets/coups = 0 (neutre) tant qu'ils ne sont pas régénérés — pas de migration rétroactive de personnalité, jugé acceptable (dégradation gracieuse, pas de crash). tsc -b propre, vite build OK, nouveau social.test.ts (17/17), + toute la suite existante inchangée verte (budget 12, draft 58, traits 68, live 30, engine 132, daily 16).",
+      "log": [
+        { "date": "2026-07-18", "text": "T009 : barre sociale (Character.social, affinity étendu jouets/coups), interact()+giveToy()+registerCombatSocial() dans progression.ts, hook combat dans GamePage.tsx (hors duels), item Jouet (boutique+mini-menu+fiche), UI barre 'Lien'. social.test.ts 17/17 nouveau. Build+tests OK. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T010",
+      "title": "Budget de rang pour 2 AM (structure, 2v2 désactivé)",
+      "status": "done",
+      "priority": "basse",
+      "created": "2026-07-17",
+      "objectives": "Poser la structure du budget de rang : aligner jusqu'à 2 AM tant que la somme des rangs <= 4 (2+2, 3+1, ou un seul rang 4). Tout le monde rang 1 pour l'instant, 2v2 non activé (feature flag) mais structure prête.",
+      "plan": [
+        { "step": "Contrôle de composition : validation somme des rangs <= 4 (helper + garde-fou)", "done": true },
+        { "step": "Flag ENABLE_2V2 = false ; UI d'équipe préparée mais limitée à 1 AM aligné pour l'instant", "done": true },
+        { "step": "Combat/moteur : s'assurer que le passage à 2 AM par camp sera possible sans refonte (teamA/teamB déjà tableaux)", "done": true },
+        { "step": "Build + tests verts", "done": true }
+      ],
+      "expected": "Règle de budget implémentée et testée ; 2v2 derrière un flag off ; aucune régression 1v1 ; build OK ; tests verts ; entrée GDD.",
+      "results": "Fait, avec une précision honnête sur le 3e point du plan. engine/data.ts : ENABLE_2V2=false, RANK_BUDGET=4, teamRankSum()/canAlignTeam() (somme des rangs <=4 ET nombre d'AM alignés <= 1 tant qu'ENABLE_2V2 est false, <=2 sinon). Comme tout le monde est rang 1 (DEFAULT_RANK) et qu'un seul AM est aligné aujourd'hui, la règle est toujours respectée en l'état — aucune régression possible. Nouveau budget.test.ts (12/12) : état actuel (2v2 off, 2 AM refusés même sous le budget) + règle générale prête pour l'activation (2+2, 3+1, rang 4 seul, refus au-delà de 4 ou de 2 AM). Nuance sur « teamA/teamB déjà tableaux » (plan initial) : c'est vrai pour engine/combat.ts (legacy, CombatInput.teamA/teamB: Character[]) mais PAS pour le moteur LIVE réellement joué (live.ts/autoSim + renderer/liveEngine.ts), qui est structurellement 1v1 (un seul Fighter par camp, codé en dur) — activer le 2v2 réel demandera un vrai travail d'ingénierie sur le moteur LIVE, pas seulement lever le flag. Documenté ici et dans le GDD pour ne pas surpromettre. Tests : budget.test.ts 12/12 (nouveau), draft.test.ts 58/58, traits.test.ts 68/68, live.test.ts 30/30, engine.test.ts 132/132, daily.smoke.ts 16/16. tsc -b OK, vite build OK (57 modules, /tmp).",
+      "log": [
+        { "date": "2026-07-17", "text": "T010 : ENABLE_2V2/RANK_BUDGET/teamRankSum/canAlignTeam (data.ts), budget.test.ts 12/12. Précisé que le moteur LIVE réel est 1v1 en dur (contrairement au legacy combat.ts) — activer le 2v2 demandera plus qu'un flag. Tests inchangés verts. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T011",
+      "title": "Retrait de tous les dialogues",
+      "status": "done",
+      "priority": "moyenne",
+      "created": "2026-07-17",
+      "objectives": "Retirer toutes les séquences de dialogue scripté restantes (onboarding, PNJ, mentor) pour l'instant. Les actions restent directes, sans dialogue.",
+      "plan": [
+        { "step": "Recenser les dialogues restants (onboarding wizard, PNJ zones, tutoriel)", "done": true },
+        { "step": "Retirer/court-circuiter les écrans de dialogue en gardant les actions directes", "done": true },
+        { "step": "Nettoyer le plumbing associé (composants, state, textes)", "done": true },
+        { "step": "Build + tests verts", "done": true }
+      ],
+      "expected": "Plus aucun dialogue scripté ; onboarding/PNJ en actions directes ; build OK ; tests verts ; entrée GDD.",
+      "results": "Recensement : l'onboarding (choix du starter → fiche → combat tuto → boucle expliquée) ne contenait déjà aucune réplique scriptée (juste de l'UI directe, confirmé avec l'utilisateur) — laissé tel quel, hors scope. Les vrais dialogues restants étaient les PNJ de zone : (1) PNJ de service (marchand/soin/ranch), accessibles via un clic sur portrait ouvrant un chat plein écran (`NpcChat`, `.de-overlay`) ; (2) PNJ 'mentor'/'lore' (Sylve, Nima ×2, Orn-lore, guetteur) purement décoratifs, avec des répliques d'ambiance (`Npc.lines`) déjà non affichées nulle part et un panneau vide au clic. Décisions validées avec l'utilisateur : PNJ de service → boutons d'action directs dans l'écran de zone (plus de clic PNJ ni de modal chat) ; PNJ décoratifs → supprimés entièrement. Implémenté : `data.ts` — `NpcRole` réduit à merchant/healer/ranch (mentor/lore retirés), `Npc.lines` supprimé du type, ZONES nettoyées (clairière : Sylve retirée, 3 PNJ de service restants sans lines ; vallée : npcs/wildNpcs vidés, plus aucun PNJ lore ; cimes : PNJ lore retirés, ne reste que le marchand Orn). `GamePage.tsx` — suppression de `NpcChat`, du modal `{k:\"chat\"}`, de `openChat`/`onOpenChat` ; `ZoneScreen` affiche désormais une carte 'Services' avec un bloc par PNJ de service et ses boutons d'action inline (potion/soin d'équipe/location) au lieu de la liste de portraits cliquables. `game.css` : styles morts retirés (`.de-overlay/.de-panel/.de-side/.de-emoji/.de-name/.de-title/.de-close`, `.npc-strip/.npc-chip`), remplacés par `.zone-service*` ; `.de-actions/.de-action/.de-a-price` conservés (réutilisés). tsc -b propre, vite build OK, toute la suite de tests inchangée verte (budget 12, draft 58, traits 68, live 30, engine 132, social 17, daily 16).",
+      "log": [
+        { "date": "2026-07-18", "text": "T011 : PNJ mentor/lore (Sylve, Nima, Orn-lore, guetteur) supprimés ; PNJ de service (marchand/soin/ranch) passent du chat plein écran à des boutons d'action directs sur l'écran de zone (ZoneScreen). Onboarding laissé tel quel (pas de dialogue scripté, confirmé). NpcChat/modal chat/Npc.lines retirés du code. Build+tests OK. GDD à jour." }
+      ]
+    },
+    {
+      "id": "T012",
+      "title": "Rebrancher le combat interactif (liveEngine.ts) sur les Traits",
+      "status": "done",
+      "priority": "haute",
+      "created": "2026-07-17",
+      "objectives": "Depuis T008, les Character possèdent de vrais Traits équipés (activeTraits/passiveTrait) et le draft de level-up fonctionne, mais le combat INTERACTIF réellement joué (renderer/liveEngine.ts + LiveCombat.tsx — moteur DOM couplé, distinct d'autoSim, sans tests automatisés) continue de construire son kit via kitFor(espèce) et ignore les Traits équipés. Objectif : que les Traits choisis par le joueur affectent réellement le combat qu'il joue, pas seulement la fiche.",
+      "plan": [
+        { "step": "Définir une stratégie de test pour liveEngine.ts avant d'y toucher (aucun filet aujourd'hui) : a minima extraire la logique de résolution des dégâts/tours dans des fonctions pures testables séparément du DOM", "done": true },
+        { "step": "Porter dans liveEngine.ts la logique traitMode de live.ts/autoSim (AutoSimOpts : kit résolu, passiveBonus, dégâts flat sans ATK/DEF) sans dupliquer la formule à la main", "done": true },
+        { "step": "Utiliser combatOptsFor(Character) (traits.ts) pour résoudre kit+bonus passif au lancement d'un combat interactif, avec fallback kitFor(espèce) si <3 Traits actifs équipés (même logique que T006/T007)", "done": true },
+        { "step": "Vérifier manuellement les 4 kits/mécaniques spéciales (garde/combo/poison/esquive) toujours cohérents une fois pilotés par des Traits custom", "done": true },
+        { "step": "Build + tests (nouveaux + existants) verts", "done": true }
+      ],
+      "expected": "Le combat interactif réellement joué reflète les Traits équipés (mêmes règles que combatOptsFor/autoSim) ; fallback legacy intact si <3 Traits ; tests de la logique extraite verts ; build OK ; entrée GDD.",
+      "results": "Filet de sécurité pur : nouveau engine/passiveBonus.ts (type PassiveBonus + defOf/applyAtkMultPassive/applyCritPassive/rollDodgePassive/applyDmgTakenMultPassive/lifestealAmount/regenAmount — 100% pur, aucun DOM), désormais LA seule implémentation de ces formules, importée à la fois par engine/live.ts (autoSim refactoré pour les utiliser, zéro duplication à la main) et renderer/liveEngine.ts. Nouveau traits.ts::resolveCombatConfig(c) : jamais undefined (contrat pour liveEngine.ts), même règle de fallback que combatOptsFor (<3 Traits actifs équipés → kit fixe de l'espèce + aucun bonus + traitMode=false = 100% legacy). liveEngine.ts : kit/passiveBonus/traitMode résolus une fois via resolveCombatConfig(opts.player) (au lieu de kitFor(speciesId) en dur) ; P.atk=1 en traitMode (reset()) ; les 3 points hitDmg() (eStrikeDmg, playerAtkDmg, animCounterBurst) passent par defOf() ; passifs branchés : esquive totale + Peau de pierre dans eStrikeDmg() (calculée une fois/tick, réutilisée par tout le monde y compris le clash) ; Frénésie + Braise dans playerAtkDmg()/animCounterBurst() ; vol de vie appliqué aux 3 points d'impact joueur→ennemi (animPlayerAttack/animClash/animCounterBurst) ; régénération passive en fin de resolve(). Petit ajustement cosmétique : applyDamage() affiche \"ESQUIVE\" au lieu de \"-0\" sur une frappe totalement évitée. LiveCombat.tsx corrigé pour résoudre le même kit (resolveCombatConfig) que le moteur, sinon la classe CSS/texte de playstyle affichés avant combat auraient pu ne pas correspondre au combat réellement joué. Vérification des 4 mécaniques spéciales (garde/combo/poison/esquive) : pas de navigateur disponible (Playwright bloqué, cf T005) → vérification via autoSim headless avec des kits custom reproduisant chaque special (20 seeds/kit, tous terminent et restent majoritairement décisifs), ajoutée à traits.test.ts — proxy raisonnable puisque liveEngine.ts consomme désormais exactement le même resolveCombatConfig/kitFromActiveTraits que ce test exerce. Fallback <3 Traits (l'immense majorité des saves actuelles, un seul Trait de départ T008) intact et vérifié : comportement 100% identique à avant T012. tsc -b propre, vite build OK. Tests : nouveau passiveBonus.test.ts (24/24), traits.test.ts étendu 68→84/84, reste de la suite inchangée verte (budget 12, draft 58, live 30, engine 132, social 17, daily 16).",
+      "log": [
+        { "date": "2026-07-18", "text": "T012 : engine/passiveBonus.ts (module pur partagé live.ts/liveEngine.ts), traits.ts::resolveCombatConfig (jamais undefined), liveEngine.ts branché sur les Traits équipés (kit+passifs+traitMode), LiveCombat.tsx aligné pour l'affichage. Vérification des 4 kits spéciaux via autoSim (Playwright indisponible). passiveBonus.test.ts 24/24 (nouveau), traits.test.ts 84/84 (+16). Build+tests OK. GDD à jour. Fin de la série T003-T012." }
+      ]
     }
   ]
 }
@@ -218,30 +400,43 @@ function openTask(id){
   const m = document.getElementById("modal");
   m.innerHTML = `
     <div class="row"><span class="idtag">${t.id}</span>
-      <select id="f-status" onchange="upd('${id}','status',this.value)">
+      <select id="f-status">
         ${STATUSES.map(s=>`<option value="${s.k}" ${s.k===t.status?"selected":""}>${s.label}</option>`).join("")}
       </select>
-      <select id="f-prio" onchange="upd('${id}','priority',this.value)">
+      <select id="f-prio">
         ${PRIOS.map(p=>`<option value="${p}" ${p===t.priority?"selected":""}>Priorité : ${p}</option>`).join("")}
       </select>
     </div>
     <label>Titre</label>
-    <input id="f-title" value="${esc(t.title)}" onchange="upd('${id}','title',this.value)">
+    <input id="f-title" value="${esc(t.title)}">
     <label>Objectifs (le plus précis possible)</label>
-    <textarea id="f-obj" onchange="upd('${id}','objectives',this.value)">${esc(t.objectives)}</textarea>
+    <textarea id="f-obj">${esc(t.objectives)}</textarea>
     <label>Plan d'exécution</label>
     <ul class="steps" id="steps"></ul>
-    <button class="btn ghost" onclick="addStep('${id}')">+ étape</button>
+    <button class="btn ghost" id="btn-add-step">+ étape</button>
     <label>Résultats attendus / critères de « done »</label>
-    <textarea id="f-exp" onchange="upd('${id}','expected',this.value)">${esc(t.expected)}</textarea>
+    <textarea id="f-exp">${esc(t.expected)}</textarea>
     <label>Résultats obtenus (rempli par Claude)</label>
-    <textarea id="f-res" onchange="upd('${id}','results',this.value)">${esc(t.results||"")}</textarea>
+    <textarea id="f-res">${esc(t.results||"")}</textarea>
     <div class="cta">
-      <button class="btn launch" onclick="copyLaunch('${id}')">▶ Copier « lance tâche ${id} »</button>
-      <button class="btn" onclick="close_()">Fermer</button>
+      <button class="btn launch" id="btn-launch">▶ Copier « lance tâche ${id} »</button>
+      <button class="btn" id="btn-close">Fermer</button>
       <div class="grow"></div>
-      <button class="btn ghost" style="color:var(--danger)" onclick="del('${id}')">Supprimer</button>
+      <button class="btn ghost" style="color:var(--danger)" id="btn-del">Supprimer</button>
     </div>`;
+
+  // Attacher les event listeners
+  document.getElementById("f-status").onchange = (e) => upd(id, "status", e.target.value);
+  document.getElementById("f-prio").onchange = (e) => upd(id, "priority", e.target.value);
+  document.getElementById("f-title").onchange = (e) => upd(id, "title", e.target.value);
+  document.getElementById("f-obj").onchange = (e) => upd(id, "objectives", e.target.value);
+  document.getElementById("f-exp").onchange = (e) => upd(id, "expected", e.target.value);
+  document.getElementById("f-res").onchange = (e) => upd(id, "results", e.target.value);
+  document.getElementById("btn-add-step").onclick = () => addStep(id);
+  document.getElementById("btn-launch").onclick = () => copyLaunch(id);
+  document.getElementById("btn-close").onclick = close_;
+  document.getElementById("btn-del").onclick = () => del(id);
+
   renderSteps(id);
   document.getElementById("ov").classList.add("on");
 }

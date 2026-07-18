@@ -14,16 +14,21 @@
   -webkit-font-smoothing: antialiased;
 }
 .live-combat * { box-sizing: border-box; }
-.live-combat .lc-wrap { width: 100%; display: flex; flex-direction: column; gap: clamp(8px, 1.6vw, 12px); }
-.live-combat .lc-top { display: flex; align-items: center; justify-content: space-between; }
-.live-combat .lc-top h1 { font-size: 14px; margin: 0; letter-spacing: .3px; font-weight: 700; }
+/* T005 : plein écran sans scroll — le combat se partage TOUTE la hauteur reçue du
+   conteneur (.combat-fs-body) via flex, chaque bloc se contracte plutôt que de
+   pousser le contenu hors viewport. Aspect-ratio de l'arène volontairement retiré
+   au profit du flex-fill (priorité : jamais de scroll, même sur petit écran). */
+.live-combat { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.live-combat .lc-wrap { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.2vw, 12px); }
+.live-combat .lc-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.live-combat .lc-top h1 { font-size: 13px; margin: 0; letter-spacing: .3px; font-weight: 700; }
 .live-combat .lc-live { color: var(--purple); }
-.live-combat .tickbadge { font-size: 12px; color: var(--dim); }
+.live-combat .tickbadge { font-size: 11px; color: var(--dim); }
 .live-combat .tickbadge b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* Arena */
 .live-combat .arena {
-  position: relative; width: 100%; aspect-ratio: 23/9; min-height: 300px; max-height: 470px;
+  position: relative; width: 100%; flex: 1 1 auto; min-height: 150px;
   border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #12151d 0%, #0d0f14 100%);
   border: 1px solid var(--line); display: flex; align-items: flex-end; justify-content: space-between;
   padding: 0 clamp(14px, 4%, 44px) 0; --line-y: 74%; --float-y: 22%;
@@ -123,7 +128,7 @@
 @keyframes lc_shk { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-7px,4px); } 40% { transform: translate(7px,-4px); } 60% { transform: translate(-5px,3px); } 80% { transform: translate(5px,-3px); } }
 
 /* controls */
-.live-combat .controls { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+.live-combat .controls { flex: 0 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px;
   -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
 .live-combat .controls .act { touch-action: manipulation; }
 .live-combat .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; transition: opacity .3s ease, filter .3s ease; }
@@ -236,7 +241,7 @@
 .live-combat .cta:hover { transform: translateY(-1px); }
 
 @media (max-width: 560px) {
-  .live-combat .arena { aspect-ratio: 16/11; min-height: 280px; }
+  .live-combat .arena { min-height: 120px; }
   .live-combat .btns { gap: 8px; }
   .live-combat .act { padding: 12px 6px 11px; border-radius: 13px; gap: 5px; }
   .live-combat .act .ic { font-size: 20px; width: 38px; height: 38px; }

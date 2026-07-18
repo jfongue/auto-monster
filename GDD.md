@@ -1,7 +1,18 @@
 # Game Design Document — AutoMonster
 
-> Version 0.48 — Document de référence du projet
+> Version 0.59 — Document de référence du projet
 > Refonte : abandon du système de cartes, passage à un combat de **monstres en live**.
+> **v0.49 (designé) : refonte du modèle AM autour de Traits (cartes d'action), Rang + HP + Stamina, barre sociale, combat en page plein écran.** Voir §4 et le journal.
+> **v0.50 : T006 livré** — fondation Traits (`engine/traits.ts`).
+> **v0.51 : T007 livré** — Character porte Rang/Stamina, formule de dégâts flat sans ATK/DEF en mode Traits (`combatOptsFor`). L'UI (barres atk/def/spd, choix de branche) reste en place jusqu'à T008 : voir §0.bis.
+> **v0.52 : T004 livré** — nouvel éditeur de bestiaire (Rang/HP/Stamina/pool de Traits/départ), réaccessible depuis le menu ☰.
+> **v0.53 : T008 livré** — draft de level-up (Traits), choix de branche retiré du jeu réel, fiche AM basculée sur Rang/HP/Stamina/Traits équipés. **Gap connu** : le combat interactif joué (`liveEngine.ts`) n'est pas encore piloté par les Traits (T012, backlog).
+> **v0.54 : T010 livré** — structure de budget de rang (2v2 derrière un flag OFF). Le moteur LIVE réel reste 1v1 en dur ; activer le 2v2 demandera un travail moteur dédié (au-delà du flag).
+> **v0.55 : T003 livré** — mini-menu d'interaction à icônes dans la House (clic-armé + drag&drop), sur les 3 interactions réelles (caresser/coacher/observer) + potions.
+> **v0.56 : T005 livré** — combat en page plein écran (flex-fill, plus de scroll mobile attendu). Vérification par calcul CSS, pas de capture réelle (Playwright bloqué par le réseau du bac à sable) — à confirmer visuellement.
+> **v0.57 : T009 livré** — barre sociale (`Character.social`, affinité étendue caresser/coacher/observer/jouets/coups), item Jouet (boutique + mini-menu + fiche), hooks combat (participation + coups encaissés). **Scope limité** : les duels d'arène n'alimentent pas la barre ; pas de migration rétroactive des affinités jouets/coups sur les AM déjà existants (neutre par défaut).
+> **v0.58 : T011 livré** — tous les dialogues scriptés restants retirés (PNJ mentor/lore décoratifs supprimés ; PNJ de service marchand/soin/ranch passés du chat plein écran à des boutons d'action directs dans l'écran de zone). L'onboarding, déjà sans réplique scriptée, n'a pas été modifié (confirmé hors scope avec l'utilisateur). **Toutes les tâches planifiées (T003-T011) sont désormais livrées** ; reste T012 (backlog, rebrancher le combat interactif sur les Traits).
+> **v0.59 : T012 livré** — le combat interactif réellement joué (`renderer/liveEngine.ts`) reflète enfin les Traits équipés (kit + bonus passif + mode Traits flat sans ATK/DEF), via un nouveau module pur partagé `engine/passiveBonus.ts` et `traits.ts::resolveCombatConfig`. Fallback legacy intact si <3 Traits actifs équipés. **Avec ce livrable, T003 à T012 sont tous faits** — plus aucune tâche planifiée ou backlog en attente sur ce cycle.
 >
 > **Ce document est tenu à jour systématiquement** (voir `CLAUDE.md`). Pour chaque aspect : ce qui est *designé*, son *état d'implémentation*, et l'*historique* des changements.
 
@@ -10,6 +21,63 @@
 ## 0. Journal de bord
 
 > Une entrée par session ayant changé le design, le code ou les specs. La plus récente en haut. On n'efface jamais les entrées passées.
+
+### 2026-07-18 — v0.59
+- [Combat/T012] Le combat interactif réellement joué (`renderer/liveEngine.ts` + `LiveCombat.tsx`) est rebranché sur les Traits équipés — jusqu'ici il construisait toujours son kit via `kitFor(espèce)` et ignorait `activeTraits`/`passiveTrait`, un écart connu depuis T008 (voir ligne T008/Traits, §0.bis). Filet de sécurité d'abord : `liveEngine.ts` n'a aucun test automatisé (DOM impératif) et le plan imposait d'extraire la logique de résolution en fonctions pures avant d'y toucher. Nouveau module `engine/passiveBonus.ts` (aucun DOM, aucun état) : type `PassiveBonus`, `defOf` (DEF mitigante, 0 en mode Traits), et les application pures des passifs (`applyAtkMultPassive`/`applyCritPassive`/`rollDodgePassive`/`applyDmgTakenMultPassive`/`lifestealAmount`/`regenAmount`). `engine/live.ts` (`autoSim`) et `renderer/liveEngine.ts` importent désormais ces MÊMES fonctions — une seule formule, plus de duplication à la main entre le simulateur headless et le moteur interactif. Nouveau `traits.ts::resolveCombatConfig(c)` : jamais `undefined` (contrat pratique pour un consommateur DOM), même règle de fallback que `combatOptsFor` (<3 Traits actifs équipés → kit fixe + aucun bonus + `traitMode=false`, comportement 100% legacy). Dans `liveEngine.ts` : kit/bonus/traitMode résolus une fois à la création du combat ; `P.atk=1` appliqué en mode Traits à chaque `reset()` ; les 3 points de calcul de dégâts (`eStrikeDmg`, `playerAtkDmg`, `animCounterBurst`) passent par `defOf()` ; passifs branchés (esquive totale + Peau de pierre sur les dégâts subis, calculés une seule fois par tick et réutilisés partout y compris le clash ; Frénésie + Braise sur les dégâts infligés ; vol de vie sur les 3 points d'impact joueur→ennemi ; régénération en fin de tick). Petit polish : `applyDamage` affiche « ESQUIVE » plutôt que « -0 » sur un coup totalement évité. `LiveCombat.tsx` corrigé pour résoudre le même kit que le moteur (sinon la classe CSS/texte de playstyle affichés avant combat pouvaient ne pas correspondre au combat réellement joué). **Vérification des 4 mécaniques spéciales (garde/combo/poison/esquive) pilotées par des Traits custom** : pas de navigateur disponible dans le bac à sable (Playwright bloqué, limite déjà rencontrée à T005) → vérifiée via `autoSim` headless avec des kits Traits reproduisant chaque special (20 seeds chacun, tous terminent, majoritairement décisifs) — proxy raisonnable puisque `liveEngine.ts` consomme exactement le même `resolveCombatConfig`/`kitFromActiveTraits` que ce test exerce ; un contrôle visuel réel en jeu reste recommandé dès qu'un joueur aura équipé 3 Traits actifs. Fallback <3 Traits (l'immense majorité des saves actuelles, un seul Trait de départ depuis T008) vérifié inchangé. Tests : nouveau `passiveBonus.test.ts` (24/24), `traits.test.ts` étendu 68→84/84, reste de la suite inchangée verte (`budget` 12, `draft` 58, `live` 30, `engine` 132, `social` 17, `daily.smoke` 16). `tsc -b` propre, `vite build` OK. **Avec ce livrable, la série T003-T012 est intégralement terminée.**
+
+### 2026-07-18 — v0.58
+- [Dialogues/T011] Retrait des derniers dialogues scriptés (§4.7). Recensement : l'onboarding (`Onboarding` dans `GamePage.tsx`) ne contenait déjà aucune réplique scriptée (juste des panneaux d'UI directe) — confirmé avec l'utilisateur, laissé inchangé. Les PNJ de zone (`ZONES` dans `engine/data.ts`) se répartissaient en deux familles : PNJ de service (`role: merchant/healer/ranch`, actions réelles) et PNJ décoratifs (`role: mentor/lore` — Sylve, Nima ×2, Orn-lore, le guetteur des Cimes — dont les répliques d'ambiance `Npc.lines` n'étaient déjà affichées nulle part, un clic ouvrant un panneau de chat vide). Décision validée avec l'utilisateur : PNJ décoratifs **supprimés entièrement** (ZONES nettoyées, `NpcRole` réduit à merchant/healer/ranch, `Npc.lines` retiré du type) ; PNJ de service **conservés mais sans mise en scène** — leurs actions (potion, soin d'équipe, location) deviennent des boutons directs dans une nouvelle carte « Services » de `ZoneScreen`, sans plus passer par un clic sur portrait ni par le composant `NpcChat` (`.de-overlay` plein écran), désormais supprimé avec son modal `{k:"chat"}` et le handler `openChat`/`onOpenChat`. CSS mort retiré (`.de-overlay/.de-panel/.de-side/.de-emoji/.de-name/.de-title/.de-close`, `.npc-strip/.npc-chip`) ; `.de-actions/.de-action/.de-a-price` conservés et réutilisés tels quels. Aucun changement moteur. `tsc -b` propre, `vite build` OK, suite de tests inchangée verte (`budget` 12, `draft` 58, `traits` 68, `live` 30, `engine` 132, `social` 17, `daily.smoke` 16). **Avec ce livrable, T003 à T011 (toutes les tâches planifiées de cette série) sont désormais faites** ; il ne reste que T012 (backlog, priorité haute : rebrancher `liveEngine.ts` sur les Traits).
+
+### 2026-07-18 — v0.57
+- [Social/T009] Barre sociale par AM (§4.6) : `Character.social` (0-100, défaut 50) + `Personality.affinity` étendu de 3 à 5 dimensions (`SocialSource` = caresser/coacher/observer/jouets/coups, `types.ts`/`data.ts`). `progression.ts` : `interact()` calcule désormais un `socialDelta` en plus du `moodDelta` — caresser monte toujours la barre (plus fort si aimé, jamais de baisse contrairement à l'humeur), coacher monte/baisse selon l'affinité (comme avant pour l'humeur), observer laisse la barre inchangée et remplace son texte par un indice généré (`affinityHint` : choisit la dimension d'affinité la plus marquée de l'individu et phrase en conséquence, ex. « X n'est pas spécialement fan des caresses »). Nouveau `giveToy()` (jouet = objet consommable, toujours +, magnitude selon affinité) et `registerCombatSocial(c, dmgTakenFrac)` (participation à un combat réel = gain fixe `COMBAT_SOCIAL_GAIN=2` systématique ; coups encaissés = delta signé selon `affinity.coups × dmgTakenFrac × COUPS_SOCIAL_SCALE=18`), branché dans `onCombatFinish` (`GamePage.tsx`) sur tout combat réel (forêt/zone), gagné ou perdu. Nouvel objet **Jouet** : `GameState.toys`, boutique (`TOY_PRICE=12`), utilisable depuis le mini-menu House (T003) et le bloc Interagir de la fiche (`AmDetails.tsx`). UI : barre « Lien » (dégradé rose/violet) sous l'humeur dans `AmHeroInfo`, libellés Complice/Attaché·e/Neutre/Distant·e/Méfiant·e (`socialLabel`). **Scope volontairement limité, acté** : les duels d'arène (`finishDuel`) n'alimentent pas la barre sociale (combats réels uniquement) ; les AM créés avant cette tâche ont `affinity.jouets`/`coups` neutres (0, via les valeurs par défaut) tant qu'ils ne sont pas recréés — pas de migration rétroactive de personnalité (dégradation gracieuse assumée plutôt qu'une migration hors scope). Nouveau `social.test.ts` (17/17) ; suite existante inchangée verte (`budget` 12, `draft` 58, `traits` 68, `live` 30, `engine` 132, `daily.smoke` 16). `tsc -b` propre, `vite build` OK.
+
+### 2026-07-18 — v0.56
+- [Combat/T005] Le combat LIVE quitte le système de modal centré (`.overlay`+`.combat-wrap`) pour une page plein écran dédiée `.combat-fullscreen` (`position:fixed;inset:0`, `100dvh`, flex column, safe-area insets, fond sombre en dur). `GamePage.tsx` : le rendu reste `modal.k==="combat"` (pas une route séparée) — le handler `popstate` générique déjà en place (ferme tout modal ouvert au back Android/navigateur, toujours une entrée d'historique maintenue) couvrait déjà ce besoin, ajouter un second mécanisme de pushState dédié aurait fait doublon. `live-combat.css` converti en layout flex-fill : `.live-combat`/`.lc-wrap` en `height:100%`, `.lc-top`/`.controls` en `flex:0 0 auto` (taille naturelle), `.arena` passe d'un aspect-ratio fixe (300-470px) à `flex:1 1 auto` avec un plancher réduit (120-150px) — l'arène absorbe tout l'espace restant, ne peut jamais pousser le contenu hors viewport. `LiveCombat.tsx`/`liveEngine.ts` (JS impératif DOM) non touchés, volontairement (cf T012). **Limite de vérification assumée** : pas de capture d'écran réelle à 360/390/412px possible — Playwright/Chromium n'a pas pu être téléchargé dans le bac à sable (réseau restreint). Vérifié par calcul du box-model CSS (chrome fixe ≈270px vs 550-900px de hauteur de viewport portrait réaliste) ; un contrôle visuel sur appareil réel reste recommandé. Aucun changement moteur ; tests inchangés (`live.test.ts` 30/30 + suite complète). Build tsc + vite OK.
+
+### 2026-07-18 — v0.55
+- [House/T003] Mini-menu d'interaction à icônes ajouté à `House.tsx` : bouton toggle « 🧰 Interagir » ouvrant un panneau en slide+fade sous `.house-room` (masqué en focus). Cartes générées depuis `INTERACT_LABELS` (caresser/coacher/observer) + une carte Potion. Deux modes : clic-armé (sélectionner une carte puis cliquer le compagnon) et drag&drop (carte déposée sur le compagnon) — même effet dans les deux cas (`applyQuickAction`). Cooldowns (`interactReadyIn`) et indisponibilité (potions à 0, PV pleins) grisent la carte ; tooltip au survol + bandeau de rappel quand une action est armée. **Ajustement de scope acté avec l'utilisateur** : le ticket mentionnait « Nourrir/Jouer », qui ne correspondent à aucune interaction du modèle actuel ni de T009 (Caresser/Coacher/Combattre/Coups/Jouets/Observer) — le mini-menu utilise donc les 3 interactions réelles + potions plutôt que d'inventer une mécanique non spécifiée. Aucun changement moteur ; build tsc + vite OK, tests inchangés/verts.
+
+### 2026-07-17 — v0.54
+- [Équipe/T010] `engine/data.ts` : `ENABLE_2V2` (false), `RANK_BUDGET` (4), `teamRankSum()`/`canAlignTeam()` — règle générale (somme des rangs alignés <= 4, au plus 2 AM si le flag est actif, 1 sinon). Comme tout le monde est rang 1 (`DEFAULT_RANK`) et qu'un seul AM combat aujourd'hui, la règle est toujours respectée : aucune régression 1v1. **Précision actée** : l'affirmation du plan initial (« teamA/teamB déjà tableaux ») est vraie pour `engine/combat.ts` (legacy) mais **pas** pour le moteur LIVE réellement joué (`live.ts`/`autoSim` + `renderer/liveEngine.ts`), structurellement 1v1 (un seul Fighter par camp, codé en dur). Activer réellement le 2v2 demandera un travail moteur dédié, pas seulement lever le flag — à anticiper si/quand `ENABLE_2V2` passe à `true`. Tests : `budget.test.ts` 12/12 (nouveau). Build tsc + vite OK.
+
+### 2026-07-17 — v0.53
+- [Progression/T008] Nouveau `engine/draft.ts` : `generateDraft` (tirage de 2-3 cartes à chaque niveau — améliorer un Trait possédé pondéré par rareté de palier (palier 2 ×10, palier 3 ×3), acquérir un nouveau Trait du pool de l'espèce, ou une 2e amélioration **seulement si ≥3 Traits non-maxés** sinon remplacée par une nouvelle carte), `applyDraftChoice`, `draftLabel`. `Character.traitPoints` (types.ts) banque 1 crédit de draft par niveau gagné (`addXp`). `makeCharacter` équipe désormais 1 Trait actif de départ (`ensureTraits`/`startTraitFor`, traits.ts) — niveau 1 = un seul actif, conforme GDD 4.3. **Migration des saves antérieures à T008** : bootstrap discret via `ensureTraits` appelé dans `addXp`, dès qu'un Character sans Trait gagne de l'XP. **Décision actée avec l'utilisateur** : le choix de branche (niveau 3) est retiré du flow de jeu réel, remplacé par le draft de Traits (`chooseBranch`/`needsBranchChoice`/`BranchModal` conservés uniquement pour `engine/combat.ts` legacy et ses 132 tests). Nouveau `LevelUpDraft.tsx` (modal de choix, réaffiché en boucle si plusieurs niveaux gagnés d'un coup), branché dans `GamePage.tsx` (chaîné après reward/capture, comme l'était le choix de branche). `AmDetails.tsx` : bloc « Caractéristiques » bascule sur Rang/HP/Stamina ; nouveau bloc « Traits équipés » (remplace le bloc Spécialisation) affichant les 3 actifs + le passif avec leur niveau. **Gap assumé et documenté** : le combat **interactif** réellement joué (`renderer/liveEngine.ts`, moteur DOM séparé d'`autoSim`, sans tests automatisés) n'a pas été rebranché sur les Traits — il continue d'utiliser `kitFor(espèce)`. Le joueur voit et choisit désormais de vrais Traits, mais ils n'affectent pas encore le combat qu'il joue interactivement. Tâche dédiée créée pour ça : **T012** (backlog, avec sa propre stratégie de test à définir avant d'y toucher — fichier volumineux sans filet). Tests : `draft.test.ts` 58/58 (nouveau), `traits.test.ts` 68/68, `live.test.ts` 30/30, `engine.test.ts` 132/132, `daily.smoke.ts` 16/16. Build tsc + vite OK.
+
+### 2026-07-17 — v0.52
+- [Bestiaire/T004] `SpeciesDef` étendu (`rank`, `baseHp`, `baseStamina`, `traitPool`, `startTrait` — optionnels, repli sur l'existant si absents). `SpeciesEditor.tsx` refondu : édition Rang/HP/Stamina par espèce + panneau dépliable listant les 12 Traits actifs et 20 passifs du catalogue (T006) en chips cliquables (pool par espèce) + sélecteur de Trait de départ (limité aux actifs du pool). Valeurs par défaut dérivées de l'existant (kit LIVE actuel + talentPool + inné) pour ne rien casser sur les 44 espèces (vérifié par script ponctuel : 44/44 OK). Persistance : aucun changement serveur — `/api/species-overrides` stockait déjà un patch JSON libre par espèce. Éditeur **réaccessible depuis le menu ☰** (« 🧬 Éditeur de bestiaire »), il était orphelin/non routé depuis v0.21. Tests moteur inchangés : `traits.test.ts` 68/68, `live.test.ts` 30/30, `engine.test.ts` 132/132, `daily.smoke.ts` 16/16. Build tsc + vite OK.
+
+### 2026-07-17 — v0.51
+- [Stats/T007] Character porte désormais `rank` (défaut 1) et `stamina` (défaut 4, `progression.ts` : `DEFAULT_RANK`/`DEFAULT_STAMINA`, posés par `makeCharacter`/`makeLeveledCharacter`/`makeEnemy`). `live.ts` `mkFighter` dérive l'énergie de départ de `stamina` (repli sur `spd/12` si absent — Character legacy). Nouvelle formule de dégâts en mode Traits (`AutoSimOpts.traitMode`) : décision de design actée avec l'utilisateur — **« le move offensif détermine les dégâts, plus de principe de défense »** : ATK du joueur neutralisée, DEF des deux côtés sans effet (`defOf()`), testé explicitement (DEF adverse ×∞ → dégâts identiques). `traits.ts` : `ACTIVE_TRAITS` recalibré en puissance **flat absolue** (`FLAT_REFERENCE`, ex. Frappe=20, Griffe=9, Curée=16, calibrés au point de référence niv.5 vs NME niv.4) au lieu de l'ancien multiplicateur d'ATK hérité des kits. Nouveau `combatOptsFor(Character)` : point d'entrée unique du combat réel (résout kit + bonus passif + `traitMode` si 3 Traits actifs équipés, sinon `undefined` → fallback `autoSim` legacy inchangé). **Scope confirmé avec l'utilisateur** : `engine/combat.ts` (moteur legacy F2-F16, branches, 132 tests) **non touché**, conservé tel quel. **Décision assumée** : l'UI (barres de stats atk/def/spd, bloc de choix de branche niveau 3) **n'a pas été retirée** — elle reste la seule information de combat exploitable tant que T008 (draft de level-up) ne fait pas réellement porter des Traits aux Character du jeu joué ; retirer ces éléments maintenant aurait été une régression d'information sans contrepartie. À rouvrir/retirer lors de T008. Tests : `traits.test.ts` 68/68 (nouveau, +8 tests T007), `live.test.ts` 30/30, `engine.test.ts` 132/132, `daily.smoke.ts` 16/16 — tous inchangés. Build tsc + vite OK.
+
+### 2026-07-17 — v0.50
+- [Traits/T006] Implémenté la fondation du modèle Traits : `engine/traits.ts` (type `TraitDef`, catalogues `ACTIVE_TRAITS`/`PASSIVE_TRAITS` convertis depuis `live.ts` KITS et `talents.ts` TALENTS, paliers 1→3 scalés), `kitFromActiveTraits`/`resolveActiveKit`, `passiveBonusOf`. `autoSim` (live.ts) accepte désormais des `AutoSimOpts` optionnelles (`kit`, `passiveBonus`) pour piloter un combat depuis des Traits équipés, sans changer son comportement par défaut. `Character.activeTraits`/`passiveTrait` ajoutés (optionnels, types.ts). Couche strictement additive : zéro régression, tous les tests existants restent verts. Nouveau `traits.test.ts` (60/60). `live.test.ts` 30/30, `engine.test.ts` 132/132 inchangés. Build tsc + vite OK (EPERM sur `dist/` = limite de montage connue, build validé dans `/tmp`).
+
+### 2026-07-17 — v0.49 (design only — non implémenté)
+- [Refonte AM de base] **Nouveau modèle d'Auto Monster décidé** (voir §4 réécrit). Résumé :
+  - **Stats réduites à 3** : **Rang** (1→5, 1 partout pour l'instant), **HP** (~30-50 au niv 1),
+    **Stamina** (3-4 au niv 1). **Retrait total** de Force/Attaque, Armure/Défense, Vitesse : tout
+    passe désormais par les **Traits**. **Retrait de la spécialisation** (branches) : tout passe par
+    les Traits.
+  - **Traits = cartes d'action** de l'AM. Il en équipe **3 actives + 1 passive**. Chaque Trait a un
+    **niveau 1→3** (plus le niveau visé est haut, plus il est rare à l'apparition). Au niv 1, l'AM
+    n'a **qu'un Trait** (attaque simple) et doit **vite atteindre le niv 3**.
+  - **Montée de niveau = draft de choix** : à chaque niveau, choix parmi {améliorer une carte
+    (1→3, pondéré par rareté du palier), acquérir une nouvelle carte du **pool de l'espèce**,
+    améliorer une autre carte s'il en a ≥3 non-maxées — sinon remplacé par un autre choix de carte}.
+  - **Origine des Traits** : réutilisation de l'existant — les **actions de kit LIVE** (`live.ts`
+    KITS : Coup/Garde/Décharge, Griffe/Brasier/Curée, etc.) deviennent les **Traits actifs**, les
+    **talents passifs** (`talents.ts` : Braise, Frénésie, Peau de pierre, Régén, Ponction…)
+    deviennent les **Traits passifs**. Niveaux 1→3 = mise à l'échelle de leur puissance/effet.
+  - **2 AM jouables** avec **budget de Rang = 4** (2+2, 3+1, ou un seul rang 4). Pour l'instant :
+    tout le monde **rang 1**, **2v2 pas encore actif** (structure posée, activée plus tard).
+  - **Barre sociale** par AM : montée/baisse via **caresser, coacher, combattre, prendre des coups,
+    donner des jouets** ; l'action **observer** donne des **indices** (« XXX n'est pas spécialement
+    fan des caresses »). Remplace/étend le système mood+interactions actuel.
+  - **Retrait de tous les dialogues** pour l'instant.
+  - **Combat en page plein écran** (plus de modal pop-up par-dessus le hub) : page **clean, sans
+    scroll** sur mobile.
+  - **Nouvel éditeur de bestiaire** pour éditer Rang/HP/Stamina/pool de Traits par espèce.
+- **Statut** : entièrement **designé, rien codé**. Découpé en tâches T004→T011 dans `taches.html`.
 
 ### 2026-07-17 — v0.48
 - [Home / House — pièce edge-to-edge + fondu] **House élargie** (max-width 480 → 640, 720 en
@@ -508,23 +576,23 @@
 | Moteur de combat déterministe / ActionLog | Oui (§3.1, legacy) | ✅ `engine/combat.ts` (déterministe, testé 132/132) — **plus branché à l'UI** depuis v0.42, conservé pour tests/daily |
 | Renderer replay (legacy) | Oui (§9) | 🟡 `CombatView.tsx` (rejoue l'ActionLog, ×1/2/4) — **orphelin depuis v0.42** (remplacé par LiveCombat), conservé au cas où |
 | Monstres / espèces / variations | Oui (§4) | ✅ 3 starters (**Poofowl, Fungoot, Emberpup**) + 1 rare (**Haloux**) + **44 espèces** (1 historique = boss `gravelmaw` + 43 importées des planches). **9 AM jouables** (v0.43 : +5 de planche 4 — snailorn, axolotine, bellwisp, thicket, bannertail). **4 AM historiques ont une identité + 2 branches** (talents par palier) ; **les 5 nouveaux AM n'ont pas encore d'inné/talents/branches ni kit LIVE dédié** (repli kit Poofowl) ; variations régionales/spéciales toujours non implémentées |
-| Branches de spécialisation | Oui (§4.2/4.3, v0.24) | ✅ `SpeciesDef.branches` sur les 4 AM ; choix joueur irréversible au niv 3 (`BRANCH_CHOICE_LEVEL`), talents core (niv 3) + upgrade (niv 6) ; modal de choix + bloc fiche ; `activeTalents`/`needsBranchChoice`/`chooseBranch` |
+| Branches de spécialisation | Oui (§4.2/4.3, v0.24) — **retiré du jeu réel en v0.53 (T008)**, remplacé par le draft de Traits | 🟡 **legacy uniquement** : `SpeciesDef.branches`/`activeTalents`/`needsBranchChoice`/`chooseBranch` conservés dans le code (utilisés par `engine/combat.ts` et ses 132 tests) mais **plus jamais déclenchés par le flow de jeu réel** depuis T008 — la fiche AM n'affiche plus de bloc Spécialisation |
 | Statuts & altérations (F7) | Oui (§3.3 F7, v0.24) | ✅ **Poison & Brûlure** (DoT) implémentés : ticks au début du tour de la victime, actions `status`/`statusTick`, retrait auto ; amplification de dégâts vs cible affligée |
-| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` et `kind` éditables par espèce (`species_overrides`). **v0.21 :** l'**Éditeur d'espèces est retiré de l'UI joueur** (composant + API conservés, outil de dev) |
+| Bestiaire éditable / PvE sauvage | Oui (§4.1) | ✅ Champ `wildEncounterable` et `kind` éditables par espèce (`species_overrides`). **v0.52 (T004) : Éditeur de bestiaire réaccessible depuis le menu ☰** — refondu pour le nouveau modèle (Rang/HP/Stamina/pool de Traits actifs+passifs/Trait de départ, `SpeciesEditor.tsx`), remplace l'ancien éditeur atk/def/spd resté orphelin depuis v0.21 |
 | Carte / exploration (« Explorer le monde ») | Oui (§5) | ✅ **Carte du monde à 3 zones** (Clairière / Vallée / Cimes), accessible via le bouton **🗺️ Explorer** de la House (v0.21 : plus de sous-menu « Sortir », entrée de zone immédiate sans fade) ; anneaux de complétion, déblocage à 75%. **v0.17 :** avatar joueur = mini sprite de l'AM en tête d'équipe (plus d'emoji 🧍) |
 | Complétion & déblocage de zone | Oui (§5) | ✅ `zoneProgress` (victoires cumulées) ; 75% débloque la zone suivante ; boss vaincu → zone pacifiée (`bossDefeated`) |
 | Rencontres sauvages (zone) | Oui (§5) | ✅ **v0.17 :** plus de choix d'ennemi — la rencontre non nettoyée est présentée automatiquement, ennemi centré, sans ligne de butin ; choix de l'AM à envoyer conservé |
 | Bestiaire (pokédex) | Oui (§4) | ✅ `BestiaryModal` : toutes espèces, silhouette verrouillée, rencontre enregistrée (`recordBestiary`) |
 | Boutique / Centre de soin / Ranch | Oui (§5) | ✅ Soin/ranch accessibles via les **portraits PNJ** des zones (actions directes, **sans dialogue scripté depuis v0.17**) ; **Boutique** dispose en plus d'une **page dédiée minimale** accessible depuis la House (achat de potion) |
-| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens). **v0.44 : clic AM = focus in-place** (état local `focused`, sans navigation ni `pushState`) — l'AM glisse en haut à gauche, la fiche (identité + stats/talents/soins/interactions + espèce + historique, via `AmDetails`) fade-in autour de lui, le reste fond ; clic dehors = retour smooth. Fiche plein écran `AmPage` conservée pour l'ouverture depuis l'équipe/inventaire. Sortie vers **Explorer le monde**/Boutique. **v0.48 :** pièce élargie et **edge-to-edge sur mobile** (plus de padding hérité sur `.house-room`, fondu latéral à paliers plus doux) ; **rappel de quêtes retiré** de la House (Journal accessible seulement via le header) |
+| Home / House | Oui (§7) | ✅ **Header minimal** (logo + hamburger) + **House** : compagnon miniature en marche aléatoire (pauses variables, profondeur, orientation selon le sens). **v0.44 : clic AM = focus in-place** (état local `focused`, sans navigation ni `pushState`) — l'AM glisse en haut à gauche, la fiche (identité + Rang/HP/Stamina/Traits/soins/interactions + espèce + historique, via `AmDetails`) fade-in autour de lui, le reste fond ; clic dehors = retour smooth. Fiche plein écran `AmPage` conservée pour l'ouverture depuis l'équipe/inventaire. Sortie vers **Explorer le monde**/Boutique. **v0.48 :** pièce élargie et **edge-to-edge sur mobile**. **v0.55 (T003) : mini-menu d'interaction** (bouton « 🧰 Interagir », panneau slide+fade sous la pièce, clic-armé + drag&drop sur le compagnon, cooldowns/potions) — accès rapide aux 3 interactions + potion sans ouvrir la fiche |
 | Bandeau équipe (hub) | Oui (§7) | ✅ **v0.17 :** encadré distinct (« 🛡️ TON ÉQUIPE ») pour bien identifier le bandeau comme la propre équipe du joueur, plutôt qu'un simple titre au-dessus de la grille |
 | Onboarding | Oui (§7) | ✅ **Wizard 4 étapes** (v0.23) : choix du monstre → lecture de fiche (stats expliquées) → **combat guidé** (**v0.42 : `LiveCombat tutorial`, combat interactif** vs Sprigling ; « tu pilotes ») → hub/boucle → adoption |
 | Réinitialisation du compte | Oui (§7) | ✅ Bouton **« ♻️ Réinitialiser le compte »** dans le menu ☰ (confirmation) → efface la progression et relance l'Onboarding |
-| Progression / level-up | Oui (§4.3) | ✅ **Stats auto par niveau** (plus de choix). **v0.24 : talent inné + branche choisie** (dont les talents se débloquent par palier de niveau) |
+| Progression / level-up | Oui (§4.3) | ✅ **v0.53 (T008) : draft de Traits à chaque niveau** (`engine/draft.ts`, `LevelUpDraft.tsx`) — remplace le talent inné + branche choisie (v0.24, désormais legacy, voir ligne Branches). Stats HP toujours auto par niveau (`levelDelta`/`addXp`) ; Rang/Stamina fixes (T007) |
 | Stats & talents lisibles (v0.20) | Oui | ✅ **4 stats** (stamina retirée) ; fiche en **barres + tag de rôle** ; talents avec **icône + infobulle** ; **labels flottants de talent en combat** (`talentProc`) |
 | Soin | Oui (§5.3) | ✅ **Régén continue temps réel** (5 s test) + potion + soin complet payant |
 | Inventaire | Oui (§4.5) | ✅ Modal inventaire : **soin uniquement** (boost payant retiré v0.9) |
-| Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) |
+| Caractère / interactions | Oui (§4.6) | ✅ Personnalité par individu + humeur (combat) + caresser/coacher/observer (`progression.interact`) + **barre sociale (T009)**, voir ligne dédiée ci-dessous |
 | Fiches AM | Oui (§7) | ✅ **Page plein écran** : date de capture, descriptif d'espèce, historique, stats, talents, soins, interactions. **v0.48 : surnom éditable** (crayon → input inline, 18 car. max) dans `AmHeroInfo`, partagé par la fiche House (focus in-place) et `AmPage` ; l'espèce reste affichée séparément, non affectée par le surnom |
 | Direction artistique | Oui (§7) | ✅ **Thème CLAIR moderne** (indigo/violet + émeraude, surfaces blanches, Space Grotesk/Inter) + **transitions animées** entre vues. **v0.26 :** pass minimaliste — **icônes SVG line** (`game/icons.tsx`, `<Icon>`) à la place des emojis *chrome*, texte explicatif superflu retiré (emojis de contenu conservés) |
 | Responsive / mobile | Oui (§7) | ✅ **Mobile-first** : header wrap, arène `clamp()`, hub/carte/page AM repliés 1 col, scroll tactile. **v0.26 :** carte du monde aérée < 680px, header sans débordement < 420px, en-tête de combat repliable, `heal-row` pleine largeur < 360px (breakpoints 900/680/560/420/360) |
@@ -532,6 +600,15 @@
 | Repos hors-ligne (PV/humeur temps réel) | Oui (v0.19) | ✅ `applyOfflineRest` (PV max en ~6 h, humeur → 60), toast de retour |
 | PvP | Oui (§6) | 🟡 **Arène de duels asynchrones** (`Arena.tsx` + `GET /api/arena/opponents`) : duel amical vs le meilleur AM d'un autre joueur (ou bot Nova), 3 victoires récompensées/jour. Pas encore de PvP synchrone/classé ni de liste d'amis |
 | UI / écrans | Oui (§7) | ✅ **Page unique (hub + modals + page AM)**, `GamePage.tsx` ; header avec bourse permanente + Journal 📅 ; toasts de feedback |
+| **Refonte modèle AM (v0.49)** | Oui (§4 réécrit) | ✅ **T006+T007+T004+T008+T010+T003+T005+T009+T011+T012 livrés — série intégralement terminée.** Les Character possèdent de vrais Traits équipés, le draft fonctionne (fiche + niveau), et depuis T012 le combat interactif réellement joué (`liveEngine.ts`) reflète enfin ces Traits (voir ligne T012 ci-dessous). |
+| **Barre sociale (T009, v0.57)** | Oui (§4.6) | ✅ `Character.social` (0-100) + `Personality.affinity` étendu (caresser/coacher/observer/jouets/coups). `progression.ts` : `interact()` calcule un `socialDelta` en plus de l'humeur, `giveToy()` (nouvel objet consommable, boutique `TOY_PRICE=12`), `registerCombatSocial()` (participation flat + coups encaissés signés selon affinité), branché dans `onCombatFinish` (GamePage.tsx). UI : barre « Lien » sous l'humeur (`AmHeroInfo`), carte Jouet dans le mini-menu House et le bloc Interagir de la fiche. **Limites** : duels d'arène non alimentés (scope restreint aux combats réels) ; AM déjà existants = affinité jouets/coups neutre (0) tant qu'ils ne sont pas recréés. Tests : `social.test.ts` (17/17, nouveau), suite existante inchangée verte. |
+| **Retrait des dialogues (T011, v0.58)** | Oui (§4.7) | ✅ PNJ décoratifs (mentor/lore) supprimés des zones ; PNJ de service (marchand/soin/ranch) toujours présents mais sans chat ni portrait cliquable — actions en boutons directs dans une carte « Services » de `ZoneScreen`. `NpcChat`, le modal `{k:"chat"}` et `Npc.lines` supprimés du code. Onboarding inchangé (déjà sans dialogue scripté). Aucun changement moteur ; build + suite de tests inchangée verte. |
+| **Combat interactif rebranché sur les Traits (T012, v0.59)** | Oui (§4.2) | ✅ `renderer/liveEngine.ts` + `LiveCombat.tsx` résolvent désormais kit/bonus passif/mode Traits via `traits.ts::resolveCombatConfig` (jamais `undefined`, fallback kit fixe si <3 Traits actifs équipés). Formules partagées avec `autoSim` via le nouveau module pur `engine/passiveBonus.ts` (`defOf`, application des passifs) — zéro duplication à la main. Passifs branchés dans le moteur interactif : esquive totale, réduction de dégâts, critique, bonus d'ATK, vol de vie, régénération. Vérification des 4 kits spéciaux (garde/combo/poison/esquive) faite via `autoSim` headless (pas de navigateur disponible) plutôt qu'en jeu réel — contrôle visuel recommandé dès qu'un joueur équipe 3 Traits actifs. Tests : `passiveBonus.test.ts` 24/24 (nouveau), `traits.test.ts` 68→84/84. |
+| **Budget de rang / 2v2 (T010, v0.54)** | Oui (§4.5) | 🟡 `ENABLE_2V2=false`, `RANK_BUDGET=4`, `teamRankSum`/`canAlignTeam` (data.ts) — règle testée (`budget.test.ts` 12/12), sans effet visible aujourd'hui (tout le monde rang 1, 1 seul AM aligné). **Le moteur LIVE réel (`live.ts`/`liveEngine.ts`) est 1v1 en dur** : activer le 2v2 demandera un travail moteur dédié, pas seulement lever le flag. |
+| **Level-up par draft de Traits (T008, v0.53)** | Oui (§4.3) | ✅ `engine/draft.ts` (`generateDraft`/`applyDraftChoice`/`draftLabel`) + `LevelUpDraft.tsx`. `Character.traitPoints` banque 1 crédit/niveau (`addXp`) ; `makeCharacter` équipe 1 Trait actif de départ (`ensureTraits`) ; migration discrète des saves antérieures. **Choix de branche retiré du jeu réel** (conservé en legacy pour `engine/combat.ts`). `AmDetails.tsx` affiche Rang/HP/Stamina + Traits équipés (remplace les barres atk/def/spd et le bloc Spécialisation). **Gap comblé par T012 (v0.59)** : le combat interactif réellement joué (`liveEngine.ts`) construisait alors son kit via `kitFor(espèce)` et ignorait les Traits équipés — voir la ligne T012 ci-dessus pour la résolution. Tests (à cette date) : `draft.test.ts` 58/58, `traits.test.ts` 68/68, `live.test.ts` 30/30, `engine.test.ts` 132/132, `daily.smoke.ts` 16/16. |
+| **Traits — fondation (T006, v0.50)** | Oui (§4.2) | ✅ `engine/traits.ts` : type `TraitDef` (actif/passif, 3 paliers) + catalogues `ACTIVE_TRAITS` (12 actions des 4 kits LIVE → peck/guard/burst, claw/ember/rush, spit/spores/bash, strike/dodge/riposte) et `PASSIVE_TRAITS` (20 talents → Traits passifs). `kitFromActiveTraits`/`resolveActiveKit` construisent un kit LIVE depuis 3 Traits actifs équipés ; `passiveBonusOf` calcule un bonus passif (atk/crit/esquive/vol de vie/régén/réduction dégâts). Couche **strictement additive** : `Character.activeTraits`/`passiveTrait` (types.ts) sont optionnels — sans eux, `autoSim` se comporte exactement comme avant. |
+| **Stats Rang/HP/Stamina + formule flat (T007, v0.51)** | Oui (§4.1/4.2) | ✅ `Character.rank`/`stamina` (types.ts, défauts posés par `progression.ts`). `live.ts` `mkFighter` dérive l'énergie de départ de `stamina`. Nouvelle `AutoSimOpts.traitMode` : dégâts = puissance **flat** du Trait, ATK/DEF sans effet des deux côtés (« le move offensif détermine les dégâts, plus de principe de défense » — décision actée avec l'utilisateur). `traits.ts` `ACTIVE_TRAITS` recalibré en valeurs flat absolues (`FLAT_REFERENCE`). Nouveau `combatOptsFor(Character)` = point d'entrée combat réel (undefined si pas de Traits équipés → fallback legacy). **Scope** : `engine/combat.ts` (legacy, 132 tests) non touché ; **l'UI (barres atk/def/spd, choix de branche niv.3) n'a volontairement pas été retirée** — elle reste la seule information affichée tant que T008 n'attribue pas de vrais Traits aux Character du jeu réel (retirer l'UI maintenant aurait été une régression d'info sans remplacement). Tests : `traits.test.ts` (68/68), `live.test.ts` (30/30), `engine.test.ts` (132/132), `daily.smoke.ts` (16/16) — tous inchangés/verts. |
+| Combat plein écran (T005, v0.56) | Oui (§3, §7) | ✅ `.combat-fullscreen` (position fixed, 100dvh, flex column, safe-area insets) remplace le modal centré. `live-combat.css` en flex-fill (arène `flex:1`, plancher 120-150px) : plus de scroll attendu, header/HUD compacts. Back Android/navigateur géré par le handler `popstate` générique existant (pas de route séparée). **Vérifié par calcul CSS uniquement** (pas de capture d'écran réelle — Playwright/Chromium bloqué par le réseau du bac à sable) ; contrôle visuel sur appareil réel recommandé. |
 
 ---
 
@@ -677,52 +754,118 @@ Un **auto monster** est la créature jouable du jeu : elle se bat **automatiquem
 SpeciesDef (bestiaire statique)  →  Character (monstre possédé, persisté, plat)  →  Fighter (runtime, dérivé à l'init)
 ```
 
-### 4.1 Espèce — `SpeciesDef`
+> **Refonte v0.49 (designé, non implémenté).** Les sections 4.1→4.6 ci-dessous décrivent le
+> **nouveau modèle**. L'ancien modèle (4 stats HP/atk/def/spd, branches de spécialisation, montée
+> de stats automatique) reste **l'état réellement implémenté** tant que les tâches T004→T011 ne
+> sont pas livrées — voir §0.bis.
+
+### 4.1 Espèce — `SpeciesDef` (nouveau modèle)
 
 Définition statique partagée par tous les monstres d'une même famille.
 
 | Champ | Description |
 |-------|-------------|
 | **nom** | Identité de l'espèce. |
-| **élément inné** | Talent **signature** inné, partagé par toute l'espèce, qui définit son *playstyle* général. ⚠️ Ce n'est **pas** un type de dégât : aucune force/faiblesse élémentaire (cohérent avec F3 abandonné). C'est un talent de base toujours présent. |
-| **stats de base** | **4 stats** (v0.20) : **HP/Vie**, **attaque/Force**, **défense/Armure**, **vitesse**. La stamina a été retirée (jamais utilisée en combat). |
-| **palette de talents** | Pool de talents que les membres de l'espèce peuvent **apprendre en évoluant** (pioché aux paliers de niveau, voir 4.3). |
+| **rang de base** | **1→5**. Représente la puissance/coût d'alignement de l'espèce. **Pour l'instant : 1 partout.** Sert au **budget de rang** en équipe (voir 4.5). |
+| **HP de base** | Points de vie au niveau 1 : **~30-50**. |
+| **stamina de base** | Ressource dépensée par les Traits actifs en combat : **3-4** au niveau 1. |
+| **pool de Traits** | L'ensemble des **Traits** (cartes actives + passives) que les membres de l'espèce peuvent piocher/améliorer en montant de niveau (voir 4.4 et 4.3). |
+| **Trait de départ** | Le Trait actif possédé dès le niveau 1 (par défaut une **attaque simple**). |
 
-**Stamina** = ressource consommée par les talents/skills (matérialise F8 — l'énergie devient une **stat de base** plutôt qu'un système séparé). La vitesse pilote toujours la file de tour chronométrique (F4).
+**Ce qui disparaît vs l'ancien modèle** : plus de **Force/Attaque**, **Armure/Défense**, ni
+**Vitesse** en tant que stats — **tout le comportement de combat vit dans les Traits**. Plus de
+**branches de spécialisation** : la personnalisation passe **entièrement par le choix des Traits**.
 
-### 4.2 Variations — `VariationDef`
+### 4.2 Traits — les cartes d'action de l'AM
 
-Une espèce peut exister sous plusieurs variations. Une variation peut modifier les **stats de base**, l'**arbre de niveau** (4.3), la **palette de talents**, voire l'**élément inné**.
+Un **Trait** est une **carte** : soit une **action active** jouable en combat, soit un **effet
+passif**. Un AM **équipe 3 Traits actifs + 1 Trait passif**.
 
-| Type | Déclencheur |
-|------|-------------|
-| **Régionale** | Liée au **lieu** (zone/biome de capture). |
-| **Spéciale** | Liée à un **événement** (event temporaire). |
-| **Par évolution** | Transformation du `Character` sous **certaines conditions** (niveau, objet, contexte…). |
+| Aspect | Détail |
+|--------|--------|
+| **Type** | **Actif** (action jouée en combat, coûte de la stamina) ou **Passif** (effet permanent). |
+| **Niveau** | **1 → 3.** Plus le niveau est élevé, plus l'effet est fort **et plus il est rare à l'apparition** dans les choix de level-up. |
+| **Slots** | **3 actifs + 1 passif** équipés au maximum. |
+| **Origine des données (v0.49)** | Réutilisation de l'existant : les **actions de kit LIVE** (`live.ts` → KITS : Coup, Garde, Décharge, Griffe, Brasier, Curée, Crachat, Spores, Frappe, Esquive, Riposte…) deviennent les **Traits actifs** ; les **talents** (`talents.ts` : Braise, Frénésie, Peau de pierre, Épines, Régén, Ponction, Élan…) deviennent les **Traits passifs**. Le niveau 1→3 d'un Trait = mise à l'échelle de sa puissance/effet (power, coût, dégâts de DoT, %). |
 
-### 4.3 Character — instance possédée
+### 4.3 Character — instance possédée & montée de niveau (nouveau modèle)
 
-Monstre concret détenu par le joueur, persisté et **plat**. Référence une espèce + une variation.
+Monstre concret détenu par le joueur, persisté et **plat**. Référence une espèce.
 
-- **Expérience / niveau** : monte jusqu'au **niveau 100**.
-- **Montée de stats (v0.6, implémenté)** : **automatique, sans choix**. À chaque niveau les stats augmentent en suivant les stats de base (`levelDelta`). Le joueur n'arbitre plus rien au level-up.
-- **Boost manuel** : la personnalisation des stats passe désormais par l'**inventaire** (boost d'une stat payé en or), pas par le level-up.
-- **Talents** : seul le **talent inné** de l'espèce est actif. (Ancien design — packs de stats au choix + paliers de talent tous les 10 niveaux + amélioration — **abandonné en v0.6** ; à réintroduire éventuellement plus tard.)
+- **Stats persistées** : rang, HP (max + courant), stamina, niveau, XP, **Traits équipés** (actifs
+  + passif) avec leur niveau, barre sociale, historique.
+- **Niveau 1** : l'AM n'a **qu'un seul Trait actif** (attaque simple, niv 1). Objectif de design :
+  **atteindre vite le niveau 3** pour disposer de ses 3 slots actifs.
+- **Montée de niveau = draft de choix.** À chaque niveau, on propose un petit tirage d'options :
+  1. **Améliorer un Trait** possédé (niv 1→2→3). Pondération : plus le palier visé est haut, moins
+     il a de chances d'apparaître.
+  2. **Acquérir un nouveau Trait** tiré du **pool de l'espèce** (si un slot est libre).
+  3. **Améliorer un autre Trait** — cette option n'est proposée **que si l'AM possède au moins 3
+     Traits non encore au niveau max** ; sinon ce slot d'option est remplacé par **un autre choix
+     de nouvelle carte**.
+- **HP / stamina** montent aussi avec le niveau (courbe à caler au proto).
+- **Plus de montée de stats atk/def/spd** ni de choix de branche : supprimés.
 
-### 4.4 Talents
+### 4.4 Pool de Traits par espèce
 
-Implémentés comme des **hooks** (F6) ; chaque talent peut avoir plusieurs niveaux d'amélioration. Trois catégories selon la phase de combat concernée :
+Chaque espèce définit **quels Traits** ses membres peuvent piocher/améliorer (actifs + passifs) et
+**lequel est le Trait de départ**. C'est ce pool qui donne l'identité de l'espèce (là où l'ancien
+modèle utilisait l'inné + les 2 branches). Éditable via le **nouvel éditeur de bestiaire** (T004).
 
-| Catégorie | Portée |
-|-----------|--------|
-| **Offensif** | Lié à la **phase d'offense** (attaques, procs au moment de frapper). |
-| **Défensif** | Lié à la **phase de défense** (boucliers, renvoi, réduction…). |
-| **Utilitaire** | **Tout le reste** (buffs, invocations, soutien, vitesse…). |
+### 4.5 Équipe & budget de rang
 
-### 4.5 Acquisition & composition
+- On alignera **2 AM**, dans la limite d'un **budget de rang = 4** : `2+2`, `3+1`, ou un seul AM de
+  rang `4`. La somme des rangs des AM alignés ne dépasse jamais 4.
+- **État actuel du design** : tous les AM sont **rang 1**, et le **2v2 n'est pas encore actif** —
+  on joue encore 1 AM. La structure (champ rang, contrôle de budget) est posée dès maintenant pour
+  activer le 2v2 plus tard sans refonte.
+
+### 4.6 Barre sociale & interactions
+
+Chaque AM possède une **barre sociale** (lien/affinité avec le joueur). Elle **monte ou baisse**
+selon les interactions :
+
+| Action | Effet sur la barre sociale |
+|--------|----------------------------|
+| **Caresser** | Monte (selon les goûts de l'individu). |
+| **Coacher** | Monte/baisse selon l'individu. |
+| **Combattre** (l'emmener au combat) | Monte. |
+| **Prendre des coups** (encaisser en combat) | Peut faire monter/baisser. |
+| **Donner des jouets** | Monte. |
+| **Observer** | Ne change pas la barre : **donne des indices** sur les goûts de l'individu (« XXX n'est pas spécialement fan des caresses »). |
+
+Chaque individu a des **préférences propres** (comme l'affinité actuelle) : la même action n'a pas
+le même effet d'un AM à l'autre — c'est ce que l'action **observer** révèle progressivement.
+
+**État actuel (T009 livré)** : `Character.social` (0-100, défaut 50) ; `Personality.affinity`
+étendu à 5 dimensions (caresser/coacher/observer/jouets/coups). Caresser et Jouets montent
+toujours (magnitude selon l'affinité) ; Coacher et Coups (encaissés en combat) montent ou
+baissent selon l'individu ; Combattre (participation, tout combat réel) ajoute un gain fixe
+(`COMBAT_SOCIAL_GAIN`) indépendant du résultat ; Observer ne touche pas la barre et génère un
+indice textuel (`affinityHint`) sur la dimension d'affinité la plus marquée de l'individu.
+Jouets = nouvel objet consommable (boutique, `TOY_PRICE`), utilisable depuis le mini-menu House
+et la fiche. Barre visible sous l'humeur (fiche AM). **Limites assumées** : les duels d'arène
+n'alimentent pas la barre (scope volontairement restreint aux combats réels) ; les AM déjà
+existants avant T009 ont `affinity.jouets`/`coups` neutres (0) tant qu'ils ne sont pas recréés —
+pas de migration rétroactive de personnalité.
+
+### 4.7 Dialogues
+
+**Retirés pour l'instant.** Aucune séquence de dialogue scripté (onboarding, PNJ) — les actions
+restent directes. À réintroduire éventuellement plus tard.
+
+**État actuel (T011 livré)** : les PNJ purement décoratifs ("mentor" Sylve, "lore" Nima/Orn-lore/
+guetteur — répliques d'ambiance jamais affichées, panneau vide au clic) ont été **supprimés**.
+Les PNJ de service (marchand/soin/ranch) restent dans les zones qui en ont, mais **sans chat ni
+portrait cliquable** : leurs actions (acheter une potion, soigner l'équipe, louer un monstre) sont
+des **boutons directs** dans une carte « Services » de l'écran de zone. L'onboarding (choix du
+starter → fiche → combat tutoriel → boucle expliquée) ne contenait déjà aucune réplique
+scriptée — laissé inchangé.
+
+### 4.8 Acquisition & composition
 
 - Auto monsters débloqués en explorant la carte (boss, événements, marchands, capture).
-- Le joueur choisit quels monstres aligner dans son équipe *(taille d'équipe à valider au prototype)*.
+- Le joueur compose son équipe dans la limite du **budget de rang** (4.5).
 
 ---
 

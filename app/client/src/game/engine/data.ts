@@ -487,6 +487,32 @@ export const RANCH_OFFERS: RanchOffer[] = [
 /** Prolongation de contrat (proposée au dernier combat). */
 export const RANCH_EXTEND = { price: 30, fights: 3 };
 
+// ── T010 : budget de rang (structure 2v2, feature flag OFF) ─────────────────
+// Aligner jusqu'à 2 AM tant que la somme de leurs rangs ne dépasse pas RANK_BUDGET
+// (2+2, 3+1, ou un seul AM de rang 4). Tout le monde est rang 1 pour l'instant
+// (DEFAULT_RANK, progression.ts) : la règle est donc toujours respectée en 1v1.
+// ENABLE_2V2 reste `false` tant que l'UI d'équipe et le moteur LIVE (1v1 aujourd'hui,
+// voir GDD §4.5) ne permettent pas réellement d'aligner 2 AM par camp.
+export const ENABLE_2V2 = false;
+export const RANK_BUDGET = 4;
+/** Rang par défaut d'un AM sans rang explicite (miroir de DEFAULT_RANK, progression.ts — pas d'import croisé). */
+const FALLBACK_RANK = 1;
+
+/** Somme des rangs d'une composition (chaque élément = Character ou SpeciesDef). */
+export function teamRankSum(members: { rank?: number }[]): number {
+  return members.reduce((sum, m) => sum + (m.rank ?? FALLBACK_RANK), 0);
+}
+
+/**
+ * Une composition est-elle alignable ? Respecte à la fois le budget de rang (<=4)
+ * et le nombre d'AM autorisés (1 tant qu'ENABLE_2V2 est false, 2 sinon).
+ */
+export function canAlignTeam(members: { rank?: number }[]): boolean {
+  if (members.length === 0) return true;
+  if (members.length > (ENABLE_2V2 ? 2 : 1)) return false;
+  return teamRankSum(members) <= RANK_BUDGET;
+}
+
 // ── Soin progressif (régén continue temps réel) ────────────────────────────
 /** Durée pour régénérer de 0 à PV max. Test : 5 s. À terme : plusieurs heures. */
 export const HEAL_FULL_MS = 5000;
@@ -506,20 +532,25 @@ export const INTERACT_LABELS: Record<InteractKind, { name: string; emoji: string
   observer: { name: "Observer", emoji: "🔎", hint: "Étude discrète : peu risqué, révèle parfois un détail." },
 };
 
+/** T009 — objet consommable "jouet" : action sociale hors InteractKind (pas de cooldown,
+ *  limité par le stock comme les potions). Toujours "monte" la barre sociale. */
+export const TOY_LABEL = { name: "Jouet", emoji: "🧸", hint: "Cadeau : renforce toujours le lien." };
+export const TOY_PRICE = 12; // or par jouet acheté
+
 /**
  * Archétypes de caractère. Chaque individu en reçoit un à la capture, PUIS
  * ses affinités sont perturbées aléatoirement → deux individus du même
  * archétype réagissent différemment (caractère propre à l'individu).
  */
 export const ARCHETYPES: Omit<Personality, "blurb">[] = [
-  { archetype: "Affectueux", emoji: "💗", affinity: { caresser: 0.8, coacher: 0.1, observer: 0.2 } },
-  { archetype: "Sauvage", emoji: "🔥", affinity: { caresser: -0.6, coacher: 0.3, observer: -0.2 } },
-  { archetype: "Orgueilleux", emoji: "👑", affinity: { caresser: -0.2, coacher: 0.6, observer: -0.3 } },
-  { archetype: "Craintif", emoji: "🫣", affinity: { caresser: 0.3, coacher: -0.4, observer: -0.5 } },
-  { archetype: "Curieux", emoji: "✨", affinity: { caresser: 0.2, coacher: 0.2, observer: 0.8 } },
-  { archetype: "Stoïque", emoji: "🗿", affinity: { caresser: -0.1, coacher: 0.4, observer: 0.4 } },
-  { archetype: "Joueur", emoji: "🎲", affinity: { caresser: 0.5, coacher: -0.2, observer: 0.3 } },
-  { archetype: "Paresseux", emoji: "😴", affinity: { caresser: 0.4, coacher: -0.6, observer: 0.1 } },
+  { archetype: "Affectueux", emoji: "💗", affinity: { caresser: 0.8, coacher: 0.1, observer: 0.2, jouets: 0.7, coups: -0.3 } },
+  { archetype: "Sauvage", emoji: "🔥", affinity: { caresser: -0.6, coacher: 0.3, observer: -0.2, jouets: 0.2, coups: 0.5 } },
+  { archetype: "Orgueilleux", emoji: "👑", affinity: { caresser: -0.2, coacher: 0.6, observer: -0.3, jouets: -0.1, coups: 0.3 } },
+  { archetype: "Craintif", emoji: "🫣", affinity: { caresser: 0.3, coacher: -0.4, observer: -0.5, jouets: 0.3, coups: -0.6 } },
+  { archetype: "Curieux", emoji: "✨", affinity: { caresser: 0.2, coacher: 0.2, observer: 0.8, jouets: 0.5, coups: 0.0 } },
+  { archetype: "Stoïque", emoji: "🗿", affinity: { caresser: -0.1, coacher: 0.4, observer: 0.4, jouets: -0.2, coups: 0.3 } },
+  { archetype: "Joueur", emoji: "🎲", affinity: { caresser: 0.5, coacher: -0.2, observer: 0.3, jouets: 0.9, coups: -0.1 } },
+  { archetype: "Paresseux", emoji: "😴", affinity: { caresser: 0.4, coacher: -0.6, observer: 0.1, jouets: 0.3, coups: -0.4 } },
 ];
 
 const BLURBS: Record<string, string> = {
@@ -545,30 +576,40 @@ export function makePersonality(rand: () => number = Math.random): Personality {
       caresser: jitter(a.affinity.caresser),
       coacher: jitter(a.affinity.coacher),
       observer: jitter(a.affinity.observer),
+      jouets: jitter(a.affinity.jouets),
+      coups: jitter(a.affinity.coups),
     },
   };
 }
 
+// ── T009 : barre sociale (lien AM ↔ joueur) ─────────────────────────────────
+export const SOCIAL_MIN = 0;
+export const SOCIAL_MAX = 100;
+export const SOCIAL_START = 50;
+/** Gain fixe de barre sociale à chaque combat mené (participation, indépendant du résultat). */
+export const COMBAT_SOCIAL_GAIN = 2;
+/** Amplitude max de variation liée aux coups encaissés (affinité × fraction de PV perdus). */
+export const COUPS_SOCIAL_SCALE = 18;
+
 // ═══════════════════════════════════════════════════════════════════════════
-// ZONES & PNJ (refonte "mise en scène")
+// ZONES & PNJ
 // ─ Trois zones sur la carte du monde. Chaque zone a un état (peaceful /
-//   exploration / threatened) et un lot de PNJ avec qui dialoguer (chat DE).
+//   exploration / threatened) et éventuellement des PNJ de service (boutons
+//   directs — plus de dialogue scripté depuis T011).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type ZoneMood = "peaceful" | "exploration" | "threatened";
 
-/** Rôle d'un PNJ → détermine les actions offertes dans le chat. */
-export type NpcRole = "mentor" | "merchant" | "healer" | "ranch" | "lore";
+/** Rôle d'un PNJ → détermine le service qu'il offre (bouton direct, T011 : plus de dialogue). */
+export type NpcRole = "merchant" | "healer" | "ranch";
 
 export type Npc = {
   id: string;
   name: string;
   title: string;
-  emoji: string; // portrait de secours (emoji)
-  tint: string; // couleur d'accent du portrait
+  emoji: string; // icône du service
+  tint: string; // couleur d'accent
   role: NpcRole;
-  /** répliques d'ambiance (chat façon Disco Elysium) */
-  lines: string[];
 };
 
 export type Zone = {
@@ -613,29 +654,12 @@ export const ZONES: Zone[] = [
     winsToComplete: 0,
     npcs: [
       {
-        id: "sylve",
-        name: "Sylve",
-        title: "Gardienne de la clairière",
-        emoji: "🧝‍♀️",
-        tint: "#5bbf8a",
-        role: "mentor",
-        lines: [
-          "« Te voilà enfin. J'ai senti ta venue dans le bruissement des feuilles. »",
-          "« Chaque dresseur commence ici, avec un seul compagnon. Le tien t'attend. »",
-          "« Va vers l'est, la Vallée Sauvage. Bats-toi, encore et encore — elle te livrera ses secrets. »",
-        ],
-      },
-      {
         id: "perle",
         name: "Perle",
         title: "Marchande ambulante",
         emoji: "🧕",
         tint: "#e0a34a",
         role: "merchant",
-        lines: [
-          "« Une potion, dresseur ? Ça remet d'aplomb un Auto Monster amoché. »",
-          "« Mes fioles viennent des sources chaudes. Efficacité garantie. »",
-        ],
       },
       {
         id: "soin",
@@ -644,9 +668,6 @@ export const ZONES: Zone[] = [
         emoji: "⛲",
         tint: "#4aa6e0",
         role: "healer",
-        lines: [
-          "« Confie tes compagnons à l'eau vive. Elle les remet sur pied en un instant. »",
-        ],
       },
       {
         id: "boris",
@@ -655,10 +676,6 @@ export const ZONES: Zone[] = [
         emoji: "🧑‍🌾",
         tint: "#c98a5a",
         role: "ranch",
-        lines: [
-          "« Besoin de renfort ? Je loue mes bêtes pour quelques combats, pas plus. »",
-          "« Traite-les bien, elles te le rendront. »",
-        ],
       },
     ],
   },
@@ -674,34 +691,8 @@ export const ZONES: Zone[] = [
     encounters: ["moss", "windy", "scree", "cloud"],
     winsToComplete: 10,
     unlocks: "cimes",
-    wildNpcs: [
-      {
-        id: "voyageuse",
-        name: "Nima",
-        title: "Voyageuse",
-        emoji: "🧗‍♀️",
-        tint: "#a06fc9",
-        role: "lore",
-        lines: [
-          "« Gravelmaw ? Ce monstre est increvable… ses blessures restent d'un combat à l'autre. »",
-          "« Plus tu explores cette vallée, plus tu la comprends. Ne lâche rien. »",
-        ],
-      },
-    ],
-    npcs: [
-      {
-        id: "voyageuse",
-        name: "Nima",
-        title: "Voyageuse",
-        emoji: "🧗‍♀️",
-        tint: "#a06fc9",
-        role: "lore",
-        lines: [
-          "« La vallée est apaisée maintenant. On respire. »",
-          "« Les Cimes, là-haut, grondent encore. Sois prudent. »",
-        ],
-      },
-    ],
+    wildNpcs: [],
+    npcs: [],
   },
   {
     id: "cimes",
@@ -715,20 +706,7 @@ export const ZONES: Zone[] = [
     encounters: ["lair"],
     winsToComplete: 1,
     boss: "lair",
-    wildNpcs: [
-      {
-        id: "guetteur",
-        name: "Orn",
-        title: "Guetteur affolé",
-        emoji: "🧙‍♂️",
-        tint: "#c95a5a",
-        role: "lore",
-        lines: [
-          "« Il est là-haut ! Gravelmaw écrase tout sur son passage ! »",
-          "« Toi seul peux l'arrêter. Les Cimes comptent sur toi. »",
-        ],
-      },
-    ],
+    wildNpcs: [],
     npcs: [
       {
         id: "orn",
@@ -737,21 +715,6 @@ export const ZONES: Zone[] = [
         emoji: "🧙‍♂️",
         tint: "#7d7fb3",
         role: "merchant",
-        lines: [
-          "« Le colosse est tombé. Le calme est revenu sur les Cimes. »",
-          "« Reste un peu — j'ai de quoi ravitailler les héros. »",
-        ],
-      },
-      {
-        id: "orn-lore",
-        name: "Nima",
-        title: "Voyageuse",
-        emoji: "🧗‍♀️",
-        tint: "#a06fc9",
-        role: "lore",
-        lines: [
-          "« Tu as pacifié les trois zones. La légende, c'est toi maintenant. »",
-        ],
       },
     ],
   },

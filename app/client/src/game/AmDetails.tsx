@@ -7,11 +7,9 @@ import { useEffect, useState } from "react";
 import {
   SPECIES,
   INTERACT_LABELS,
+  TOY_LABEL,
   FULL_HEAL_COST,
-  branchesOf,
-  branchDef,
   activeTalents,
-  BRANCH_CHOICE_LEVEL,
 } from "./engine/data";
 import {
   xpForNext,
@@ -19,19 +17,16 @@ import {
   isHealing,
   healEtaMs,
   moodLabel,
+  socialOf,
+  socialLabel,
   interactReadyIn,
+  DEFAULT_RANK,
+  DEFAULT_STAMINA,
 } from "./engine/progression";
-import { TALENTS } from "./engine/talents";
-import { HpBar, TalentList, talentTooltip } from "./shared";
-import { Icon, type IconName } from "./icons";
-import type { Character, StatKey, InteractKind } from "./engine/types";
-
-export const STAT_LABELS: Record<StatKey, { icon: IconName; label: string }> = {
-  hp: { icon: "hp", label: "Vie" },
-  atk: { icon: "atk", label: "Force" },
-  def: { icon: "def", label: "Armure" },
-  spd: { icon: "spd", label: "Vitesse" },
-};
+import { ACTIVE_TRAITS, PASSIVE_TRAITS } from "./engine/traits";
+import { HpBar, TalentList } from "./shared";
+import { Icon } from "./icons";
+import type { Character, InteractKind } from "./engine/types";
 
 export const HIST_ICON: Record<string, string> = { capture: "⭐", combat: "⚔️", interact: "💞", levelup: "🆙" };
 
@@ -63,40 +58,35 @@ export function TalentChips({ c }: { c: Character }) {
   return <TalentList ids={[...new Set(ids)]} />;
 }
 
-/** Bloc « Spécialisation » de la fiche : branche choisie, ou invitation à choisir. */
-export function BranchBlock({ c, onChoose }: { c: Character; onChoose: () => void }) {
-  const branches = branchesOf(c.speciesId);
-  if (branches.length === 0) return null;
-  const chosen = branchDef(c.speciesId, c.branch);
+/** Bloc « Traits » de la fiche (T008) : les 3 Traits actifs + le passif équipés, niveau 1-3. */
+export function TraitBlock({ c }: { c: Character }) {
+  const actives = c.activeTraits ?? [];
+  const slots = [0, 1, 2];
   return (
     <div className="branch-block">
-      <h4 className="block-title">Spécialisation</h4>
-      {chosen ? (
-        <div className="branch-current">
-          <div className="branch-head"><span className="branch-ico">{chosen.icon}</span> <b>{chosen.name}</b></div>
-          <p className="muted small">{chosen.desc}</p>
-          <div className="branch-tiers">
-            {chosen.tiers.map((t) => {
-              const unlocked = c.level >= t.level;
-              const td = TALENTS[t.talent];
-              return (
-                <span key={t.talent} className={`branch-tier ${unlocked ? "on" : "off"}`} title={talentTooltip(t.talent)}>
-                  {unlocked ? "✓" : `N.${t.level}`} {td?.icon} {td?.name}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      ) : c.level >= BRANCH_CHOICE_LEVEL ? (
-        <button className="primary sm" onClick={onChoose}>⚡ Choisir une spécialisation</button>
-      ) : (
-        <p className="muted small">Choix de spécialisation débloqué au niveau {BRANCH_CHOICE_LEVEL} (2 voies au choix).</p>
-      )}
+      <h4 className="block-title">Traits équipés</h4>
+      <div className="editor-traits-chips">
+        {slots.map((i) => {
+          const t = actives[i];
+          const def = t ? ACTIVE_TRAITS[t.id] : null;
+          return (
+            <span key={i} className={`talent-mini cat-offensif ${def ? "on" : ""}`}>
+              {def ? `${def.icon} ${def.name} · N.${t!.level}` : "— slot libre —"}
+            </span>
+          );
+        })}
+        <span className={`talent-mini cat-utilitaire ${c.passiveTrait ? "on" : ""}`}>
+          {c.passiveTrait ? `${PASSIVE_TRAITS[c.passiveTrait.id]?.icon} ${PASSIVE_TRAITS[c.passiveTrait.id]?.name} · N.${c.passiveTrait.level}` : "— passif libre —"}
+        </span>
+      </div>
+      {(c.traitPoints ?? 0) > 0 && <p className="muted small">🆙 {c.traitPoints} choix de Trait en attente.</p>}
     </div>
   );
 }
 
-export function InteractButtons({ c, onInteract }: { c: Character; onInteract: (id: string, k: InteractKind) => void }) {
+export function InteractButtons({ c, toys, onInteract, onToy }: {
+  c: Character; toys: number; onInteract: (id: string, k: InteractKind) => void; onToy: (id: string) => void;
+}) {
   const [, force] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => force((x) => x + 1), 500);
@@ -119,6 +109,11 @@ export function InteractButtons({ c, onInteract }: { c: Character; onInteract: (
             </button>
           );
         })}
+        <button className="interact-btn" disabled={toys <= 0} onClick={() => onToy(c.id)} title={TOY_LABEL.hint}>
+          <span className="interact-emoji">{TOY_LABEL.emoji}</span>
+          <span>{TOY_LABEL.name}</span>
+          <span className="muted small">{toys > 0 ? `${toys} en stock` : "aucun jouet"}</span>
+        </button>
       </div>
       {lastText && <p className="interact-last">« {lastText} »</p>}
     </div>
@@ -188,6 +183,10 @@ export function AmHeroInfo({ c, rentedFights, onRename }: { c: Character; rented
       <div className="muted small">{sp.name} · {sp.kind === "automonster" ? "Auto Monster" : "Bestiole"}</div>
       {p && <div className="am-trait">{p.emoji} {p.archetype}</div>}
       <div className="am-mood">Humeur : <strong>{moodLabel(c)}</strong></div>
+      <div className="am-mood">
+        Lien : <strong>{socialLabel(c)}</strong>
+        <div className="socialbar"><div className="socialbar-fill" style={{ width: `${socialOf(c)}%` }} /></div>
+      </div>
       <HpBar c={c} />
       <div className="xpbar"><div className="xpbar-fill" style={{ width: `${Math.min(100, (c.xp / xpNext) * 100)}%` }} /></div>
       <div className="muted small">XP {c.xp}/{xpNext}</div>
@@ -197,10 +196,10 @@ export function AmHeroInfo({ c, rentedFights, onRename }: { c: Character; rented
 
 /** Colonnes de la fiche : caractéristiques/talents/spécialisation/soins/interactions
  *  d'un côté, description d'espèce + historique de l'autre. Réutilisable. */
-export function AmDetails({ c, gold, potions, onToggleHeal, onPotion, onFull, onInteract, onChooseBranch }: {
-  c: Character; gold: number; potions: number;
+export function AmDetails({ c, gold, potions, toys, onToggleHeal, onPotion, onFull, onInteract, onToy }: {
+  c: Character; gold: number; potions: number; toys: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onInteract: (id: string, k: InteractKind) => void; onChooseBranch: () => void;
+  onInteract: (id: string, k: InteractKind) => void; onToy: (id: string) => void;
 }) {
   const sp = SPECIES[c.speciesId];
   return (
@@ -208,15 +207,14 @@ export function AmDetails({ c, gold, potions, onToggleHeal, onPotion, onFull, on
       <div className="am-col">
         <h4 className="block-title">Caractéristiques</h4>
         <div className="sheet-stats">
-          {(Object.keys(STAT_LABELS) as StatKey[]).map((k) => (
-            <div key={k} className="sheet-stat"><span className="chip-ico"><Icon name={STAT_LABELS[k].icon} size={15} /> {STAT_LABELS[k].label}</span><strong>{c.stats[k]}</strong></div>
-          ))}
+          <div className="sheet-stat"><span className="chip-ico">🏅 Rang</span><strong>{sp.rank ?? DEFAULT_RANK}</strong></div>
+          <div className="sheet-stat"><span className="chip-ico"><Icon name="hp" size={15} /> HP</span><strong>{c.stats.hp}</strong></div>
+          <div className="sheet-stat"><span className="chip-ico">⚡ Stamina</span><strong>{sp.baseStamina ?? c.stamina ?? DEFAULT_STAMINA}</strong></div>
         </div>
-        <TalentChips c={c} />
-        <BranchBlock c={c} onChoose={onChooseBranch} />
+        <TraitBlock c={c} />
         <h4 className="block-title">Soins</h4>
         <HealControls c={c} gold={gold} potions={potions} onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull} />
-        <InteractButtons c={c} onInteract={onInteract} />
+        <InteractButtons c={c} toys={toys} onInteract={onInteract} onToy={onToy} />
       </div>
 
       <div className="am-col">

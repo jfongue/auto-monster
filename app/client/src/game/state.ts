@@ -20,6 +20,7 @@ export type GameState = {
   team: Character[]; // auto monsters possédés
   gold: number;
   potions: number;
+  toys: number; // T009 — jouets (objet consommable, donne un point de barre sociale)
   cleared: string[]; // ids des lieux de combat déjà vaincus (récompense unique)
   bossLife: Record<string, number>; // PV persistants des boss entamés, par lieu
   capturedRare: boolean;
@@ -46,6 +47,7 @@ export function freshState(): GameState {
     team: [],
     gold: 0,
     potions: 0,
+    toys: 0,
     cleared: [],
     bossLife: {},
     capturedRare: false,
@@ -89,6 +91,7 @@ export function migrate(s: Partial<GameState> | null | undefined): GameState {
     playerLoc: s.playerLoc ?? START_LOC,
     playerZone: s.playerZone ?? START_ZONE,
     bossLife: s.bossLife ?? {},
+    toys: s.toys ?? 0,
     cleared: s.cleared ?? [],
     bestiary: s.bestiary ?? [],
     zoneProgress: s.zoneProgress ?? {},

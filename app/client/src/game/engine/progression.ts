@@ -2,7 +2,7 @@
 // AUTOMATIQUEMENT à chaque niveau, en suivant les stats de base (pas de choix).
 // Soin = régénération continue temps réel. Boost = stat payée en or (inventaire).
 
-import type { Character, Stats, StatKey, InteractKind, HistoryEntry } from "./types";
+import type { Character, Stats, StatKey, InteractKind, SocialSource, HistoryEntry } from "./types";
 import {
   SPECIES,
   MapLocation,
@@ -13,7 +13,13 @@ import {
   MOOD_MAX,
   INTERACT_COOLDOWN_MS,
   branchDef,
+  SOCIAL_MIN,
+  SOCIAL_MAX,
+  SOCIAL_START,
+  COMBAT_SOCIAL_GAIN,
+  COUPS_SOCIAL_SCALE,
 } from "./data";
+import { ensureTraits } from "./traits";
 
 let uid = 0;
 export function newId(prefix = "c"): string {
@@ -50,13 +56,18 @@ export function statsForLevel(speciesId: string, level: number): Stats {
   };
 }
 
+/** T007 — Stamina de base (placeholder uniforme ; par espèce via l'éditeur de bestiaire, T004). */
+export const DEFAULT_STAMINA = 4;
+/** T007 — Rang de base (toujours 1 tant que le 2v2/budget de rang, T010, n'est pas activé). */
+export const DEFAULT_RANK = 1;
+
 /** Crée un Character jouable niveau 1, avec un caractère unique. */
 export function makeCharacter(speciesId: string, name?: string): Character {
   const sp = SPECIES[speciesId];
   const stats = cloneStats(sp.baseStats);
   const now = Date.now();
   const personality = makePersonality();
-  return {
+  const base: Character = {
     id: newId(),
     speciesId,
     name: name ?? sp.name,
@@ -71,7 +82,14 @@ export function makeCharacter(speciesId: string, name?: string): Character {
     mood: MOOD_START,
     history: [{ t: now, kind: "capture", text: `Capturé·e — caractère ${personality.archetype} ${personality.emoji}` }],
     lastInteract: {},
+    // T007 : nouveau modèle de progression (Rang/HP/Stamina) — HP reste stats.hp, atk/def/spd
+    // restent présents pour compat engine/combat.ts (legacy) mais ne pilotent plus le combat réel.
+    rank: DEFAULT_RANK,
+    stamina: DEFAULT_STAMINA,
+    traitPoints: 0,
   };
+  // T008 : niveau 1 = un seul Trait actif (attaque simple, GDD 4.3).
+  return ensureTraits(base, sp);
 }
 
 /** Stats d'un ennemi mises à l'échelle de son niveau. */
@@ -101,6 +119,8 @@ export function makeEnemy(loc: MapLocation): Character {
     stats,
     talents: [],
     healStart: null,
+    rank: DEFAULT_RANK,
+    stamina: DEFAULT_STAMINA,
   };
 }
 
@@ -124,6 +144,20 @@ export function applyStats(stats: Stats, delta: Partial<Stats>): Stats {
 // ── Humeur (mood) ────────────────────────────────────────────────────────────
 const clampMood = (m: number) => Math.max(MOOD_MIN, Math.min(MOOD_MAX, m));
 export const moodOf = (c: Character) => clampMood(c.mood ?? MOOD_START);
+
+// ── Barre sociale (T009, GDD 4.6) ───────────────────────────────────────────
+const clampSocial = (v: number) => Math.max(SOCIAL_MIN, Math.min(SOCIAL_MAX, v));
+export const socialOf = (c: Character) => clampSocial(c.social ?? SOCIAL_START);
+
+/** Libellé de la barre sociale (lien AM ↔ joueur). */
+export function socialLabel(c: Character): string {
+  const s = socialOf(c);
+  if (s >= 80) return "Complice 💞";
+  if (s >= 60) return "Attaché·e 🙂";
+  if (s >= 40) return "Neutre 😐";
+  if (s >= 20) return "Distant·e 😕";
+  return "Méfiant·e 💢";
+}
 
 /** Libellé d'humeur. */
 export function moodLabel(c: Character): string {
@@ -165,12 +199,59 @@ export function pushHistory(c: Character, kind: HistoryEntry["kind"], text: stri
 export const interactReadyIn = (c: Character, kind: InteractKind, now = Date.now()): number =>
   Math.max(0, (c.lastInteract?.[kind] ?? 0) + INTERACT_COOLDOWN_MS - now);
 
-export type InteractResult = { character: Character; text: string; good: boolean; moodDelta: number };
+export type InteractResult = { character: Character; text: string; good: boolean; moodDelta: number; socialDelta: number };
+
+/** T009 — dimensions d'affinité que l'action "observer" peut révéler (hors observer lui-même). */
+type HintDim = "caresser" | "coacher" | "jouets" | "coups";
+const HINT_TEXT: Record<HintDim, { pos: string; mildPos: string; mildNeg: string; neg: string }> = {
+  caresser: {
+    pos: "adore les câlins",
+    mildPos: "apprécie plutôt les câlins",
+    mildNeg: "n'est pas spécialement fan des caresses",
+    neg: "déteste qu'on le/la touche",
+  },
+  coacher: {
+    pos: "adore qu'on le/la pousse à l'entraînement",
+    mildPos: "apprécie plutôt l'entraînement",
+    mildNeg: "n'est pas très motivé·e à l'entraînement",
+    neg: "déteste qu'on le/la pousse à l'entraînement",
+  },
+  jouets: {
+    pos: "raffole des jouets",
+    mildPos: "aime bien recevoir des jouets",
+    mildNeg: "se désintéresse un peu des jouets",
+    neg: "ignore complètement les jouets",
+  },
+  coups: {
+    pos: "semble tirer une certaine fierté à encaisser des coups",
+    mildPos: "supporte plutôt bien les coups reçus au combat",
+    mildNeg: "n'aime pas trop encaisser des coups",
+    neg: "déteste par-dessus tout encaisser des coups",
+  },
+};
+
+/** Choisit la dimension d'affinité la plus marquée (positive ou négative) et la phrase. */
+function affinityHint(c: Character): string {
+  const aff = c.personality?.affinity;
+  const dims: HintDim[] = ["caresser", "coacher", "jouets", "coups"];
+  let best: HintDim = dims[0];
+  let bestMag = -1;
+  for (const d of dims) {
+    const m = Math.abs(aff?.[d] ?? 0);
+    if (m > bestMag) { bestMag = m; best = d; }
+  }
+  const v = aff?.[best] ?? 0;
+  const bank = HINT_TEXT[best];
+  const phrase = v >= 0.5 ? bank.pos : v >= 0.15 ? bank.mildPos : v <= -0.5 ? bank.neg : bank.mildNeg;
+  return `${c.name} ${phrase}.`;
+}
 
 /**
  * Résout une interaction. L'issue dépend de l'affinité de l'INDIVIDU pour
- * cette action + de l'aléatoire. Effets : humeur (toujours), et parfois un
- * petit gain/perte de stat permanent (coacher) ou un soin léger.
+ * cette action + de l'aléatoire. Effets : humeur (toujours), parfois un petit
+ * gain/perte de stat permanent (coacher) ou un soin léger, et la barre sociale
+ * (T009, GDD 4.6) : caresser monte toujours (+ fort si aimé), coacher monte ou
+ * baisse selon l'individu, observer ne la change pas mais révèle un indice.
  */
 export function interact(c: Character, kind: InteractKind, now = Date.now(), rand: () => number = Math.random): InteractResult {
   const aff = c.personality?.affinity[kind] ?? 0;
@@ -178,14 +259,17 @@ export function interact(c: Character, kind: InteractKind, now = Date.now(), ran
   const good = score > 0;
   const mag = Math.min(1, Math.abs(score));
   let mood = moodOf(c);
+  let social = socialOf(c);
   let stats = c.stats;
   let life = c.life;
   let text = "";
   const name = c.name;
 
   if (kind === "caresser") {
-    if (good) { const d = 8 + Math.round(mag * 10); mood += d; text = `${name} se blottit et ronronne. (+${d} humeur)`; return finalize(d); }
-    const d = -(6 + Math.round(mag * 8)); mood += d; text = `${name} se dérobe, agacé·e. (${d} humeur)`; return finalize(d);
+    const sd = good ? 3 + Math.round(mag * 5) : 1 + Math.round(mag * 1);
+    social += sd;
+    if (good) { const d = 8 + Math.round(mag * 10); mood += d; text = `${name} se blottit et ronronne. (+${d} humeur)`; return finalize(d, sd); }
+    const d = -(6 + Math.round(mag * 8)); mood += d; text = `${name} se dérobe, agacé·e. (${d} humeur)`; return finalize(d, sd);
   }
   if (kind === "coacher") {
     if (good) {
@@ -194,35 +278,76 @@ export function interact(c: Character, kind: InteractKind, now = Date.now(), ran
       const gain = 1 + Math.round(mag * 2);
       stats = applyStats(c.stats, { [stat]: gain });
       const d = 4 + Math.round(mag * 5); mood += d;
+      const sd = 2 + Math.round(mag * 4); social += sd;
       text = `Bon entraînement ! ${STAT_NAME[stat]} +${gain}. (+${d} humeur)`;
-      return finalize(d);
+      return finalize(d, sd);
     }
-    const d = -(7 + Math.round(mag * 8)); mood += d; text = `${name} se braque et boude la séance. (${d} humeur)`; return finalize(d);
+    const d = -(7 + Math.round(mag * 8)); mood += d;
+    const sd = -(2 + Math.round(mag * 4)); social += sd;
+    text = `${name} se braque et boude la séance. (${d} humeur)`; return finalize(d, sd);
   }
-  // observer
+  // observer : ne change pas la barre sociale, révèle un indice sur les préférences.
   if (good) {
     const d = 4 + Math.round(mag * 6); mood += d;
     const heal = Math.round(c.stats.hp * 0.05);
     life = Math.min(c.stats.hp, Math.round(currentLife(c, now)) + heal);
-    text = `Tu cernes mieux ${name}. (+${d} humeur, repos +${heal} PV)`;
-    return finalize(d);
+    text = `${affinityHint(c)} (+${d} humeur, repos +${heal} PV)`;
+    return finalize(d, 0);
   }
-  const d = -(3 + Math.round(mag * 5)); mood += d; text = `${name} se sent épié·e et se ferme. (${d} humeur)`;
-  return finalize(d);
+  const d = -(3 + Math.round(mag * 5)); mood += d;
+  text = `${affinityHint(c)} (${d} humeur)`;
+  return finalize(d, 0);
 
-  function finalize(moodDelta: number): InteractResult {
+  function finalize(moodDelta: number, socialDelta: number): InteractResult {
     const md = clampMood(mood) - moodOf(c);
+    const sd = clampSocial(social) - socialOf(c);
     let next: Character = {
       ...c,
       stats,
       life: Math.min(stats.hp, life),
       mood: clampMood(mood),
+      social: clampSocial(social),
       lastInteract: { ...(c.lastInteract ?? {}), [kind]: now },
       healStart: null,
     };
     next = pushHistory(next, "interact", text, now);
-    return { character: next, text, good, moodDelta: md };
+    return { character: next, text, good, moodDelta: md, socialDelta: sd };
   }
+}
+
+/**
+ * T009 — donne un jouet à l'AM (item consommable, décompté par l'appelant).
+ * "Monte" toujours la barre sociale (GDD 4.6), magnitude selon l'affinité "jouets".
+ */
+export function giveToy(c: Character, now = Date.now(), rand: () => number = Math.random): InteractResult {
+  const aff = c.personality?.affinity.jouets ?? 0;
+  const score = (rand() - 0.5) + aff * 0.6;
+  const good = score > 0;
+  const mag = Math.min(1, Math.abs(score));
+  const sd = good ? 4 + Math.round(mag * 6) : 1 + Math.round(mag * 1);
+  const social = clampSocial(socialOf(c) + sd);
+  const d = good ? 3 + Math.round(mag * 4) : 0;
+  const mood = clampMood(moodOf(c) + d);
+  const text = good
+    ? `${c.name} s'amuse à fond avec son nouveau jouet ! (+${sd} lien)`
+    : `${c.name} regarde le jouet d'un œil distrait. (+${sd} lien)`;
+  let next: Character = { ...c, mood, social, healStart: null };
+  next = pushHistory(next, "interact", text, now);
+  return { character: next, text, good, moodDelta: mood - moodOf(c), socialDelta: social - socialOf(c) };
+}
+
+/**
+ * T009 — effets combat sur la barre sociale : "combattre" (participation, flat,
+ * indépendant du résultat) + "coups encaissés" (signé selon affinité "coups" et
+ * fraction de PV perdus). Appelé après chaque combat réel (hors duels d'arène —
+ * scope volontairement limité, voir résultats de tâche).
+ */
+export function registerCombatSocial(c: Character, dmgTakenFrac: number): Character {
+  const aff = c.personality?.affinity.coups ?? 0;
+  const frac = Math.max(0, Math.min(1, dmgTakenFrac));
+  const coupsDelta = Math.round(aff * COUPS_SOCIAL_SCALE * frac);
+  const social = clampSocial(socialOf(c) + COMBAT_SOCIAL_GAIN + coupsDelta);
+  return { ...c, social };
 }
 
 const STAT_NAME: Record<StatKey, string> = { hp: "PV", atk: "ATK", def: "DEF", spd: "VIT" };
@@ -269,7 +394,9 @@ export type XpResult = {
   hpGained: number;
 };
 
-export function addXp(c: Character, amount: number): XpResult {
+export function addXp(c0: Character, amount: number): XpResult {
+  // T008 : bootstrap discret des Character antérieurs à T008 (sans Trait actif équipé).
+  const c = ensureTraits(c0, SPECIES[c0.speciesId]);
   let { level, xp } = c;
   let stats = cloneStats(c.stats);
   let life = Math.round(currentLife(c));
@@ -289,7 +416,8 @@ export function addXp(c: Character, amount: number): XpResult {
   }
   life = Math.min(stats.hp, life);
   return {
-    character: { ...c, level, xp, stats, life, healStart: null },
+    // T008 : chaque niveau gagné banque un crédit de draft de Traits (résolu via l'UI).
+    character: { ...c, level, xp, stats, life, healStart: null, traitPoints: (c.traitPoints ?? 0) + levelsGained },
     gained: amount,
     levelsGained,
     hpGained,

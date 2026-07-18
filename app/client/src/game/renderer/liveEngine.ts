@@ -9,10 +9,20 @@
 import type { Character } from "../engine/types";
 import {
   MAX_NRJ, STORE_MAX, TICK_MS, hitDmg,
-  kitFor, behaviorFor, mkFighter, newEnemyMem,
-  type LiveFighter, type LiveMove, type AmKit, type EnemyBehaviorDef, type EnemyMem,
+  behaviorFor, mkFighter, newEnemyMem,
+  type LiveFighter, type LiveMove, type EnemyBehaviorDef, type EnemyMem,
   type EnemyIntent, type LiveResult,
 } from "../engine/live";
+import { resolveCombatConfig } from "../engine/traits";
+import {
+  defOf,
+  applyAtkMultPassive,
+  applyCritPassive,
+  rollDodgePassive,
+  applyDmgTakenMultPassive,
+  lifestealAmount,
+  regenAmount,
+} from "../engine/passiveBonus";
 
 export type LiveOpts = {
   root: HTMLElement;
@@ -32,7 +42,10 @@ export function createLiveCombat(opts: LiveOpts) {
   const { root } = opts;
   const q = (name: string) => root.querySelector<HTMLElement>(`[data-el="${name}"]`)!;
   const rng = makeRngLocal(opts.seed);
-  const kit: AmKit = kitFor(opts.player.speciesId);
+  // T012 — kit/bonus passif résolus depuis les Traits équipés du joueur (fallback kit fixe
+  // de l'espèce + aucun bonus si <3 Traits actifs équipés — même règle que combatOptsFor/
+  // autoSim, T007/T008). Résolu une seule fois : les Traits n'évoluent pas en cours de combat.
+  const { kit, passiveBonus: pb, traitMode } = resolveCombatConfig(opts.player);
   const beh: EnemyBehaviorDef = behaviorFor(opts.enemy.speciesId);
   const hasBurst = kit.actions.some((m) => m.burst);
   const burstMove = kit.actions.find((m) => m.burst);
@@ -70,6 +83,10 @@ export function createLiveCombat(opts: LiveOpts) {
     counterOpen = false; counterFired = false; counterResolve = null;
     P = mkFighter(opts.player);
     E = mkFighter(opts.enemy);
+    // T012 — mode Traits : ATK du joueur neutralisée (1 = identité), la puissance du Trait
+    // porte directement les dégâts ; la mitigation par DEF (des deux côtés) est retirée via
+    // defOf() dans les fonctions de résolution ci-dessous (même formule que autoSim).
+    if (traitMode) P.atk = 1;
     mem = newEnemyMem();
     pDamageDealt = 0;
     tick = 0; phase = "ready"; queued = kit.charge.id;
@@ -202,17 +219,29 @@ export function createLiveCombat(opts: LiveOpts) {
   }
 
   // ================= RÉSOLUTION =================
+  // Dégâts d'une frappe ennemie subie par le joueur : mitigation DEF (defOf, T012 — retirée
+  // en mode Traits), puis passifs joueur : esquive totale (Insaisissable) et réduction des
+  // dégâts reçus (Peau de pierre). Calculée une fois/tick et réutilisée partout (clash inclus).
   function eStrikeDmg(): number {
-    return hitDmg(curIntent.type === "big" ? beh.bigPower : beh.smallPower, E.atk, P.def);
+    const raw = hitDmg(curIntent.type === "big" ? beh.bigPower : beh.smallPower, E.atk, defOf(P.def, traitMode));
+    if (rollDodgePassive(pb, rng.chance)) return 0;
+    return applyDmgTakenMultPassive(raw, pb);
   }
   function playerAtkDmg(mv: LiveMove): number {
     let mult = 1;
     if (mv.combo) { P.combo = Math.min(4, P.combo + 1); mult = 1 + 0.5 * (P.combo - 1); }
     else if (mv.spendCombo) { mult = 1 + 0.6 * P.combo; P.combo = 0; }
-    let dmg = Math.round(hitDmg(mv.power ?? 0.5, P.atk, E.def) * mult);
+    let dmg = Math.round(hitDmg(mv.power ?? 0.5, P.atk, defOf(E.def, traitMode)) * mult);
     if (mv.burst) { dmg += Math.min(P.stored, STORE_MAX); P.stored = 0; }
     if (curIntent.exposed) dmg = Math.round(dmg * 1.5); // frappe la charge → bonus
+    dmg = applyCritPassive(dmg, pb, rng.chance); // T012 — critique passif (Frénésie)
+    dmg = applyAtkMultPassive(dmg, pb); // T012 — Braise (+ATK passif)
     return dmg;
+  }
+  /** PV rendus au joueur par le vol de vie passif (Ponction/Sangsue), à appliquer sur un coup porté. */
+  function applyLifesteal(dmgDealt: number) {
+    const heal = lifestealAmount(dmgDealt, pb);
+    if (heal > 0) P.hp = Math.min(P.maxHp, P.hp + heal);
   }
 
   async function resolve(pId: string) {
@@ -272,6 +301,12 @@ export function createLiveCombat(opts: LiveOpts) {
     // altérations de fin de tick (poison / brûlure)
     await tickDots(E, "E");
     await tickDots(P, "P");
+
+    // T012 — régénération passive (Régénération), même formule que autoSim
+    if (P.hp > 0 && P.hp < P.maxHp) {
+      const gain = regenAmount(P.maxHp, pb);
+      if (gain > 0) P.hp = Math.min(P.maxHp, P.hp + gain);
+    }
 
     render();
     energyGainFx("P", P.nrj - pNrjB);
@@ -369,7 +404,7 @@ export function createLiveCombat(opts: LiveOpts) {
   async function animPlayerAttack(mv: LiveMove, dmg: number) {
     const big = !!mv.burst || !!mv.spendCombo;
     await attackSeq("P", contact("P"), big, () => {
-      applyDamage(E, "E", dmg, big); pDamageDealt += dmg; onPlayerHit(mv); hurt("E", big); render();
+      applyDamage(E, "E", dmg, big); pDamageDealt += dmg; applyLifesteal(dmg); onPlayerHit(mv); hurt("E", big); render();
     });
   }
   function onPlayerHit(mv: LiveMove) {
@@ -410,11 +445,13 @@ export function createLiveCombat(opts: LiveOpts) {
 
   async function animCounterBurst() {
     const mv = burstMove!;
-    const dmg = hitDmg(mv.power ?? 0.5, P.atk, E.def) + Math.min(P.stored, STORE_MAX);
+    let dmg = hitDmg(mv.power ?? 0.5, P.atk, defOf(E.def, traitMode)) + Math.min(P.stored, STORE_MAX);
+    dmg = applyCritPassive(dmg, pb, rng.chance);
+    dmg = applyAtkMultPassive(dmg, pb);
     P.stored = 0;
     const R = clashReach();
     strikePose("P", 120); moveSprite("P", R + 30, 130, EASE_HIT); await wait(130);
-    applyDamage(E, "E", dmg, true); pDamageDealt += dmg; hurt("E", true);
+    applyDamage(E, "E", dmg, true); pDamageDealt += dmg; applyLifesteal(dmg); hurt("E", true);
     flash("var(--burst)"); q("arena").classList.add("shake-big"); render();
     await wait(260); q("arena").classList.remove("shake-big");
     strikeReset("P", 220); moveSprite("P", 0, 260, EASE_SPRING); await wait(260); settle("P");
@@ -495,7 +532,7 @@ export function createLiveCombat(opts: LiveOpts) {
       moveSprite(winner, winner === "P" ? R + 70 : -(R + 70), 200, EASE_HIT);
       moveSprite(loser, loser === "P" ? -120 : 120, 320, EASE_SPRING);
       applyDamage(loser === "P" ? P : E, loser, dmg, true);
-      if (pWins) { pDamageDealt += dmg; onPlayerHit(pMv); } else { P.combo = 0; }
+      if (pWins) { pDamageDealt += dmg; applyLifesteal(dmg); onPlayerHit(pMv); } else { P.combo = 0; }
       hurt(loser, true);
       q("arena").classList.add("shake-big"); render(); await wait(380);
       q("arena").classList.remove("shake-big");
@@ -505,7 +542,10 @@ export function createLiveCombat(opts: LiveOpts) {
   }
 
   function applyDamage(f: LiveFighter, side: Side, dmg: number, big: boolean) {
-    f.hp = Math.max(0, f.hp - dmg); floater("f" + side, "-" + dmg, big ? "big" : "dmg");
+    f.hp = Math.max(0, f.hp - dmg);
+    // T012 — esquive totale passive (Insaisissable) : dmg=0 sur un coup qui aurait dû toucher.
+    if (dmg <= 0) floater("f" + side, "ESQUIVE", "absorb txt");
+    else floater("f" + side, "-" + dmg, big ? "big" : "dmg");
   }
   function addDot(f: LiveFighter, kind: "poison" | "burn", dmg: number, turns: number) { if (dmg > 0) f.dots.push({ kind, dmg, turns }); }
 

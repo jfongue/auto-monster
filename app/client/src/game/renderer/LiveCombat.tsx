@@ -5,7 +5,8 @@
 import { useEffect, useRef } from "react";
 import "./live-combat.css";
 import type { Character } from "../engine/types";
-import { kitFor, type LiveResult } from "../engine/live";
+import { type LiveResult } from "../engine/live";
+import { resolveCombatConfig } from "../engine/traits";
 import { createLiveCombat } from "./liveEngine";
 
 export default function LiveCombat({
@@ -28,7 +29,10 @@ export default function LiveCombat({
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const finishedRef = useRef(false);
-  const kit = kitFor(player.speciesId);
+  // T012 — même résolution kit que le moteur (liveEngine.ts) : reflète les Traits équipés
+  // (fallback kit fixe de l'espèce si <3 Traits actifs), pour que la classe CSS et le texte
+  // de playstyle affichés avant le combat correspondent au combat réellement joué.
+  const kit = resolveCombatConfig(player).kit;
 
   useEffect(() => {
     if (!rootRef.current) return;

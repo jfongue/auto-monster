@@ -19,6 +19,17 @@
 
 import type { Character } from "./types";
 import { makeRng, type Rng } from "./rng";
+import {
+  type PassiveBonus,
+  NO_PASSIVE_BONUS,
+  defOf,
+  applyAtkMultPassive,
+  applyCritPassive,
+  rollDodgePassive,
+  applyDmgTakenMultPassive,
+  lifestealAmount,
+  regenAmount,
+} from "./passiveBonus";
 
 // ================= CONFIG =================
 export const MAX_NRJ = 4;
@@ -262,7 +273,9 @@ export type LiveFighter = {
 };
 
 export function mkFighter(c: Character): LiveFighter {
-  const startNrj = Math.max(1, Math.min(MAX_NRJ, Math.round(c.stats.spd / 12)));
+  // T007 : stamina (Character.stamina) pilote l'énergie de départ si présente,
+  // sinon repli legacy sur la vitesse (spd/12) pour les Character sans stamina.
+  const startNrj = Math.max(1, Math.min(MAX_NRJ, Math.round(c.stamina ?? c.stats.spd / 12)));
   return {
     name: c.name,
     gfx: c.speciesId,
@@ -292,6 +305,19 @@ export type AutoResult = {
   pDamageDealt: number;
 };
 
+/** T006 — options d'override pour piloter le combat depuis des Traits équipés (traits.ts).
+ * Non fournies (undefined) = comportement legacy inchangé (kit fixe de l'espèce, aucun bonus). */
+export type AutoSimOpts = {
+  /** kit joueur pré-résolu (ex: kitFromActiveTraits) ; sinon kitFor(playerC.speciesId). */
+  kit?: AmKit;
+  /** bonus passif joueur pré-résolu (ex: passiveBonusOf) ; sinon aucun bonus. */
+  passiveBonus?: PassiveBonus;
+  /** T007 — mode Traits : dégâts flat (puissance du Trait), sans multiplicateur d'ATK ni mitigation par DEF
+   * (« le move offensif détermine les dégâts, plus de principe de défense »). false/undefined = formule
+   * legacy inchangée (power × ATK × mitigation DEF), nécessaire à kitFor(speciesId)/live.test.ts. */
+  traitMode?: boolean;
+};
+
 /** Applique les DoT en fin de tick (poison/brûlure), renvoie les dégâts subis. */
 function tickDots(f: LiveFighter): number {
   let total = 0;
@@ -314,15 +340,29 @@ function addDot(f: LiveFighter, kind: "poison" | "burn", dmg: number, turns: num
  * pleine, sinon garde/esquive si l'ennemi frappe fort ce tick, sinon attaque
  * si énergie dispo, sinon charge.
  */
-export function autoSim(playerC: Character, enemyC: Character, seed: number, maxTicks = 200): AutoResult {
+export function autoSim(playerC: Character, enemyC: Character, seed: number, maxTicks = 200, opts?: AutoSimOpts): AutoResult {
   const rng = makeRng(seed);
   const P = mkFighter(playerC);
   const E = mkFighter(enemyC);
-  const kit = kitFor(playerC.speciesId);
+  const kit = opts?.kit ?? kitFor(playerC.speciesId);
   const beh = behaviorFor(enemyC.speciesId);
   const mem = newEnemyMem();
+  const pb = opts?.passiveBonus ?? NO_PASSIVE_BONUS;
+  const traitMode = !!opts?.traitMode;
+  // T007 — mode Traits : ATK du joueur neutralisée (1 = identité), la puissance du Trait
+  // porte directement les dégâts ; la mitigation par DEF (des deux côtés) est retirée plus
+  // bas via defOf() (engine/passiveBonus.ts, partagé avec renderer/liveEngine.ts — T012).
+  if (traitMode) P.atk = 1;
   let pDamageDealt = 0;
   let tick = 0;
+
+  /** T006 — applique une frappe subie par le joueur (esquive passive + réduction Peau de pierre). */
+  function playerTakeDmg(raw: number): number {
+    if (rollDodgePassive(pb, rng.chance)) return 0;
+    const d = applyDmgTakenMultPassive(raw, pb);
+    P.hp = Math.max(0, P.hp - d);
+    return d;
+  }
 
   const atkMove = kit.actions.find((m) => m.kind === "atk")!;
   const defMove = kit.actions.find((m) => m.kind === "def");
@@ -353,13 +393,13 @@ export function autoSim(playerC: Character, enemyC: Character, seed: number, max
       P.guard = { hold: move.hold ?? 1, armedThisTick: true };
       if (eStrikes) {
         guardConsumed = true;
-        const raw = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, P.def);
+        const raw = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, defOf(P.def, traitMode));
         // parade parfaite : dégâts annulés
         if (kit.special === "guard" || kit.special === "dodge") P.stored = Math.min(STORE_MAX, P.stored + Math.round(raw * 1.5));
         if (kit.special === "poison" && move.reflect) addDot(E, "poison", Math.max(1, Math.round(move.reflect * P.atk)), 3);
         if (move.dodge && burstMove && P.nrj >= burstMove.cost) {
           // riposte immédiate (esquive parfaite Haloux)
-          const rip = hitDmg(burstMove.power ?? 0.5, P.atk, E.def) + Math.min(P.stored, STORE_MAX);
+          const rip = hitDmg(burstMove.power ?? 0.5, P.atk, defOf(E.def, traitMode)) + Math.min(P.stored, STORE_MAX);
           E.hp = Math.max(0, E.hp - rip);
           pDamageDealt += rip;
           P.stored = 0;
@@ -377,23 +417,34 @@ export function autoSim(playerC: Character, enemyC: Character, seed: number, max
         mult = 1 + 0.6 * P.combo;
         P.combo = 0;
       }
-      let dmg = Math.round(hitDmg(move.power ?? 0.5, P.atk, E.def) * mult);
+      let dmg = Math.round(hitDmg(move.power ?? 0.5, P.atk, defOf(E.def, traitMode)) * mult);
       if (move.burst) {
         dmg += Math.min(P.stored, STORE_MAX);
         P.stored = 0;
       }
+      // T006 — critique passif (Frénésie)
+      dmg = applyCritPassive(dmg, pb, rng.chance);
+      // T007 — Braise (+ATK passif) appliquée directement aux dégâts (indépendante d'ATK/DEF)
+      dmg = applyAtkMultPassive(dmg, pb);
       // clash : si l'ennemi frappe aussi, le plus fort touche (ratio ≥ 1.5), sinon annulé
       if (eStrikes) {
-        const eDmg = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, P.def);
+        const eDmg = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, defOf(P.def, traitMode));
         const ratio = Math.max(dmg, eDmg) / Math.max(1, Math.min(dmg, eDmg));
         if (ratio >= 1.5) {
-          if (dmg >= eDmg) { E.hp = Math.max(0, E.hp - dmg); pDamageDealt += dmg; }
-          else { P.hp = Math.max(0, P.hp - eDmg); P.combo = 0; }
+          if (dmg >= eDmg) {
+            E.hp = Math.max(0, E.hp - dmg);
+            pDamageDealt += dmg;
+            P.hp = Math.min(P.maxHp, P.hp + lifestealAmount(dmg, pb));
+          } else {
+            playerTakeDmg(eDmg);
+            P.combo = 0;
+          }
         }
         // sinon dégâts annulés (clash nul)
       } else {
         E.hp = Math.max(0, E.hp - dmg);
         pDamageDealt += dmg;
+        P.hp = Math.min(P.maxHp, P.hp + lifestealAmount(dmg, pb));
         if (move.burn) addDot(E, "burn", Math.max(1, Math.round(move.burn * P.atk)), 3);
         if (move.poison) addDot(E, "poison", Math.max(1, Math.round(move.poison * P.atk)), 3);
       }
@@ -403,8 +454,8 @@ export function autoSim(playerC: Character, enemyC: Character, seed: number, max
         if (P.guard && P.guard.hold > 0) {
           guardConsumed = true;
         } else {
-          const eDmg = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, P.def);
-          P.hp = Math.max(0, P.hp - eDmg);
+          const eDmg = hitDmg(eType === "big" ? beh.bigPower : beh.smallPower, E.atk, defOf(P.def, traitMode));
+          playerTakeDmg(eDmg);
           P.combo = 0;
         }
       }
@@ -430,6 +481,11 @@ export function autoSim(playerC: Character, enemyC: Character, seed: number, max
     // ── DoT de fin de tick ──
     pDamageDealt += tickDots(E);
     tickDots(P);
+
+    // ── T006 — régénération passive (Régénération) ──
+    if (P.hp > 0 && P.hp < P.maxHp) {
+      P.hp = Math.min(P.maxHp, P.hp + regenAmount(P.maxHp, pb));
+    }
 
     if (eStrikes) mem.pending = null;
     if (intent.feint) mem.pending = null;

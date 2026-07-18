@@ -58,10 +58,25 @@ export type SpeciesDef = {
   desc: string;
   /** Peut-on la rencontrer en combat PvE sauvage (Forêt) ? Éditable via l'éditeur d'espèces. */
   wildEncounterable: boolean;
+  // ── T004 : nouveau modèle AM (Rang/HP/Stamina/pool de Traits), éditable via l'éditeur de bestiaire ──
+  /** Rang de l'espèce (1-5). Absent = 1 (T007 DEFAULT_RANK). */
+  rank?: number;
+  /** HP de base niveau 1 (T007 ; ~30-50). Absent = repli sur baseStats.hp (legacy). */
+  baseHp?: number;
+  /** Stamina de base niveau 1 (T007 ; 3-4). Absent = repli sur DEFAULT_STAMINA. */
+  baseStamina?: number;
+  /** Pool de Traits piochables/améliorables par les membres de l'espèce (ids ACTIVE_TRAITS + PASSIVE_TRAITS, T006). */
+  traitPool?: string[];
+  /** Trait actif possédé dès le niveau 1 (id ACTIVE_TRAITS, T006). */
+  startTrait?: string;
 };
 
 /** Action d'interaction sociale possible avec un AM. */
 export type InteractKind = "caresser" | "coacher" | "observer";
+
+/** T009 — sources qui font varier la barre sociale : les interactions directes
+ *  (InteractKind) + jouets (objet consommable) + coups (encaissés en combat). */
+export type SocialSource = InteractKind | "jouets" | "coups";
 
 /**
  * Caractère UNIQUE d'un individu (pas de l'espèce). Généré à la capture.
@@ -71,7 +86,7 @@ export type Personality = {
   archetype: string; // ex: "Affectueux", "Sauvage"
   emoji: string;
   blurb: string; // courte description de l'individu
-  affinity: Record<InteractKind, number>; // -1..+1
+  affinity: Record<SocialSource, number>; // -1..+1
 };
 
 /** Entrée d'historique (combats menés, interactions, jalons). */
@@ -111,7 +126,24 @@ export type Character = {
   history?: HistoryEntry[];
   /** dernier usage de chaque interaction (cooldown), par type */
   lastInteract?: Partial<Record<InteractKind, number>>;
+  // ── T006 : Traits (actifs + passif), couche additive au-dessus de talents/kits ──
+  /** 3 Traits actifs équipés (id + palier 1-3). Absent = combat LIVE utilise le kit fixe de l'espèce (legacy). */
+  activeTraits?: EquippedTrait[];
+  /** Trait passif équipé (id + palier 1-3). Absent = aucun bonus passif LIVE. */
+  passiveTrait?: EquippedTrait;
+  // ── T007 : nouveau modèle de progression (Rang/HP/Stamina), remplace atk/def/spd pour le combat réel ──
+  /** Rang de l'AM (1-5). Pour l'instant : toujours 1 (2v2/budget de rang = T010). */
+  rank?: number;
+  /** Stamina de base (ressource dépensée par les Traits actifs en combat, T006/T007). */
+  stamina?: number;
+  /** T008 — crédits de draft de level-up en attente (1 par niveau gagné, décrémenté à chaque choix). */
+  traitPoints?: number;
+  /** T009 — barre sociale (lien avec le joueur), 0..100. Absent = SOCIAL_START (neutre). */
+  social?: number;
 };
+
+/** T006 — un Trait équipé par un Character : id du catalogue + palier 1-3. */
+export type EquippedTrait = { id: string; level: 1 | 2 | 3 };
 
 /** F6 — un talent = hooks enregistrés sur le Fighter. */
 export type AttackInfo = {

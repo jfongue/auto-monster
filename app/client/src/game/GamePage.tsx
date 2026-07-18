@@ -1,10 +1,10 @@
-// AutoMonster — refonte "monde à zones" + mise en scène.
-//  - Onboarding : dialogue façon Disco Elysium avec la mentor, choix du 1er AM.
+// AutoMonster — refonte "monde à zones".
+//  - Onboarding : wizard direct (choix du 1er AM, fiche, combat tutoriel, boucle).
 //  - Carte du monde CLAIRE : 3 zones, anneaux de complétion, voyage animé.
 //  - À l'arrivée : la carte fade out → vue de zone.
 //  - Zones d'exploration : combats en boucle → taux de complétion ; 75% débloque
-//    la zone suivante (menacée par un boss). Boss vaincu → zone pacifiée (PNJ).
-//  - PNJ : chat plein écran façon Disco Elysium (marchand, soin, ranch, lore).
+//    la zone suivante (menacée par un boss). Boss vaincu → zone pacifiée.
+//  - Services de zone (T011) : marchand/soin/ranch en boutons directs, sans dialogue.
 //  - Bestiaire (pokédex) des espèces rencontrées.
 
 import { useEffect, useRef, useState } from "react";
@@ -21,6 +21,7 @@ import {
   POTION_HEAL,
   FULL_HEAL_COST,
   POTION_PRICE,
+  TOY_PRICE,
   HEAL_CENTER_COST,
   RANCH_OFFERS,
   RANCH_EXTEND,
@@ -32,11 +33,7 @@ import {
   zoneById,
   encounterById,
   applySpeciesOverrides,
-  branchesOf,
-  branchDef,
-  needsBranchChoice,
   type MapLocation,
-  type Npc,
   type Zone,
 } from "./engine/data";
 import {
@@ -54,8 +51,10 @@ import {
   pushHistory,
   interact,
   interactReadyIn,
-  chooseBranch,
+  giveToy,
+  registerCombatSocial,
 } from "./engine/progression";
+import { applyDraftChoice, draftLabel, type DraftOption } from "./engine/draft";
 import { TALENTS, talentName } from "./engine/talents";
 import { HpBar, StatRow, talentTooltip, RoleTag } from "./shared";
 import { Icon, type IconName } from "./icons";
@@ -63,6 +62,8 @@ import { AmHeroInfo, AmDetails, HealControls } from "./AmDetails";
 import House from "./House";
 import DailyJournal from "./Daily";
 import Arena, { makeDuelEnemy } from "./Arena";
+import SpeciesEditor from "./SpeciesEditor";
+import LevelUpDraft from "./LevelUpDraft";
 import type { ArenaOpponent } from "../lib/api";
 import type { Character, StatKey, InteractKind } from "./engine/types";
 import {
@@ -101,13 +102,13 @@ type Modal =
   | { k: "reward"; reward: RewardData }
   | { k: "duelReward"; r: DuelRewardData }
   | { k: "capture" }
-  | { k: "chat"; npcId: string; zoneId: string }
   | { k: "amPage"; charId: string }
-  | { k: "branch"; charId: string }
+  | { k: "traitDraft"; charId: string }
   | { k: "bestiary" }
   | { k: "inventory" }
   | { k: "ranchExtend" }
-  | { k: "daily" };
+  | { k: "daily" }
+  | { k: "speciesEditor" };
 
 type Toast = { id: number; text: string };
 
@@ -274,10 +275,25 @@ export default function GamePage() {
     completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
   }
 
+  // ── T009 — Jouet (barre sociale) ────────────────────────────────────────
+  function doToy(charId: string) {
+    if (gs.toys <= 0) return;
+    const c = findChar(charId);
+    if (!c) return;
+    const res = giveToy(c);
+    const { state: bumped, completed } = bumpQuest(gs, "interact");
+    persist(withCharUpdate({ ...bumped, toys: bumped.toys - 1 }, charId, () => res.character));
+    completed.forEach((d) => pushToast(`✅ ${d.label} — +${d.gold}💰${d.potions > 0 ? ` +${d.potions}🧪` : ""} !`));
+  }
+
   // ── Marchand / soin / ranch ─────────────────────────────────────────────
   function buyPotion() {
     if (gs.gold < POTION_PRICE) return;
     persist({ ...gs, gold: gs.gold - POTION_PRICE, potions: gs.potions + 1 });
+  }
+  function buyToy() {
+    if (gs.gold < TOY_PRICE) return;
+    persist({ ...gs, gold: gs.gold - TOY_PRICE, toys: gs.toys + 1 });
   }
   function healAllTeam() {
     if (gs.gold < HEAL_CENTER_COST) return;
@@ -392,6 +408,10 @@ export default function GamePage() {
     };
 
     setF({ ...getF(), life: Math.max(0, pStat.lifeLeft), healStart: null });
+    // T009 — barre sociale : "combattre" (participation, flat) + "coups encaissés"
+    // (signé selon affinité, proportionnel aux PV perdus). Tout combat réel, gagné ou non.
+    const dmgTakenFrac = pStat.damageTaken / Math.max(1, startLife);
+    setF(registerCombatSocial(getF(), dmgTakenFrac));
 
     const bossLife = { ...gs.bossLife };
     if (loc.isBoss) bossLife[loc.id] = Math.max(0, eStat.lifeLeft);
@@ -454,26 +474,34 @@ export default function GamePage() {
     setModal({ k: "reward", reward: { outcome: won ? "win" : outcome === "lose" ? "lose" : "draw", loc, pStat, firstClear, levelsGained } });
   }
 
+  /** Prochaine étape après reward/draft : capture rare > draft de Traits en attente > ranch > rien. */
+  function advanceAfterReward(gsNow: GameState, afterWonBoss?: boolean) {
+    const pendingDraft = gsNow.team.find((c) => (c.traitPoints ?? 0) > 0);
+    if (afterWonBoss && !gsNow.capturedRare) setModal({ k: "capture" });
+    else if (pendingDraft) setModal({ k: "traitDraft", charId: pendingDraft.id });
+    else if (gsNow.rental && gsNow.rental.fightsLeft <= 0) setModal({ k: "ranchExtend" });
+    else setModal({ k: "none" });
+  }
+
   function closeReward() {
     if (modal.k !== "reward") return;
     const r = modal.reward;
     const wonBoss = r.loc.isBoss && r.outcome === "win" && r.firstClear;
-    const pendingBranch = gs.team.find(needsBranchChoice);
-    if (wonBoss && !gs.capturedRare) setModal({ k: "capture" });
-    else if (pendingBranch) setModal({ k: "branch", charId: pendingBranch.id });
-    else if (gs.rental && gs.rental.fightsLeft <= 0) setModal({ k: "ranchExtend" });
-    else setModal({ k: "none" });
+    advanceAfterReward(gs, wonBoss);
   }
 
-  /** Applique le choix de branche d'un AM (au palier ou depuis sa fiche). */
-  function pickBranch(charId: string, branchId: string) {
-    const team = gs.team.map((c) => (c.id === charId ? chooseBranch(c, branchId) : c));
+  /** Applique un choix du draft de Traits (T008) — rouvre le draft si le Character a encore des niveaux en attente. */
+  function pickDraftOption(charId: string, choice: DraftOption) {
+    const c = gs.team.find((x) => x.id === charId);
+    if (!c) return;
+    const updated = applyDraftChoice(c, choice);
+    const team = gs.team.map((x) => (x.id === charId ? updated : x));
     const next: GameState = { ...gs, team };
     persist(next);
-    const c = team.find((x) => x.id === charId);
-    const b = c ? branchDef(c.speciesId, branchId) : undefined;
-    if (b) pushToast(`${b.icon} ${c!.name} se spécialise : ${b.name} !`);
-    setModal({ k: "none" });
+    const label = draftLabel(choice);
+    pushToast(`${label.icon} ${updated.name} — ${label.name} (${label.desc})`);
+    if ((updated.traitPoints ?? 0) > 0) setModal({ k: "traitDraft", charId });
+    else advanceAfterReward(next);
   }
 
   function captureRare() {
@@ -509,7 +537,6 @@ export default function GamePage() {
     );
   }
 
-  const openChat = (npc: Npc, zoneId: string) => setModal({ k: "chat", npcId: npc.id, zoneId });
   const allPacified = isZonePacified(gs, "cimes");
 
   return (
@@ -520,6 +547,7 @@ export default function GamePage() {
           <span className="mini-purse">
             <span className="purse-item"><Icon name="gold" size={15} /> {gs.gold}</span>
             <span className="purse-item"><Icon name="potion" size={15} /> {gs.potions}</span>
+            <span className="purse-item">🧸 {gs.toys}</span>
           </span>
           <button
             className={`journal-btn ${hasDailyClaimable(gs) ? "attention" : ""}`}
@@ -540,6 +568,7 @@ export default function GamePage() {
           team={gs.team}
           gold={gs.gold}
           potions={gs.potions}
+          toys={gs.toys}
           onGoForest={() => setRoute({ v: "forest" })}
           onGoShop={goShop}
           onGoArena={goArena}
@@ -547,7 +576,7 @@ export default function GamePage() {
           onPotion={healPotion}
           onFull={healFullPaid}
           onInteract={doInteract}
-          onChooseBranch={(id) => setModal({ k: "branch", charId: id })}
+          onToy={doToy}
           onRename={renameChar}
         />
       )}
@@ -583,14 +612,17 @@ export default function GamePage() {
               onToggleHeal={toggleHeal}
               onPotion={healPotion}
               onFull={healFullPaid}
-              onOpenChat={openChat}
+              onBuy={buyPotion}
+              onHealAll={healAllTeam}
+              onRent={rent}
+              onReturn={returnRental}
             />
           )}
         </div>
       )}
 
       {route.v === "shop" && (
-        <BoutiqueScreen gold={gs.gold} potions={gs.potions} onBuy={buyPotion} onBack={goHouse} />
+        <BoutiqueScreen gold={gs.gold} potions={gs.potions} toys={gs.toys} onBuy={buyPotion} onBuyToy={buyToy} onBack={goHouse} />
       )}
 
       {menuOpen && (
@@ -601,6 +633,7 @@ export default function GamePage() {
             <div className="hmenu-purse chip-ico"><Icon name="gold" size={14} /> {gs.gold} <span className="dot">·</span> <Icon name="potion" size={14} /> {gs.potions}</div>
             <button className="hmenu-item chip-ico" onClick={() => { setModal({ k: "bestiary" }); setMenuOpen(false); }}><Icon name="bestiary" size={18} /> Bestiaire</button>
             <button className="hmenu-item chip-ico" onClick={() => { setModal({ k: "inventory" }); setMenuOpen(false); }}><Icon name="team" size={18} /> Équipe</button>
+            <button className="hmenu-item chip-ico" onClick={() => { setModal({ k: "speciesEditor" }); setMenuOpen(false); }}><Icon name="edit" size={18} /> Éditeur de bestiaire</button>
             <button
               className="hmenu-item danger chip-ico"
               onClick={() => {
@@ -617,25 +650,13 @@ export default function GamePage() {
         </div>
       )}
 
-      {modal.k === "chat" && (() => {
-        const zone = zoneById(modal.zoneId);
-        const pool = zoneMood(gs, zone.id) === "peaceful" ? zone.npcs : (zone.wildNpcs ?? zone.npcs);
-        const npc = pool.find((n) => n.id === modal.npcId) ?? pool[0];
-        if (!npc) return null;
-        return (
-          <NpcChat
-            npc={npc} gs={gs}
-            onClose={() => setModal({ k: "none" })}
-            onBuy={buyPotion} onHealAll={healAllTeam} onRent={rent} onReturn={returnRental}
-          />
-        );
-      })()}
-
       {modal.k === "inventory" && (
         <InventoryModal gs={gs} onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid} onSheet={(id) => setModal({ k: "amPage", charId: id })} onClose={() => setModal({ k: "none" })} />
       )}
 
       {modal.k === "bestiary" && <BestiaryModal gs={gs} onClose={() => setModal({ k: "none" })} />}
+
+      {modal.k === "speciesEditor" && <SpeciesEditor onClose={() => setModal({ k: "none" })} />}
 
       {modal.k === "amPage" && (() => {
         const c = findChar(modal.charId);
@@ -643,41 +664,42 @@ export default function GamePage() {
         const isRent = gs.rental?.char.id === c.id;
         return (
           <AmPage
-            c={c} gold={gs.gold} potions={gs.potions}
+            c={c} gold={gs.gold} potions={gs.potions} toys={gs.toys}
             rentedFights={isRent ? gs.rental!.fightsLeft : undefined}
             onToggleHeal={toggleHeal} onPotion={healPotion} onFull={healFullPaid}
-            onInteract={doInteract} onClose={() => setModal({ k: "none" })}
-            onChooseBranch={() => setModal({ k: "branch", charId: c.id })}
+            onInteract={doInteract} onToy={doToy} onClose={() => setModal({ k: "none" })}
             onRename={renameChar}
           />
         );
       })()}
 
-      {modal.k === "branch" && (() => {
+      {modal.k === "traitDraft" && (() => {
         const c = findChar(modal.charId);
         if (!c) return null;
-        return <BranchModal c={c} onPick={(bid) => pickBranch(c.id, bid)} />;
+        return <LevelUpDraft c={c} onPick={(choice) => pickDraftOption(c.id, choice)} />;
       })()}
 
       {modal.k === "combat" && (
-        <div className="overlay">
-          <div className="combat-wrap">
-            <div className="combat-head">
-              <span>{modal.ctx.loc.name}</span>
-              <div className="speedctl">
-                {[1, 2, 4].map((sp) => (
-                  <button key={sp} className={speed === sp ? "on" : ""} onClick={() => setSpeed(sp)}>×{sp}</button>
-                ))}
-                <button
-                  className="ghost sm combat-flee chip-ico"
-                  aria-label="Abandonner le combat"
-                  title="Abandonner (aucun gain ni perte)"
-                  onClick={() => { if (window.confirm("Abandonner ce combat ? Aucun gain ni perte.")) setModal({ k: "none" }); }}
-                >
-                  <Icon name="flee" size={15} /> Abandonner
-                </button>
-              </div>
+        // T005 : page plein écran dédiée (plus un modal centré) — 100dvh, sans scroll,
+        // header compact + zone de combat qui se partage le reste de la hauteur.
+        <div className="combat-fullscreen">
+          <div className="combat-head">
+            <span>{modal.ctx.loc.name}</span>
+            <div className="speedctl">
+              {[1, 2, 4].map((sp) => (
+                <button key={sp} className={speed === sp ? "on" : ""} onClick={() => setSpeed(sp)}>×{sp}</button>
+              ))}
+              <button
+                className="ghost sm combat-flee chip-ico"
+                aria-label="Abandonner le combat"
+                title="Abandonner (aucun gain ni perte)"
+                onClick={() => { if (window.confirm("Abandonner ce combat ? Aucun gain ni perte.")) setModal({ k: "none" }); }}
+              >
+                <Icon name="flee" size={15} /> Abandonner
+              </button>
             </div>
+          </div>
+          <div className="combat-fs-body">
             <LiveCombat
               player={modal.ctx.player}
               enemy={modal.ctx.enemy}
@@ -736,7 +758,7 @@ function withCharUpdate(s: GameState, charId: string, fn: (c: Character) => Char
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ONBOARDING — dialogue Disco Elysium + choix du starter
+// ONBOARDING — wizard direct (pas de dialogue scripté, T011) + choix du starter
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Ennemi débilité du combat guidé : victoire garantie, combat court et lisible.
@@ -952,11 +974,11 @@ function WorldMap({ gs, onEnter }: { gs: GameState; onEnter: (id: string) => voi
 // VUE DE ZONE
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull, onOpenChat }: {
+function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull, onBuy, onHealAll, onRent, onReturn }: {
   gs: GameState; zone: Zone; onBack: () => void;
   onFight: (loc: MapLocation, charId: string) => void;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onOpenChat: (npc: Npc, zoneId: string) => void;
+  onBuy: () => void; onHealAll: () => void; onRent: (i: number) => void; onReturn: () => void;
 }) {
   const mood = zoneMood(gs, zone.id);
   const comp = zoneCompletion(gs, zone.id);
@@ -999,19 +1021,66 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
         )}
 
         <div className="card">
-          <div className="card-title chip-ico"><Icon name="chat" size={16} /> Personnages</div>
-          {npcs.length === 0 && <p className="muted small">Personne à qui parler pour l'instant.</p>}
-          <div className="npc-strip">
-            {npcs.map((n) => (
-              <button key={n.id} className="npc-chip" style={{ ["--nt" as any]: n.tint + "22" }} onClick={() => onOpenChat(n, zone.id)}>
-                <span className="npc-av">{n.emoji}</span>
-                <span className="npc-meta">
-                  <div className="npc-nm">{n.name}</div>
-                  <div className="npc-role">{n.title}</div>
-                </span>
-              </button>
-            ))}
-          </div>
+          <div className="card-title chip-ico"><Icon name="shop" size={16} /> Services</div>
+          {npcs.length === 0 && <p className="muted small">Aucun service ici pour l'instant.</p>}
+          {npcs.map((n) => (
+            <div key={n.id} className="zone-service">
+              <div className="zone-service-head chip-ico" style={{ ["--nt" as any]: n.tint + "22" }}>
+                <span className="npc-av">{n.emoji}</span> {n.name}
+              </div>
+
+              {n.role === "merchant" && (
+                <div className="de-actions">
+                  <button className="de-action" disabled={gs.gold < POTION_PRICE} onClick={onBuy}>
+                    <span className="chip-ico"><Icon name="potion" size={16} /> Acheter une potion <span className="muted small">(+50% PV)</span></span>
+                    <span className="de-a-price chip-ico">{POTION_PRICE} <Icon name="gold" size={14} /></span>
+                  </button>
+                  <p className="muted small chip-ico"><Icon name="potion" size={13} /> {gs.potions} <span className="dot">·</span> <Icon name="gold" size={13} /> {gs.gold}</p>
+                </div>
+              )}
+
+              {n.role === "healer" && (
+                <div className="de-actions">
+                  <div className="team-heal-grid">
+                    {gs.team.map((c) => (
+                      <div key={c.id} className="thg-row"><span className="team-name">{c.name}</span><HpBar c={c} /></div>
+                    ))}
+                  </div>
+                  <button className="de-action" disabled={gs.gold < HEAL_CENTER_COST || !gs.team.some((c) => currentLife(c) < c.stats.hp)} onClick={onHealAll}>
+                    <span className="chip-ico"><Icon name="heal" size={16} /> Soigner toute l'équipe</span>
+                    <span className="de-a-price chip-ico">{HEAL_CENTER_COST} <Icon name="gold" size={14} /></span>
+                  </button>
+                </div>
+              )}
+
+              {n.role === "ranch" && (
+                <div className="de-actions">
+                  {gs.rental ? (
+                    <>
+                      <div className="pick-row">
+                        <img className="mini" src={`/sprites/${SPECIES[gs.rental.char.speciesId].gfx}.png`} alt="" />
+                        <div className="pick-meta">
+                          <div className="team-name">{gs.rental.char.name} <span className="rent-tag">loué · {gs.rental.fightsLeft}c</span></div>
+                          <HpBar c={gs.rental.char} />
+                        </div>
+                      </div>
+                      <button className="de-action" onClick={onReturn}><span className="chip-ico"><Icon name="return" size={16} /> Rendre le monstre</span></button>
+                    </>
+                  ) : (
+                    RANCH_OFFERS.map((o, i) => {
+                      const sp = SPECIES[o.speciesId];
+                      return (
+                        <button key={o.speciesId} className="de-action" disabled={gs.gold < o.price} onClick={() => onRent(i)}>
+                          <span>{sp.name} <span className="muted small">N.{o.level} · {o.fights} combats</span></span>
+                          <span className="de-a-price chip-ico">{o.price} <Icon name="gold" size={14} /></span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -1023,8 +1092,8 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
 // même logique d'achat que le marchand PNJ (F2 : combats/boutique/etc réutilisés).
 // ═══════════════════════════════════════════════════════════════════════════
 
-function BoutiqueScreen({ gold, potions, onBuy, onBack }: {
-  gold: number; potions: number; onBuy: () => void; onBack: () => void;
+function BoutiqueScreen({ gold, potions, toys, onBuy, onBuyToy, onBack }: {
+  gold: number; potions: number; toys: number; onBuy: () => void; onBuyToy: () => void; onBack: () => void;
 }) {
   return (
     <div className="screen boutique-screen view">
@@ -1036,6 +1105,15 @@ function BoutiqueScreen({ gold, potions, onBuy, onBack }: {
         <p className="muted small chip-ico" style={{ justifyContent: "center" }}><Icon name="potion" size={13} /> {potions} <span className="dot">·</span> <Icon name="gold" size={13} /> {gold}</p>
         <button className="primary big chip-ico" disabled={gold < POTION_PRICE} onClick={onBuy} style={{ width: "100%", justifyContent: "center" }}>
           Acheter — {POTION_PRICE} <Icon name="gold" size={15} />
+        </button>
+      </div>
+      <div className="card boutique-card">
+        <div className="card-title chip-ico" style={{ justifyContent: "center" }}>🧸 Jouet</div>
+        <div className="boutique-icon" style={{ fontSize: 40 }}>🧸</div>
+        <p className="muted small">Cadeau — renforce toujours le lien (barre sociale)</p>
+        <p className="muted small chip-ico" style={{ justifyContent: "center" }}>🧸 {toys} <span className="dot">·</span> <Icon name="gold" size={13} /> {gold}</p>
+        <button className="primary big chip-ico" disabled={gold < TOY_PRICE} onClick={onBuyToy} style={{ width: "100%", justifyContent: "center" }}>
+          Acheter — {TOY_PRICE} <Icon name="gold" size={15} />
         </button>
       </div>
     </div>
@@ -1123,80 +1201,6 @@ function ZoneCombat({ gs, zone, onFight, onToggleHeal, onPotion, onFull }: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CHAT PNJ (Disco Elysium)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function NpcChat({ npc, gs, onClose, onBuy, onHealAll, onRent, onReturn }: {
-  npc: Npc; gs: GameState; onClose: () => void;
-  onBuy: () => void; onHealAll: () => void; onRent: (i: number) => void; onReturn: () => void;
-}) {
-  return (
-    <div className="de-overlay" onClick={onClose}>
-      <div className="de-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="de-side" style={{ ["--pt" as any]: npc.tint + "44" }}>
-          <button className="ghost sm de-close" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>
-          <div className="de-emoji">{npc.emoji}</div>
-          <div className="de-name">{npc.name}</div>
-          <div className="de-title">{npc.title}</div>
-        </div>
-        <div className="de-main">
-          {npc.role === "merchant" && (
-            <div className="de-actions">
-              <button className="de-action" disabled={gs.gold < POTION_PRICE} onClick={onBuy}>
-                <span className="chip-ico"><Icon name="potion" size={16} /> Acheter une potion <span className="muted small">(+50% PV)</span></span>
-                <span className="de-a-price chip-ico">{POTION_PRICE} <Icon name="gold" size={14} /></span>
-              </button>
-              <p className="muted small chip-ico"><Icon name="potion" size={13} /> {gs.potions} <span className="dot">·</span> <Icon name="gold" size={13} /> {gs.gold}</p>
-            </div>
-          )}
-
-          {npc.role === "healer" && (
-            <div className="de-actions">
-              <div className="team-heal-grid">
-                {gs.team.map((c) => (
-                  <div key={c.id} className="thg-row"><span className="team-name">{c.name}</span><HpBar c={c} /></div>
-                ))}
-              </div>
-              <button className="de-action" disabled={gs.gold < HEAL_CENTER_COST || !gs.team.some((c) => currentLife(c) < c.stats.hp)} onClick={onHealAll}>
-                <span className="chip-ico"><Icon name="heal" size={16} /> Soigner toute l'équipe</span>
-                <span className="de-a-price chip-ico">{HEAL_CENTER_COST} <Icon name="gold" size={14} /></span>
-              </button>
-            </div>
-          )}
-
-          {npc.role === "ranch" && (
-            <div className="de-actions">
-              {gs.rental ? (
-                <>
-                  <div className="pick-row">
-                    <img className="mini" src={`/sprites/${SPECIES[gs.rental.char.speciesId].gfx}.png`} alt="" />
-                    <div className="pick-meta">
-                      <div className="team-name">{gs.rental.char.name} <span className="rent-tag">loué · {gs.rental.fightsLeft}c</span></div>
-                      <HpBar c={gs.rental.char} />
-                    </div>
-                  </div>
-                  <button className="de-action" onClick={onReturn}><span className="chip-ico"><Icon name="return" size={16} /> Rendre le monstre</span></button>
-                </>
-              ) : (
-                RANCH_OFFERS.map((o, i) => {
-                  const sp = SPECIES[o.speciesId];
-                  return (
-                    <button key={o.speciesId} className="de-action" disabled={gs.gold < o.price} onClick={() => onRent(i)}>
-                      <span>{sp.name} <span className="muted small">N.{o.level} · {o.fights} combats</span></span>
-                      <span className="de-a-price chip-ico">{o.price} <Icon name="gold" size={14} /></span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // BESTIAIRE (pokédex)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1230,37 +1234,6 @@ function BestiaryModal({ gs, onClose }: { gs: GameState; onClose: () => void }) 
 // ═══════════════════════════════════════════════════════════════════════════
 // Composants partagés (réutilisés)
 // ═══════════════════════════════════════════════════════════════════════════
-
-/** Modal de choix de branche : présente les 2 voies et leurs talents. */
-function BranchModal({ c, onPick }: { c: Character; onPick: (branchId: string) => void }) {
-  const branches = branchesOf(c.speciesId);
-  return (
-    <div className="overlay">
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h3>⚡ {c.name} se spécialise</h3>
-        <p className="muted">Choisis sa voie — <b>irréversible</b>. Chaque voie débloque ses talents en montant de niveau.</p>
-        <div className="branch-choices">
-          {branches.map((b) => (
-            <button key={b.id} className="branch-choice" onClick={() => onPick(b.id)}>
-              <div className="branch-head"><span className="branch-ico">{b.icon}</span> <b>{b.name}</b></div>
-              <p className="branch-desc">{b.desc}</p>
-              <div className="branch-tiers">
-                {b.tiers.map((t) => {
-                  const td = TALENTS[t.talent];
-                  return (
-                    <span key={t.talent} className="branch-tier" title={talentTooltip(t.talent)}>
-                      N.{t.level} · {td?.icon} {td?.name}
-                    </span>
-                  );
-                })}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function TeamMini({ c, rented, onSheet, onToggleHeal }: { c: Character; rented?: number; onSheet: () => void; onToggleHeal: () => void }) {
   const sp = SPECIES[c.speciesId];
@@ -1327,10 +1300,10 @@ function InventoryModal({ gs, onToggleHeal, onPotion, onFull, onSheet, onClose }
   );
 }
 
-function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onClose, onChooseBranch, onRename }: {
-  c: Character; gold: number; potions: number; rentedFights?: number;
+function AmPage({ c, gold, potions, toys, rentedFights, onToggleHeal, onPotion, onFull, onInteract, onToy, onClose, onRename }: {
+  c: Character; gold: number; potions: number; toys: number; rentedFights?: number;
   onToggleHeal: (id: string) => void; onPotion: (id: string) => void; onFull: (id: string) => void;
-  onInteract: (id: string, k: InteractKind) => void; onClose: () => void; onChooseBranch: () => void;
+  onInteract: (id: string, k: InteractKind) => void; onToy: (id: string) => void; onClose: () => void;
   onRename: (id: string, name: string) => void;
 }) {
   const sp = SPECIES[c.speciesId];
@@ -1351,9 +1324,9 @@ function AmPage({ c, gold, potions, rentedFights, onToggleHeal, onPotion, onFull
         </section>
 
         <AmDetails
-          c={c} gold={gold} potions={potions}
+          c={c} gold={gold} potions={potions} toys={toys}
           onToggleHeal={onToggleHeal} onPotion={onPotion} onFull={onFull}
-          onInteract={onInteract} onChooseBranch={onChooseBranch}
+          onInteract={onInteract} onToy={onToy}
         />
       </div>
     </div>

@@ -53,7 +53,7 @@ html:has(.game-shell), body:has(.game-shell) {
 }
 
 h1, h2, h3, .brand, .am-page-title, .block-title, .loc-panel-name,
-.zone-name, .world-title, .de-name, .bestiary-title, .onboard-title {
+.zone-name, .world-title, .bestiary-title, .onboard-title {
   font-family: "Space Grotesk", "Inter", sans-serif;
   letter-spacing: -0.01em;
 }
@@ -323,40 +323,12 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: clamp(14px, 2.4vw, 20px); }
 .card-title { font-family: "Space Grotesk"; font-weight: 700; font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 
-.npc-strip { display: flex; flex-direction: column; gap: 10px; }
-.npc-chip {
-  display: flex; align-items: center; gap: 12px; text-align: left;
-  padding: 12px 14px; border-radius: 14px; background: var(--surface-2);
-  border: 1px solid var(--line); font-weight: 600; width: 100%;
-}
-.npc-chip:hover:not(:disabled) { border-color: var(--acc); background: #fff; }
-.npc-chip .npc-av { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: var(--nt, #eef0ff); flex: none; }
-.npc-chip .npc-meta { min-width: 0; }
-.npc-chip .npc-nm { font-weight: 700; }
-.npc-chip .npc-role { font-size: 12px; color: var(--dim); font-weight: 500; }
-
-/* ══ CHAT DISCO ELYSIUM (plein écran PNJ) ═════════════════════════════════ */
-.de-overlay {
-  position: fixed; inset: 0; z-index: 60;
-  background: rgba(20, 24, 46, 0.32); backdrop-filter: blur(6px);
-  display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.25s ease;
-}
-@media (min-width: 760px) { .de-overlay { align-items: center; padding: 16px; } }
-.de-panel {
-  width: min(880px, 100%); background: var(--surface); border-radius: 24px 24px 0 0;
-  box-shadow: var(--shadow-lg); overflow: hidden; display: grid; grid-template-columns: 220px 1fr;
-  max-height: 92vh; animation: riseIn 0.4s cubic-bezier(.22,.9,.3,1) both;
-}
-@media (min-width: 760px) { .de-panel { border-radius: 24px; } }
-@media (max-width: 560px) { .de-panel { grid-template-columns: 1fr; } }
-.de-panel .de-side { background: linear-gradient(180deg, var(--pt, #e6ebff), #fff); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 20px; position: relative; }
-@media (max-width: 560px) { .de-panel .de-side { padding: 14px; } }
-.de-panel .de-side .de-emoji { font-size: clamp(80px, 18vw, 130px); filter: drop-shadow(0 14px 18px rgba(0,0,0,0.18)); animation: bob 5s ease-in-out infinite; }
-.de-panel .de-side .de-name { font-family: "Space Grotesk"; font-weight: 700; font-size: 18px; margin-top: 8px; }
-.de-panel .de-side .de-title { font-size: 12px; color: var(--dim); }
-.de-panel .de-main { padding: 22px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
-.de-panel .de-close { position: absolute; top: 12px; right: 12px; z-index: 2; }
-.de-actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+/* ══ SERVICES DE ZONE (T011 : boutons directs, plus de dialogue/chat PNJ) ══ */
+.zone-service { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.zone-service:first-of-type { padding-top: 0; border-top: none; }
+.zone-service-head { font-weight: 700; }
+.zone-service-head .npc-av { width: 32px; height: 32px; border-radius: 10px; display: inline-grid; place-items: center; font-size: 17px; background: var(--nt, #eef0ff); }
+.de-actions { display: flex; flex-direction: column; gap: 10px; }
 .de-action { text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 16px; border-radius: 13px; border: 1px solid var(--line-strong); font-weight: 600; }
 .de-action:hover:not(:disabled) { border-color: var(--acc); }
 .de-action .de-a-price { font-weight: 700; color: var(--acc); }
@@ -477,9 +449,25 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .ranch-offer { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
 .ranch-meta { flex: 1; min-width: 0; }
 
-/* ══ COMBAT — grande salle façon Home, les deux camps se font face ══════════ */
-.combat-wrap { max-width: 1200px; margin: 0 auto; width: 100%; padding: 16px; animation: viewIn 0.4s cubic-bezier(.22,.9,.3,1) both; }
-.combat-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 700; flex-wrap: wrap; }
+/* ══ COMBAT — page plein écran dédiée (T005, plus un modal centré) ══════════
+   100dvh (repli 100vh), sans scroll : header compact en hauteur fixe, le
+   corps (.combat-fs-body → LiveCombat) se partage tout le reste via flex et
+   masque son propre overflow (l'arène/les actions s'y adaptent, cf live-combat.css). */
+.combat-fullscreen {
+  /* fond sombre en dur (thème local de .live-combat, cf live-combat.css) — pas le
+     token --bg global du jeu (clair), pour éviter un flash clair autour de l'arène. */
+  position: fixed; inset: 0; z-index: 55; background: #0d0f14;
+  display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh; overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  animation: fadeIn 0.22s ease;
+}
+.combat-fs-body { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+.combat-fs-body .live-combat { flex: 1 1 auto; min-height: 0; width: 100%; }
+.combat-head {
+  flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px clamp(10px, 3vw, 16px); font-weight: 700; flex-wrap: wrap;
+}
 .combat-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speedctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .speedctl button { padding: 6px 12px; font-size: 12px; }
@@ -596,6 +584,9 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .am-hero-info { display: flex; flex-direction: column; gap: 6px; }
 .am-trait { font-size: 14px; }
 .am-mood { font-size: 14px; }
+/* T009 — barre sociale (lien AM ↔ joueur) */
+.socialbar { height: 6px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin: 4px 0 2px; border: 1px solid var(--line); }
+.socialbar-fill { height: 100%; background: linear-gradient(90deg, #e86bd6, #7c6bff); transition: width 0.3s; }
 .am-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 @media (max-width: 760px) { .am-cols { grid-template-columns: 1fr; } }
 .am-col { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; box-shadow: var(--shadow-sm); }
@@ -716,6 +707,28 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .house-emote { position: absolute; top: -6%; left: 50%; transform: translateX(-50%); font-size: 26px; pointer-events: none; z-index: 4; animation: emoteFloat 0.95s ease forwards; }
 @keyframes emoteFloat { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5); } 25% { opacity: 1; transform: translate(-50%, -8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -34px) scale(1); } }
 
+/* ── T003 : mini-menu d'interaction à icônes (clic-action / drag&drop) ───── */
+.house-critter.droppable { cursor: copy; filter: drop-shadow(0 0 0 transparent); }
+.house-critter.droppable .hc-body { animation: houseBreath 1s ease-in-out infinite; }
+.house-quickmenu { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; padding: 0 clamp(10px,3.5vw,16px); box-sizing: border-box; }
+.house-quickmenu-toggle { font-size: 12px; padding: 6px 12px; }
+.house-quickmenu-panel {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  max-height: 0; opacity: 0; overflow: hidden; margin-top: 0;
+  transition: max-height 0.32s ease, opacity 0.28s ease, margin 0.28s ease;
+}
+.house-quickmenu-panel.on { max-height: 220px; opacity: 1; margin-top: 10px; }
+.quickmenu-item {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 10px; min-width: 64px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 11px; cursor: grab;
+}
+.quickmenu-item:disabled { opacity: 0.45; cursor: not-allowed; }
+.quickmenu-item.armed { border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 2px var(--acc-soft); }
+.quickmenu-ico { font-size: 20px; }
+.quickmenu-label { font-weight: 600; }
+.quickmenu-hint { width: 100%; text-align: center; margin: 6px 0 0; }
+
 .house-below { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 0 clamp(10px,3.5vw,16px); box-sizing: border-box; }
 /* Carte d'identité cliquable (nom + niveau + PV) → ouvre la fiche. */
 .house-id {
@@ -791,16 +804,17 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .boutique-card { text-align: center; }
 .boutique-icon { color: var(--green); margin: 12px 0; display: grid; place-items: center; }
 
-/* ══ ÉDITEUR D'ESPÈCES ════════════════════════════════════════════════════ */
+/* ══ ÉDITEUR DE BESTIAIRE (T004 — Rang/HP/Stamina/Traits) ═══════════════════ */
 .editor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .editor-search { flex: 1; min-width: 180px; padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid var(--line-strong); font: inherit; }
 .editor-filters { display: flex; gap: 6px; }
 .editor-filters button { padding: 6px 12px; font-size: 12px; }
 .editor-filters button.on { background: linear-gradient(135deg, var(--acc), var(--acc-2)); color: #fff; border-color: transparent; }
 .editor-table { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
+.editor-row-group { display: flex; flex-direction: column; gap: 0; }
 .editor-row {
   display: grid;
-  grid-template-columns: 40px 1.4fr repeat(5, 56px) 96px 110px 44px;
+  grid-template-columns: 40px 1.4fr 56px 56px 64px 96px 110px 36px 64px;
   align-items: center; gap: 6px; padding: 6px 8px; border-radius: 10px;
 }
 .editor-row.editor-head { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -812,6 +826,19 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .editor-stat { width: 56px; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; text-align: center; }
 .editor-rarity { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
 .editor-kind { padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line-strong); font: inherit; }
+.editor-traits-toggle { font-size: 11px; padding: 4px 8px; }
+.editor-traits-panel {
+  display: grid; grid-template-columns: 1fr 1fr 180px; gap: 14px;
+  padding: 10px 12px 14px; margin: 0 2px 6px; border-radius: 0 0 10px 10px;
+  background: var(--surface-2); border: 1px solid var(--line); border-top: none;
+}
+.editor-traits-label { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+.editor-traits-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.editor-traits-chips .talent-mini { cursor: pointer; opacity: 0.45; border: 1px solid transparent; background: var(--surface); }
+.editor-traits-chips .talent-mini.on { opacity: 1; border-color: var(--acc); background: var(--acc-soft); }
+@media (max-width: 680px) {
+  .editor-traits-panel { grid-template-columns: 1fr; }
+}
 
 /* ══ HEADER — porte-monnaie + journal du jour ═════════════════════════════ */
 .mini-right { display: flex; align-items: center; gap: 8px; }
@@ -938,7 +965,7 @@ button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
 
 /* ── Combat : salle un peu plus compacte sur petits écrans ─────────────── */
 @media (max-width: 560px) {
-  .combat-wrap { padding: 10px; }
+  .combat-head { padding: 6px 10px; }
   .combat-room { min-height: clamp(240px, 60vw, 340px); border-radius: 18px; }
   .arena-caption { font-size: 12px; padding: 6px 12px; }
 }

@@ -7,11 +7,16 @@
 // House de base en douceur.
 
 import { useEffect, useState } from "react";
-import { SPECIES } from "./engine/data";
+import type { DragEvent } from "react";
+import { SPECIES, INTERACT_LABELS, TOY_LABEL } from "./engine/data";
+import { interactReadyIn, isFull } from "./engine/progression";
 import { HpBar } from "./shared";
 import { Icon } from "./icons";
 import { AmHeroInfo, AmDetails } from "./AmDetails";
 import type { Character, InteractKind } from "./engine/types";
+
+/** T003 — une action piochable dans le mini-menu : une interaction, une potion, ou (T009) un jouet. */
+type QuickAction = InteractKind | "potion" | "jouet";
 
 // Bornes de déplacement dans la pièce. L'AM (centré via translateX(-50%),
 // largeur ~26%) peut désormais approcher les bords gauche/droit.
@@ -31,6 +36,7 @@ export default function House({
   team,
   gold,
   potions,
+  toys,
   onGoForest,
   onGoShop,
   onGoArena,
@@ -38,12 +44,13 @@ export default function House({
   onPotion,
   onFull,
   onInteract,
-  onChooseBranch,
+  onToy,
   onRename,
 }: {
   team: Character[];
   gold: number;
   potions: number;
+  toys: number;
   onGoForest: () => void;
   onGoShop: () => void;
   onGoArena: () => void;
@@ -51,7 +58,7 @@ export default function House({
   onPotion: (id: string) => void;
   onFull: (id: string) => void;
   onInteract: (id: string, k: InteractKind) => void;
-  onChooseBranch: (id: string) => void;
+  onToy: (id: string) => void;
   onRename: (id: string, name: string) => void;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -64,6 +71,9 @@ export default function House({
   // `rendered` = présence DOM du panneau (maintenu le temps du fade-out).
   const [focused, setFocused] = useState(false);
   const [rendered, setRendered] = useState(false);
+  // T003 — mini-menu d'interaction à icônes (clic-action puis clic AM, ou drag&drop).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [armedAction, setArmedAction] = useState<QuickAction | null>(null);
 
   const EMOTES = ["❤️", "✨", "😊", "🎵", "💜", "🌟"];
   function react(emo?: string) {
@@ -71,6 +81,29 @@ export default function House({
     setEmote(emo ?? EMOTES[Math.floor(Math.random() * EMOTES.length)]);
     window.setTimeout(() => setReacting(false), 520);
     window.setTimeout(() => setEmote(null), 950);
+  }
+
+  /** Applique une action du mini-menu sur l'AM actif (mode clic OU drop). */
+  function applyQuickAction(c: Character, action: QuickAction) {
+    if (action === "potion") {
+      if (potions <= 0 || isFull(c)) return;
+      onPotion(c.id);
+    } else if (action === "jouet") {
+      if (toys <= 0) return;
+      onToy(c.id);
+    } else {
+      if (interactReadyIn(c, action) > 0) return;
+      onInteract(c.id, action);
+    }
+    react();
+    setArmedAction(null);
+  }
+
+  function parseQuickAction(raw: string): QuickAction | null {
+    if (raw === "potion") return "potion";
+    if (raw === "jouet") return "jouet";
+    if (raw.startsWith("interact:")) return raw.slice("interact:".length) as InteractKind;
+    return null;
   }
 
   function openFocus() {
@@ -144,11 +177,22 @@ export default function House({
         <div className="house-glow" />
         <div className="house-floor" />
         <button
-          className={`house-critter dir-${dir > 0 ? "r" : "l"}`}
+          className={`house-critter dir-${dir > 0 ? "r" : "l"} ${armedAction ? "droppable" : ""}`}
           style={critterStyle}
-          onClick={(e) => { e.stopPropagation(); react(); if (!focused) openFocus(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (armedAction) { applyQuickAction(c, armedAction); return; }
+            react();
+            if (!focused) openFocus();
+          }}
+          onDragOver={(e: DragEvent) => { if (menuOpen) e.preventDefault(); }}
+          onDrop={(e: DragEvent) => {
+            e.preventDefault();
+            const action = parseQuickAction(e.dataTransfer.getData("text/plain"));
+            if (action) applyQuickAction(c, action);
+          }}
           aria-label={focused ? `${c.name} — fermer la fiche` : `${c.name} — voir la fiche`}
-          title={focused ? c.name : `Voir ${c.name}`}
+          title={focused ? c.name : armedAction ? `Appliquer sur ${c.name}` : `Voir ${c.name}`}
         >
           {emote && <span className="house-emote">{emote}</span>}
           <span className={`hc-body ${!walking ? "idle" : ""} ${reacting ? "reacting" : ""}`}>
@@ -157,6 +201,68 @@ export default function House({
           <span className="house-critter-shadow" />
         </button>
       </div>
+
+      {!focused && (
+        <div className="house-quickmenu">
+          <button
+            className="ghost sm house-quickmenu-toggle"
+            onClick={() => { setMenuOpen((o) => !o); if (menuOpen) setArmedAction(null); }}
+            aria-expanded={menuOpen}
+          >
+            🧰 Interagir {menuOpen ? "▴" : "▾"}
+          </button>
+          <div className={`house-quickmenu-panel ${menuOpen ? "on" : ""}`}>
+            {(Object.keys(INTERACT_LABELS) as InteractKind[]).map((k) => {
+              const meta = INTERACT_LABELS[k];
+              const ready = interactReadyIn(c, k);
+              return (
+                <button
+                  key={k}
+                  className={`quickmenu-item ${armedAction === k ? "armed" : ""}`}
+                  disabled={ready > 0}
+                  draggable={ready <= 0}
+                  onDragStart={(e) => e.dataTransfer.setData("text/plain", `interact:${k}`)}
+                  onClick={() => setArmedAction((a) => (a === k ? null : k))}
+                  title={`${meta.emoji} ${meta.name} — ${meta.hint}`}
+                >
+                  <span className="quickmenu-ico">{meta.emoji}</span>
+                  <span className="quickmenu-label">{meta.name}</span>
+                  {ready > 0 && <span className="muted small">{Math.ceil(ready / 1000)}s</span>}
+                </button>
+              );
+            })}
+            <button
+              className={`quickmenu-item ${armedAction === "potion" ? "armed" : ""}`}
+              disabled={potions <= 0 || isFull(c)}
+              draggable={potions > 0 && !isFull(c)}
+              onDragStart={(e) => e.dataTransfer.setData("text/plain", "potion")}
+              onClick={() => setArmedAction((a) => (a === "potion" ? null : "potion"))}
+              title={`🧪 Potion (+50% PV) — ${potions} en stock`}
+            >
+              <span className="quickmenu-ico">🧪</span>
+              <span className="quickmenu-label">Potion</span>
+              <span className="muted small">{potions}</span>
+            </button>
+            <button
+              className={`quickmenu-item ${armedAction === "jouet" ? "armed" : ""}`}
+              disabled={toys <= 0}
+              draggable={toys > 0}
+              onDragStart={(e) => e.dataTransfer.setData("text/plain", "jouet")}
+              onClick={() => setArmedAction((a) => (a === "jouet" ? null : "jouet"))}
+              title={`${TOY_LABEL.emoji} ${TOY_LABEL.name} — ${TOY_LABEL.hint} — ${toys} en stock`}
+            >
+              <span className="quickmenu-ico">{TOY_LABEL.emoji}</span>
+              <span className="quickmenu-label">{TOY_LABEL.name}</span>
+              <span className="muted small">{toys}</span>
+            </button>
+            {armedAction && (
+              <p className="quickmenu-hint muted small">
+                {armedAction === "potion" ? "Utiliser une potion" : armedAction === "jouet" ? TOY_LABEL.hint : INTERACT_LABELS[armedAction].hint} — clique ou dépose sur {c.name}.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {rendered && (
         <div className={`house-focus ${focused ? "on" : ""}`}>
@@ -170,11 +276,12 @@ export default function House({
             c={c}
             gold={gold}
             potions={potions}
+            toys={toys}
             onToggleHeal={onToggleHeal}
             onPotion={onPotion}
             onFull={onFull}
             onInteract={onInteract}
-            onChooseBranch={() => onChooseBranch(c.id)}
+            onToy={onToy}
           />
         </div>
       )}
