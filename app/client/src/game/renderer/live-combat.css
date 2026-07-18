@@ -3,14 +3,16 @@
    pour éviter toute collision avec le reste du jeu. */
 
 .live-combat {
-  --bg: #0f1116; --panel: #171a22; --panel-2: #1e2230; --line: #2a2f3d;
-  --ink: #eef1f7; --dim: #a6adbb; --faint: #6b7280;
-  --hp: #e0556b; --hp-trail: #7a2432;
-  --nrj: #38bdf8; --nrj-empty: #243244;
-  --gold: #f4c453; --green: #4ade80; --red: #f87171; --purple: #a78bfa;
-  --shield: #5dd0e8; --burst: #ffb454; --big: #ff3b52;
+  /* DA CLAIRE — aligné sur game.css : arène = carte blanche/gris clair, textes
+     foncés, accents indigo. (Ancien thème sombre remplacé, v0.63.) */
+  --bg: #eceef1; --panel: #ffffff; --panel-2: #f4f5f7; --line: #e2e4e9;
+  --ink: #1a1c22; --dim: #565b66; --faint: #868b96;
+  --hp: #e0556b; --hp-trail: #f3aab4;
+  --nrj: #3f7bd6; --nrj-empty: #dfe3ea;
+  --gold: #c9820f; --green: #0f9d74; --red: #d64560; --purple: #6d5dfc;
+  --shield: #2a9dbf; --burst: #e07b1a; --big: #d64560;
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 .live-combat * { box-sizing: border-box; }
@@ -29,12 +31,13 @@
 /* Arena */
 .live-combat .arena {
   position: relative; width: 100%; flex: 1 1 auto; min-height: 150px;
-  border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #12151d 0%, #0d0f14 100%);
-  border: 1px solid var(--line); display: flex; align-items: flex-end; justify-content: space-between;
-  padding: 0 clamp(14px, 4%, 44px) 0; --line-y: 74%; --float-y: 22%;
+  border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, var(--panel-2) 100%);
+  border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(40,46,90,0.07);
+  display: flex; align-items: flex-end; justify-content: space-evenly;
+  padding: 0 clamp(14px, 4%, 44px) 0; --line-y: 72%; --float-y: 24%;
 }
 .live-combat .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; min-height: 60px;
-  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.35)); border-top: 1px solid rgba(255,255,255,.04); }
+  background: linear-gradient(180deg, rgba(20,22,30,0.015), rgba(20,22,30,0.06)); border-top: 1px solid rgba(20,22,30,0.06); }
 .live-combat .timer { position: absolute; top: 0; left: 0; height: 4px; width: 100%;
   background: linear-gradient(90deg, var(--purple), #c4b5fd); transform-origin: left; z-index: 7; opacity: .9; }
 
@@ -44,7 +47,7 @@
   display: flex; align-items: flex-end; justify-content: center; }
 .live-combat .sprite { position: relative; width: clamp(42px, 6vw, 52px); height: clamp(56px, 8vw, 70px);
   display: flex; align-items: flex-end; justify-content: center; transition: transform .28s cubic-bezier(.34,1.4,.5,1); }
-.live-combat .sprite img { max-width: 100%; max-height: 100%; filter: drop-shadow(0 4px 5px rgba(0,0,0,.5)); transition: filter .3s, transform .18s; }
+.live-combat .sprite img { max-width: 100%; max-height: 100%; filter: drop-shadow(0 5px 6px rgba(20,22,30,.22)); transition: filter .3s, transform .18s; }
 .live-combat .fighter.player .sprite img { transform: scaleX(-1); }
 
 .live-combat .combo-badge { position: absolute; top: 40px; font-size: 12px; font-weight: 900; color: var(--burst);
@@ -62,11 +65,11 @@
 .live-combat .nameplate { width: min(104px, 100%); margin-bottom: 6px; }
 .live-combat .nameplate .nm { display: flex; justify-content: center; gap: 5px; font-size: 10px; margin-bottom: 2px; color: var(--dim); }
 .live-combat .nameplate .lc-lvl { color: var(--gold); }
-.live-combat .hpbar { position: relative; height: 7px; border-radius: 5px; background: #0c0e13; overflow: hidden; border: 1px solid var(--line); }
+.live-combat .hpbar { position: relative; height: 7px; border-radius: 5px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--line); }
 .live-combat .hpbar .trail { position: absolute; inset: 0; width: 100%; background: var(--hp-trail); border-radius: 7px; transition: width .6s ease .15s; }
 .live-combat .hpbar .fill { position: absolute; inset: 0; width: 100%; background: linear-gradient(90deg, #ff7a8c, var(--hp)); border-radius: 7px; transition: width .35s ease; }
 .live-combat .nrj { position: relative; width: 80px; height: 26px; margin: 8px auto 0; }
-.live-combat .pip { position: absolute; width: 15px; height: 8px; border-radius: 3px; background: var(--nrj-empty); border: 1px solid #33465c; transition: background .25s, border-color .25s, box-shadow .25s; }
+.live-combat .pip { position: absolute; width: 15px; height: 8px; border-radius: 3px; background: var(--nrj-empty); border: 1px solid #c7cfda; transition: background .25s, border-color .25s, box-shadow .25s; }
 .live-combat .nrj .pip:nth-child(1) { left: 2px; top: 15px; }
 .live-combat .nrj .pip:nth-child(2) { left: 20px; top: 3px; }
 .live-combat .nrj .pip:nth-child(3) { left: 45px; top: 3px; }
@@ -80,8 +83,8 @@
 /* floaters / banners / fx */
 .live-combat .floater { position: absolute; left: 50%; bottom: var(--float-y, 22%); top: auto; font-weight: 800;
   font-size: clamp(19px, 2.6vw, 24px); z-index: 9; pointer-events: none; white-space: nowrap; text-align: center;
-  text-shadow: 0 2px 4px rgba(0,0,0,.8); animation: lc_floatUp 1.1s ease-out forwards; transform: translateX(-50%); }
-.live-combat .floater.dmg { color: #ff8a9a; }
+  text-shadow: 0 1px 3px rgba(255,255,255,.9), 0 1px 4px rgba(20,22,30,.18); animation: lc_floatUp 1.1s ease-out forwards; transform: translateX(-50%); }
+.live-combat .floater.dmg { color: var(--red); }
 .live-combat .floater.big { font-size: clamp(26px, 3.6vw, 34px); color: var(--big); }
 .live-combat .floater.absorb { color: var(--shield); }
 .live-combat .floater.rest { color: var(--purple); font-size: clamp(21px, 2.8vw, 26px); }
@@ -102,7 +105,7 @@
 @keyframes lc_cring { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.2); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.7); } }
 .live-combat .clashtext { position: absolute; top: 0; left: 50%; width: 0; height: 100%; pointer-events: none; }
 .live-combat .shock { position: absolute; top: var(--line-y, 74%); left: 50%; transform: translate(-50%,-50%) scale(.3); z-index: 9;
-  width: clamp(40px, 7vw, 56px); aspect-ratio: 1; border-radius: 50%; border: 4px solid #fff; opacity: 0; pointer-events: none; }
+  width: clamp(40px, 7vw, 56px); aspect-ratio: 1; border-radius: 50%; border: 4px solid var(--burst); opacity: 0; pointer-events: none; }
 .live-combat .shock.go { animation: lc_shockw .5s ease-out; }
 @keyframes lc_shockw { 0% { opacity: .95; transform: translate(-50%,-50%) scale(.3); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(2.6); } }
 .live-combat .sprite.dashP img { filter: drop-shadow(0 0 12px rgba(255,180,84,.95)) drop-shadow(-16px 0 12px rgba(255,180,84,.5)) drop-shadow(-30px 0 9px rgba(255,180,84,.25)) !important; }
@@ -159,7 +162,7 @@
 .live-combat.sp-dodge .act.def { --accent: var(--green); }
 .live-combat.sp-poison .act.def { --accent: var(--purple); }
 .live-combat .act.def .shields { position: absolute; bottom: -11px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 4; }
-.live-combat .act.def .shields i { width: 15px; height: 17px; background: var(--nrj-empty); border: 1px solid #33465c;
+.live-combat .act.def .shields i { width: 15px; height: 17px; background: var(--nrj-empty); border: 1px solid #c7cfda;
   clip-path: polygon(50% 0, 100% 20%, 100% 58%, 50% 100%, 0 58%, 0 20%); transition: background .25s, box-shadow .25s, opacity .2s; transform-origin: center; }
 .live-combat .act.def .shields i.on { background: linear-gradient(180deg, #9fe8f5, var(--shield)); border-color: transparent; box-shadow: 0 0 8px rgba(93,208,232,.7); }
 .live-combat.sp-dodge .act.def .shields i.on { background: linear-gradient(180deg, #a6f5c0, var(--green)); box-shadow: 0 0 8px rgba(74,222,128,.7); }
@@ -194,8 +197,8 @@
 .live-combat .act.burst.counterReady { opacity: 1 !important; filter: none !important; pointer-events: auto !important;
   border-color: var(--burst); box-shadow: 0 0 0 3px rgba(255,180,84,.55), 0 0 22px rgba(255,180,84,.9); animation: lc_counterPulse .4s ease-in-out infinite alternate; }
 @keyframes lc_counterPulse { 0% { transform: scale(1); } 100% { transform: scale(1.06); } }
-.live-combat .act.selected { border-color: var(--purple); background: #252a3a; box-shadow: 0 0 0 2px rgba(167,139,250,.5) inset; animation: lc_selpulse .9s ease-in-out infinite; }
-@keyframes lc_selpulse { 0%,100% { box-shadow: 0 0 0 2px rgba(167,139,250,.35) inset; } 50% { box-shadow: 0 0 0 2px rgba(167,139,250,.85) inset; } }
+.live-combat .act.selected { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, #fff); box-shadow: 0 0 0 2px rgba(109,93,252,.4) inset; animation: lc_selpulse .9s ease-in-out infinite; }
+@keyframes lc_selpulse { 0%,100% { box-shadow: 0 0 0 2px rgba(109,93,252,.3) inset; } 50% { box-shadow: 0 0 0 2px rgba(109,93,252,.7) inset; } }
 .live-combat .act.selected .k::after { content: ' ✓'; color: var(--purple); }
 .live-combat .sprite.fx-charge { animation: lc_bob .5s ease; }
 @keyframes lc_bob { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-9px); } }
@@ -231,9 +234,9 @@
 
 /* overlay */
 .live-combat .overlay { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: rgba(8,10,15,.72); backdrop-filter: blur(4px); transition: opacity .3s; }
+  background: rgba(246,247,249,.82); backdrop-filter: blur(4px); transition: opacity .3s; }
 .live-combat .overlay.hide { opacity: 0; pointer-events: none; }
-.live-combat .overlay .big-t { font-size: 30px; font-weight: 900; letter-spacing: 1px; }
+.live-combat .overlay .big-t { font-size: 30px; font-weight: 900; letter-spacing: 1px; color: var(--ink); }
 .live-combat .overlay .sub { font-size: 13px; color: var(--dim); text-align: center; max-width: 80%; }
 .live-combat .lc-playstyle { font-size: 12px; color: var(--purple); font-weight: 700; text-align: center; max-width: 80%; }
 .live-combat .cta { cursor: pointer; border: none; border-radius: 12px; padding: 14px 34px; font-size: 17px; font-weight: 800; color: #12101a;

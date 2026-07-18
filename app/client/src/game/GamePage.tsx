@@ -588,6 +588,7 @@ export default function GamePage() {
         </div>
       </header>
 
+      <main className="game-main">
       {route.v === "house" && (
         <House
           team={gs.team}
@@ -649,6 +650,7 @@ export default function GamePage() {
       {route.v === "shop" && (
         <BoutiqueScreen gold={gs.gold} potions={gs.potions} toys={gs.toys} onBuy={buyPotion} onBuyToy={buyToy} onBack={goHouse} />
       )}
+      </main>
 
       {menuOpen && (
         <div className="hmenu-overlay" onClick={() => setMenuOpen(false)}>

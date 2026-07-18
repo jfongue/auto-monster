@@ -44,13 +44,28 @@ html:has(.game-shell), body:has(.game-shell) {
 .game-shell {
   --bg: #eceef1;       /* re-scopé ici → bat le --bg sombre de :root pour le jeu */
   --bg2: #e4e6ea;
-  min-height: 100vh;
+  /* v0.63 — no-scroll : le shell est verrouillé à la hauteur du viewport (100dvh),
+     l'app ne scrolle jamais globalement. Le header est fixe ; le contenu vit dans
+     `.game-main` qui, lui seul, scrolle en interne quand une liste est trop longue. */
+  height: 100vh; height: 100dvh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   display: flex;
   flex-direction: column;
 }
+/* Zone de contenu : prend toute la hauteur restante sous le header et scrolle
+   en interne (jamais la page). Les vues de jeu (House, carte, zone) tiennent
+   dedans sans scroll ; seules les listes longues font apparaître la barre. */
+.game-main {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column;
+}
+/* L'onboarding (wizard ponctuel) garde son propre scroll interne au besoin. */
+.game-shell > .onboard { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 h1, h2, h3, .brand, .am-page-title, .block-title, .loc-panel-name,
 .zone-name, .world-title, .bestiary-title, .onboard-title {
@@ -449,9 +464,11 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
    corps (.combat-fs-body → LiveCombat) se partage tout le reste via flex et
    masque son propre overflow (l'arène/les actions s'y adaptent, cf live-combat.css). */
 .combat-fullscreen {
-  /* fond sombre en dur (thème local de .live-combat, cf live-combat.css) — pas le
-     token --bg global du jeu (clair), pour éviter un flash clair autour de l'arène. */
-  position: fixed; inset: 0; z-index: 55; background: #0d0f14;
+  /* v0.63 : DA claire — fond clair du jeu (comme le reste de l'app) au lieu de
+     l'ancien fond sombre. L'arène est une carte claire (cf live-combat.css). */
+  position: fixed; inset: 0; z-index: 55;
+  background: radial-gradient(1200px 600px at 50% -10%, #f3f4f8, var(--bg));
+  color: var(--ink);
   display: flex; flex-direction: column;
   height: 100vh; height: 100dvh; overflow: hidden;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -463,7 +480,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .combat-fs-body .live-combat { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 460px; }
 .combat-head {
   flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 8px;
-  padding: 8px clamp(10px, 3vw, 16px); font-weight: 700; flex-wrap: wrap;
+  padding: 8px clamp(10px, 3vw, 16px); font-weight: 700; flex-wrap: wrap; color: var(--ink);
 }
 .combat-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speedctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -617,6 +634,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
    HEADER MINIMAL (logo + hamburger) — remplace l'ancienne topbar chargée.
    ═════════════════════════════════════════════════════════════════════════ */
 .mini-top {
+  flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between;
   padding: max(10px, env(safe-area-inset-top)) 16px 10px;
   position: sticky; top: 0; z-index: 40;
