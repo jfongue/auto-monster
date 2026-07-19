@@ -44,6 +44,12 @@ html:has(.game-shell), body:has(.game-shell) {
 .game-shell {
   --bg: #eceef1;       /* re-scopé ici → bat le --bg sombre de :root pour le jeu */
   --bg2: #e4e6ea;
+  /* index.css (thème login sombre) définit AUSSI --card/--border/--muted sur :root
+     avec des valeurs sombres, et une règle `.card` concurrente. On re-scope ces
+     tokens en clair pour tout le sous-arbre du jeu (v0.63) — sinon les cartes de
+     zone/boutique héritaient du fond sombre `#1d212b`. La règle `.card` du jeu est
+     par ailleurs scopée `.game-shell .card` pour battre celle de index.css. */
+  --card: #ffffff; --border: var(--line); --muted: var(--dim);
   /* v0.63 — no-scroll : le shell est verrouillé à la hauteur du viewport (100dvh),
      l'app ne scrolle jamais globalement. Le header est fixe ; le contenu vit dans
      `.game-main` qui, lui seul, scrolle en interne quand une liste est trop longue. */
@@ -66,6 +72,34 @@ html:has(.game-shell), body:has(.game-shell) {
 }
 /* L'onboarding (wizard ponctuel) garde son propre scroll interne au besoin. */
 .game-shell > .onboard { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* La vue de route active remplit toute la hauteur dispo (jamais de scroll de page). */
+.game-main > * { flex: 1 1 auto; min-height: 0; }
+
+/* Hub (carte du monde / zone) : colonne pleine hauteur. Le bandeau d'équipe et le
+   bouton retour sont fixes ; la carte du monde et la vue de zone occupent le reste. */
+.hub { min-height: 0; }
+.hub > .team-strip, .hub > .zone-back { flex: 0 0 auto; }
+.hub > .world, .hub > .zone-view { flex: 1 1 auto; min-height: 0; }
+/* Carte du monde centrée verticalement dans l'espace restant. */
+.world { display: flex; flex-direction: column; justify-content: center; }
+.world-canvas { max-height: 100%; }
+
+/* Vue de zone : en-tête (retour + hero) fixe ; seules les cartes (combat/services)
+   scrollent en interne si le contenu dépasse — la page, elle, ne scrolle jamais. */
+.zone-view { overflow: hidden; }
+.zone-view > .zone-back, .zone-view > .zone-hero { flex: 0 0 auto; }
+.zone-view > .zone-cols { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; align-content: start; padding-bottom: 2px; }
+
+/* Compaction sur petits écrans pour maximiser la place utile (moins de scroll interne). */
+@media (max-width: 560px) {
+  .hub { padding: 10px 12px 12px; gap: 12px; }
+  .zone-view { gap: 12px; }
+  .zone-hero { padding: 14px 16px; }
+  .zone-hero .zone-name { font-size: 20px; }
+  .team-strip { padding: 10px 12px; }
+  .screen { padding: 14px 14px 18px; }
+}
 
 h1, h2, h3, .brand, .am-page-title, .block-title, .loc-panel-name,
 .zone-name, .world-title, .bestiary-title, .onboard-title {
@@ -330,7 +364,7 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .zone-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 860px) { .zone-cols { grid-template-columns: 1fr; } }
 
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: clamp(14px, 2.4vw, 20px); }
+.game-shell .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: clamp(14px, 2.4vw, 20px); }
 .card-title { font-family: "Space Grotesk"; font-weight: 700; font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 
 /* ══ SERVICES DE ZONE (T011 : boutons directs, plus de dialogue/chat PNJ) ══ */
