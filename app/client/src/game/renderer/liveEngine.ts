@@ -558,8 +558,19 @@ export function createLiveCombat(opts: LiveOpts) {
     const f = q("flash"); f.style.background = color ? `radial-gradient(circle at center, ${color}, transparent 70%)` : "rgba(255,255,255,.6)";
     f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
   }
+  /** Position horizontale RÉELLE du centre d'un sprite, en % de la largeur de
+   *  l'arène (v0.63). Remplace les anciens 26%/74% codés en dur qui décalaient les
+   *  FX d'impact par rapport au sprite (les combattants ne sont pas à ces positions
+   *  fixes — leur emplacement dépend du layout flex de l'arène). */
+  function spriteXPct(side: Side): string {
+    const ar = q("arena").getBoundingClientRect();
+    const s = (q("spr" + side).parentElement as HTMLElement).getBoundingClientRect();
+    if (!ar.width) return side === "P" ? "26%" : "74%";
+    const cx = (s.left + s.width / 2) - ar.left;
+    return Math.round((cx / ar.width) * 100) + "%";
+  }
   function dirFlash(loserSide: Side, color: string) {
-    const f = q("flash"); const x = loserSide === "P" ? "26%" : "74%";
+    const f = q("flash"); const x = spriteXPct(loserSide);
     f.style.background = `radial-gradient(circle at ${x} 50%, ${color}, transparent 56%)`;
     f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
   }
@@ -569,7 +580,7 @@ export function createLiveCombat(opts: LiveOpts) {
     s.classList.remove("go"); void s.offsetWidth; s.classList.add("go");
   }
   function bigImpact(side: Side) {
-    const loser: Side = side === "P" ? "E" : "P"; const x = loser === "P" ? "26%" : "74%"; const col = side === "P" ? "var(--burst)" : "var(--big)";
+    const loser: Side = side === "P" ? "E" : "P"; const x = spriteXPct(loser); const col = side === "P" ? "var(--burst)" : "var(--big)";
     flash("#fff"); spark(); ring(); setTimeout(() => dirFlash(loser, col), 70);
     shockwave(x, side === "P" ? "#ffb454" : "#ff3b52");
     q("arena").classList.add("shake-big"); setTimeout(() => q("arena").classList.remove("shake-big"), 580);
