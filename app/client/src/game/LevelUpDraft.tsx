@@ -19,9 +19,9 @@ export default function LevelUpDraft({ c, onPick }: { c: Character; onPick: (cho
 
   return (
     <div className="overlay">
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h3>🆙 {c.name} monte de niveau !</h3>
-        <p className="muted">Choisis un Trait — Niveau {c.level}{(c.traitPoints ?? 0) > 1 && ` · encore ${c.traitPoints! - 1} choix après celui-ci`}</p>
+      <div className="modal levelup" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h3 className="levelup-title">🆙 {c.name} monte de niveau !</h3>
+        <p className="muted levelup-sub">Choisis un Trait — Niveau {c.level}{(c.traitPoints ?? 0) > 1 && ` · encore ${c.traitPoints! - 1} choix après celui-ci`}</p>
         <div className="branch-choices">
           {options.length === 0 && <p className="muted small">Plus aucune option disponible pour l'instant (pool épuisé).</p>}
           {options.map((o) => {

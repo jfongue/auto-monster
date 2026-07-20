@@ -621,6 +621,8 @@ export type Zone = {
   icon: string;
   /** teinte d'accent de la zone (thème clair) */
   tint: string;
+  /** image de fond optionnelle du bandeau de zone (chemin public, ex. /zones/vallee.jpg) */
+  bg?: string;
   /** état par défaut (avant progression) */
   baseMood: ZoneMood;
   /** ids d'encounters (combats) présents dans la zone */
@@ -687,6 +689,7 @@ export const ZONES: Zone[] = [
     y: 300,
     icon: "🍃",
     tint: "#56b96f",
+    bg: "/zones/vallee.jpg",
     baseMood: "exploration",
     encounters: ["moss", "windy", "scree", "cloud"],
     winsToComplete: 10,

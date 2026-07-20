@@ -88,7 +88,7 @@ html:has(.game-shell), body:has(.game-shell) {
 /* Vue de zone : en-tête (retour + hero) fixe ; seules les cartes (combat/services)
    scrollent en interne si le contenu dépasse — la page, elle, ne scrolle jamais. */
 .zone-view { overflow: hidden; }
-.zone-view > .zone-back, .zone-view > .zone-hero { flex: 0 0 auto; }
+.zone-view > .zone-hero { flex: 0 0 auto; }
 .zone-view > .zone-cols { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; align-content: start; padding-bottom: 2px; }
 
 /* Compaction sur petits écrans pour maximiser la place utile (moins de scroll interne). */
@@ -356,6 +356,26 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .zh-state.exploration { background: var(--acc-soft); color: var(--acc); }
 .zh-state.peaceful { background: var(--green-soft); color: var(--green); }
 
+/* Bouton retour intégré au bandeau (coin haut-droit) — le bandeau est en haut de page. */
+.zone-hero .zone-back { position: absolute; top: 12px; right: 12px; z-index: 3; }
+
+/* Bandeau de zone avec image de fond (paysage) + voile de lisibilité (v0.65).
+   Le dégradé sombre est appliqué en inline-style AVANT l'image → texte blanc lisible. */
+.zone-hero.has-bg {
+  background-size: cover; background-position: center; border: none;
+  min-height: clamp(132px, 20vh, 188px);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.zone-hero.has-bg .zh-icon,
+.zone-hero.has-bg .zone-name { color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,0.55); }
+.zone-hero.has-bg .zh-sub { color: rgba(255,255,255,0.92); text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+.zone-hero.has-bg .zp-meta { color: rgba(255,255,255,0.9); }
+.zone-hero.has-bg .zone-back {
+  background: rgba(16,24,18,0.5); color: #fff; border-color: rgba(255,255,255,0.35);
+  backdrop-filter: blur(4px); box-shadow: none;
+}
+.zone-hero.has-bg .zone-back:hover:not(:disabled) { background: rgba(16,24,18,0.7); }
+
 .zone-progress { margin-top: 14px; }
 .zone-progress .zp-bar { height: 12px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--line); }
 .zone-progress .zp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--green), #38d9a9); transition: width 0.8s cubic-bezier(.22,.9,.3,1); }
@@ -511,10 +531,20 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .combat-fs-body { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; overflow: hidden; }
 /* Fenêtre de combat volontairement compacte (pas plein écran en largeur sur desktop)
    pour que l'arène et les FX restent proportionnés et bien centrés. */
-.combat-fs-body .live-combat { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 460px; }
+.combat-fs-body .live-combat { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 480px; }
+/* En-tête aligné sur la même colonne que l'arène (même max-width, centré) — sinon
+   sur desktop le titre/contrôles s'étalaient bord à bord alors que l'arène est centrée
+   (perçu comme « pas de marge » / désaligné). v0.65. */
 .combat-head {
   flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 8px;
-  padding: 8px clamp(10px, 3vw, 16px); font-weight: 700; flex-wrap: wrap; color: var(--ink);
+  width: 100%; max-width: 480px; margin: 0 auto;
+  padding: 8px clamp(12px, 3vw, 16px); font-weight: 700; flex-wrap: wrap; color: var(--ink);
+}
+/* Desktop : la fenêtre de combat devient une carte compacte centrée verticalement
+   (plutôt qu'une arène géante quasi vide sur toute la hauteur). */
+@media (min-width: 900px) {
+  .combat-fs-body { align-items: center; }
+  .combat-fs-body .live-combat { flex: 0 1 auto; height: min(100%, 700px); }
 }
 .combat-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speedctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -601,13 +631,17 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .overlay { position: fixed; inset: 0; z-index: 55; background: rgba(20,24,46,0.34); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: fadeIn 0.22s ease; }
 .modal { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-lg); width: min(560px, 100%); max-height: 92vh; overflow: auto; animation: popIn 0.28s cubic-bezier(.22,.9,.3,1) both; }
 .modal.wide { width: min(760px, 100%); }
-.modal.center { padding: 30px 26px; text-align: center; }
+.modal.center { width: min(440px, 100%); padding: 30px 26px; text-align: center; }
+.modal.center h1 { margin: 0 0 6px; }
+.modal.center .primary.big { margin-top: 8px; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
 .modal-head h3 { font-size: 17px; }
 .modal-body { padding: 20px; }
 
-.loot-box { background: var(--green-soft); border: 1px solid #c7efdd; border-radius: 14px; padding: 14px 22px; display: inline-block; margin: 12px 0; font-weight: 700; color: var(--ink); }
-.stat-summary { margin: 10px 0 20px; font-size: 13px; }
+.loot-box { background: var(--green-soft); border: 1px solid #c7efdd; border-radius: 14px; padding: 14px 22px; display: block; width: fit-content; max-width: 100%; margin: 12px auto; font-weight: 700; color: var(--ink); }
+/* display:flex (bloc) — sinon la classe chip-ico le met en inline-flex et il
+   partageait sa ligne avec le bouton « Continuer » (v0.65). */
+.stat-summary { display: flex; justify-content: center; align-items: center; gap: 6px; margin: 10px 0 18px; font-size: 13px; }
 .team-final { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 .cleared-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); border-radius: 999px; padding: 10px 20px; z-index: 50; display: flex; align-items: center; gap: 12px; font-weight: 700; animation: riseIn 0.4s both; }
 
@@ -985,8 +1019,14 @@ button.primary.sm { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
 .branch-tier { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
 .branch-tier.on { border-color: var(--acc); color: var(--acc); font-weight: 600; }
 .branch-tier.off { opacity: 0.55; }
-.branch-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.branch-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 12px; }
 @media (max-width: 560px) { .branch-choices { grid-template-columns: 1fr; } }
+
+/* Modal de montée de niveau (LevelUpDraft) : padding propre + largeur bornée
+   (sans padding, le contenu était collé en haut-gauche d'un modal trop large). v0.65 */
+.modal.levelup { width: min(560px, 100%); padding: clamp(18px, 3vw, 26px); }
+.levelup-title { margin: 0 0 4px; }
+.levelup-sub { margin: 0; }
 .branch-choice { text-align: left; padding: 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color .15s, transform .15s; }
 .branch-choice:hover { border-color: var(--acc); transform: translateY(-2px); }
 .branch-choice .branch-head { font-size: 16px; }

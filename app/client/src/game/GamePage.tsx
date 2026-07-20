@@ -611,18 +611,6 @@ export default function GamePage() {
 
       {(route.v === "forest" || route.v === "zone") && (
         <div className="hub">
-          <div className="team-strip">
-            <div className="team-strip-title chip-ico"><Icon name="team" size={15} /> ÉQUIPE</div>
-            <div className="team-strip-grid stagger">
-              {gs.team.map((c) => (
-                <TeamMini key={c.id} c={c} onSheet={() => setModal({ k: "amPage", charId: c.id })} onToggleHeal={() => toggleHeal(c.id)} />
-              ))}
-              {gs.rental && (
-                <TeamMini c={gs.rental.char} rented={gs.rental.fightsLeft} onSheet={() => setModal({ k: "amPage", charId: gs.rental!.char.id })} onToggleHeal={() => toggleHeal(gs.rental!.char.id)} />
-              )}
-            </div>
-          </div>
-
           {route.v === "forest" && (
             <>
               <button className="ghost sm zone-back chip-ico" onClick={goHouse}><Icon name="back" size={15} /> Maison</button>
@@ -1021,9 +1009,16 @@ function ZoneScreen({ gs, zone, onBack, onFight, onToggleHeal, onPotion, onFull,
 
   return (
     <div className="zone-view">
-      <button className="ghost sm zone-back chip-ico" onClick={onBack}><Icon name="back" size={15} /> Carte du monde</button>
-
-      <div className="zone-hero" style={{ ["--zt" as any]: zone.tint }}>
+      <div
+        className={`zone-hero ${zone.bg ? "has-bg" : ""}`}
+        style={{
+          ["--zt" as any]: zone.tint,
+          ...(zone.bg
+            ? { backgroundImage: `linear-gradient(105deg, rgba(16,24,18,0.78) 0%, rgba(16,24,18,0.42) 52%, rgba(16,24,18,0.18) 100%), url(${zone.bg})` }
+            : {}),
+        }}
+      >
+        <button className="ghost sm zone-back chip-ico" onClick={onBack}><Icon name="back" size={15} /> Carte</button>
         <div className="zh-icon">{zone.icon}</div>
         <div className="zone-name">{zone.name}</div>
         <div className="zh-sub">{zone.subtitle}</div>

@@ -257,4 +257,6 @@
   .live-combat .act .k { font-size: 10.5px; }
   .live-combat .act .ic { width: 34px; height: 34px; font-size: 18px; }
 }
-@media (min-width: 900px) { .live-combat .arena { aspect-ratio: 2.6/1; } }
+/* (v0.65) L'ancienne règle desktop `aspect-ratio: 2.6/1` sur l'arène a été retirée :
+   elle étirait l'arène en bandeau large, écartait/décalait les combattants et cassait
+   l'alignement. L'arène remplit désormais la carte de combat bornée (cf game.css). */
