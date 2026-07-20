@@ -33,16 +33,25 @@
   position: relative; width: 100%; flex: 1 1 auto; min-height: 150px;
   border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, var(--panel-2) 100%);
   border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(40,46,90,0.07);
-  display: flex; align-items: flex-end; justify-content: space-evenly;
-  padding: 0 clamp(14px, 4%, 44px) 0; --line-y: 72%; --float-y: 24%;
+  /* space-between + padding : joueur nettement à gauche, adversaire nettement à
+     droite (duel étalé). space-evenly les regroupait vers le centre. v0.65 */
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 clamp(18px, 7%, 56px) 0; --line-y: 72%; --float-y: 24%;
 }
 .live-combat .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; min-height: 60px;
   background: linear-gradient(180deg, rgba(20,22,30,0.015), rgba(20,22,30,0.06)); border-top: 1px solid rgba(20,22,30,0.06); }
 .live-combat .timer { position: absolute; top: 0; left: 0; height: 4px; width: 100%;
   background: linear-gradient(90deg, var(--purple), #c4b5fd); transform-origin: left; z-index: 7; opacity: .9; }
 
-.live-combat .fighter { position: relative; width: clamp(104px, 26%, 150px); display: flex; flex-direction: column;
-  align-items: center; justify-content: flex-end; height: 100%; padding-bottom: clamp(28px, 7%, 40px); z-index: 2; }
+/* Positionnement ABSOLU explicite (v0.65) : le flex space-between/evenly ne
+   garantissait pas la symétrie (d'autres éléments de l'arène perturbaient la
+   répartition → adversaire perçu au centre). Joueur ancré à 26%, adversaire à
+   74% : symétrique et bien étalé quelle que soit la largeur de l'arène. Le moteur
+   déplace le sprite (pas le .fighter) et mesure via getBoundingClientRect → OK. */
+.live-combat .fighter { position: absolute; top: 0; bottom: 0; transform: translateX(-50%); width: clamp(104px, 26%, 150px); display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end; padding-bottom: clamp(28px, 7%, 40px); z-index: 2; }
+.live-combat .fighter.player { left: 26%; }
+.live-combat .fighter.enemy { left: 74%; }
 .live-combat .sprite-wrap { position: relative; width: clamp(48px, 7vw, 60px); height: clamp(68px, 10vw, 84px);
   display: flex; align-items: flex-end; justify-content: center; }
 .live-combat .sprite { position: relative; width: clamp(42px, 6vw, 52px); height: clamp(56px, 8vw, 70px);
