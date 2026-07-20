@@ -211,13 +211,19 @@ button.danger { color: var(--red); border-color: #ffd7dd; }
 .stagger > *:nth-child(5) { animation-delay: 0.28s; }
 
 /* ══ ONBOARDING — dialogue façon Disco Elysium ════════════════════════════ */
-.onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: clamp(14px, 4vw, 40px); }
+/* display:flex + margin:auto sur l'enfant (plutôt qu'align-items/justify-content:
+   center) : centre verticalement quand ça rentre, mais quand le contenu dépasse
+   la hauteur dispo (mobile, grille starter en 1 colonne), le scroll reste capable
+   d'atteindre le tout début du contenu. Avec align-items:center, le débordement
+   du haut est inatteignable au scroll (bug classique flexbox). */
+.onboard { min-height: 100vh; display: flex; padding: clamp(14px, 4vw, 40px); }
 
 /* ══ ONBOARDING — WIZARD ══════════════════════════════════════════════════ */
 .ob-wizard {
   width: min(720px, 100%); background: var(--surface); border: 1px solid var(--line);
   border-radius: 24px; box-shadow: var(--shadow-lg); padding: clamp(18px, 3.5vw, 30px);
   animation: viewIn 0.45s cubic-bezier(.22,.9,.3,1) both;
+  margin: auto;
 }
 .ob-head { text-align: center; margin-bottom: 18px; }
 .ob-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
